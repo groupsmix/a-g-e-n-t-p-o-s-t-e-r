@@ -1,0 +1,13 @@
+-- Store the rich build context (buyer psychology, market, keywords) on the
+-- product so the deliverable generator can produce specific, non-generic
+-- content long after the workflow run has finished.
+--
+-- Original statement:
+--   ALTER TABLE products ADD COLUMN brief_json TEXT;
+--
+-- This column already exists on the production D1 database (added out-of-band
+-- in an earlier deploy), so the migration was failing with
+-- "duplicate column name: brief_json". SQLite does not support
+-- ALTER TABLE ADD COLUMN IF NOT EXISTS, so this is rewritten as a no-op
+-- to let wrangler record the migration as applied.
+SELECT 1;

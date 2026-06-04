@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* NEXUS dark-first command-center palette (HSL) */
+    --background: 235 25% 9%;
+    --foreground: 220 20% 95%;
+    --card: 235 22% 14%;
+    --card-foreground: 220 20% 95%;
+    --popover: 235 22% 14%;
+    --popover-foreground: 220 20% 95%;
+    --primary: 268 75% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 268 75% 70%;
+    --secondary: 235 18% 20%;
+    --secondary-foreground: 220 20% 95%;
+    --muted: 235 18% 18%;
+    --muted-foreground: 220 12% 65%;
+    --accent: 268 40% 28%;
+    --accent-foreground: 220 20% 95%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 55% 50%;
+    --success-foreground: 152 90% 10%;
+    --warning: 40 90% 60%;
+    --warning-foreground: 40 90% 10%;
+    --border: 235 18% 22%;
+    --input: 235 18% 22%;
+    --ring: 268 75% 60%;
+    --radius: 0.75rem;
+
+    --sidebar: 235 30% 7%;
+    --sidebar-foreground: 220 20% 95%;
+    --sidebar-border: 235 20% 18%;
+    --sidebar-accent: 268 40% 22%;
+  }
+
+  .dark {
+    --background: 235 25% 9%;
+    --foreground: 220 20% 95%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html, body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .bg-gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+  }
+  .bg-gradient-card {
+    background: linear-gradient(180deg, hsl(var(--card)), hsl(235 25% 11%));
+  }
+  .shadow-glow {
+    box-shadow: 0 0 40px -10px hsl(var(--primary) / 0.6);
+  }
+  .shadow-card {
+    box-shadow: 0 8px 24px -12px hsl(0 0% 0% / 0.4);
+  }
+  .text-gradient {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .input {
+    @apply flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50;
+  }
+}

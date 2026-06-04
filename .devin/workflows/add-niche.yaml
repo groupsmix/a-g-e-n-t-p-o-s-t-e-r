@@ -1,0 +1,16 @@
+name: Add New Niche
+description: Adds a new niche to the content system and generates the first batch of content
+
+steps:
+  - name: Update niche config
+    description: Add the new niche to NICHES_CONFIG in daily-run-workflow.ts
+    files:
+      - packages/workflows/src/daily-run-workflow.ts
+
+  - name: Generate site
+    description: Run the generate-site GitHub Action for this niche
+    command: gh workflow run generate-site.yml --field niche="$NICHE" --field affiliate_program="$PROGRAM" --field affiliate_tag="$TAG" --field primary_keyword="$KEYWORD"
+
+  - name: Queue first batch
+    description: Run the content queue manager to fill the queue for the new niche immediately
+    command: pnpm --filter @repo/runner run queue-niche -- --niche "$NICHE"

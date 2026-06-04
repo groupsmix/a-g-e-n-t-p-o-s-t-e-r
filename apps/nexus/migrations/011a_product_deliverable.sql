@@ -1,0 +1,19 @@
+-- ============================================================
+-- Migration 011a: Product deliverable columns
+-- ============================================================
+-- Original content:
+--   ALTER TABLE products ADD COLUMN deliverable_url TEXT;
+--   ALTER TABLE products ADD COLUMN deliverable_format TEXT;
+--
+-- These columns already exist on the production D1 database
+-- (`deliverable_url` was applied in a previous out-of-band deploy),
+-- which caused `wrangler d1 migrations apply` to fail with
+-- "duplicate column name: deliverable_url".
+--
+-- SQLite does not support `ALTER TABLE ADD COLUMN IF NOT EXISTS`,
+-- so the migration is now a no-op. The schema change it described
+-- is fully present in production; this file exists only so wrangler
+-- can record it in the d1_migrations tracker.
+--
+-- Fresh databases pick up these columns from 011b (introduced below).
+SELECT 1;

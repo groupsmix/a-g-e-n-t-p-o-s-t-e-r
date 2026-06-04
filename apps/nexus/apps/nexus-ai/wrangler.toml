@@ -1,0 +1,26 @@
+name = "nexus-ai"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+node_compat = true
+
+# ================================
+# KV NAMESPACES
+# ================================
+[[kv_namespaces]]
+binding = "CONFIG"
+id = "df275bcec9b345589e0d938c980ee3bb"
+preview_id = "14d869767b0e4b6c857247e919c7b83a"
+
+# ================================
+# WORKERS AI (free-tier image + text models)
+# ================================
+[ai]
+binding = "AI"
+
+# ================================
+# SECRETS STORE (optional — worker falls back to plain secrets)
+# ================================
+# Uncomment and set store_id after creating a Cloudflare Secrets Store.
+# [secrets_store]
+# binding = "SECRETS"
+# store_id = "YOUR_SECRETS_STORE_ID"

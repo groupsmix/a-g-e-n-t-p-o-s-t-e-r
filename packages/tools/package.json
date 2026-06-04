@@ -1,0 +1,23 @@
+{
+  "name": "@repo/tools",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mastra/core": "^1.40.0",
+    "@repo/cms": "workspace:^",
+    "@repo/core": "workspace:^",
+    "@repo/generators": "workspace:^",
+    "ai": "^6.0.182",
+    "google-trends-api": "^4.9.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

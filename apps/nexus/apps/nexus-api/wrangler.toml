@@ -1,0 +1,75 @@
+name = "nexus-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+node_compat = true
+
+# NOTE: The 15-step workflow runs via ctx.waitUntil() inside the fetch
+# handler (see apps/nexus-api/src/services/workflow-engine.ts). We do NOT
+# currently use a Cloudflare Workflows binding — that would require a
+# WorkflowEntrypoint export, which we're deferring until the workflow
+# needs to outlive a single request (currently ≤ 3 min for 15 AI calls).
+
+# ================================
+# D1 DATABASE
+# ================================
+[[d1_databases]]
+binding = "DB"
+database_name = "nexus-db"
+database_id = "5fcbccaa-3273-49a9-a76a-b001534e994c"
+migrations_dir = "../../migrations"
+
+# ================================
+# KV NAMESPACES
+# ================================
+[[kv_namespaces]]
+binding = "CONFIG"
+id = "bf73ee5c9c834e84a35e97ea9d0a2c66"
+preview_id = "a2c8d21fd49a4744a677e377c4f5f650"
+
+# ================================
+# R2 BUCKETS
+# ================================
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "nexus-assets"
+
+# ================================
+# CLOUDFLARE IMAGES (Workers AI binding)
+# ================================
+[images]
+binding = "IMAGES"
+
+# ================================
+# SERVICE BINDINGS
+# ================================
+[[services]]
+binding = "AI_WORKER"
+service = "nexus-ai"
+
+# Self-binding: lets a finished workflow kick off deliverable generation in a
+# fresh invocation with its own time budget (avoids extending the long run).
+[[services]]
+binding = "SELF"
+service = "nexus-api"
+
+# ================================
+# BROWSER RENDERING (headless browser — requires Workers Paid plan)
+# ================================
+[browser]
+binding = "BROWSER"
+
+# ================================
+# SECRETS STORE (optional — worker falls back to plain secrets)
+# ================================
+# Uncomment and set store_id after creating a Cloudflare Secrets Store.
+# [secrets_store]
+# binding = "SECRETS"
+# store_id = "YOUR_SECRETS_STORE_ID"
+
+# ================================
+# SCHEDULED TRIGGERS (Trend Radar)
+# ================================
+[triggers]
+crons = ["0 7 * * *"]  # Daily at 7am UTC
+
+

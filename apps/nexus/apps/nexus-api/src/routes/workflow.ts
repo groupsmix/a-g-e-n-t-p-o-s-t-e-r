@@ -1,0 +1,169 @@
+import { Hono } from 'hono'
+import type { Env } from '../env'
+import type { StartWorkflowInput, WorkflowStatus } from '../types'
+import { ProductWorkflow } from '../services/workflow-engine'
+
+export const workflowRoutes = new Hono<{ Bindings: Env }>()
+
+// POST /workflow/start - Start a new workflow
+workflowRoutes.post('/start', async (c) => {
+  try {
+    const body = await c.req.json<StartWorkflowInput>()
+    
+    // Validate required fields
+    if (!body.domain_slug || !body.category_slug) {
+      return c.json({ error: 'domain_slug and category_slug are required' }, 400)
+    }
+    
+    // Look up domain and category by slug
+    const domain = await c.env.DB.prepare(
+      'SELECT id FROM domains WHERE slug = ? AND is_active = 1'
+    ).bind(body.domain_slug).first()
+    
+    if (!domain) {
+      return c.json({ error: 'Domain not found' }, 404)
+    }
+    
+    const category = await c.env.DB.prepare(
+      'SELECT id FROM categories WHERE slug = ? AND domain_id = ? AND is_active = 1'
+    ).bind(body.category_slug, domain.id).first()
+    
+    if (!category) {
+      return c.json({ error: 'Category not found' }, 404)
+    }
+    
+    // Create product
+    const productId = crypto.randomUUID()
+    const now = new Date().toISOString()
+    
+    await c.env.DB.prepare(`
+      INSERT INTO products (id, domain_id, category_id, user_input, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'draft', ?, ?)
+    `).bind(productId, domain.id, category.id, JSON.stringify(body.user_input || {}), now, now).run()
+    
+    // Create workflow run
+    const runId = crypto.randomUUID()
+    await c.env.DB.prepare(`
+      INSERT INTO workflow_runs (id, product_id, status, created_at)
+      VALUES (?, ?, 'queued', ?)
+    `).bind(runId, productId, now).run()
+    
+    // Mark product as running
+    await c.env.DB.prepare(`
+      UPDATE products SET status = 'running', updated_at = ? WHERE id = ?
+    `).bind(now, productId).run()
+
+    // Kick off the 15-step pipeline asynchronously. waitUntil keeps the
+    // worker alive after we return 201 so the run finishes in background.
+    const engine = new ProductWorkflow(c.env)
+    c.executionCtx.waitUntil(
+      engine.run(runId, productId as string, body.domain_slug, body.category_slug, body.user_input ?? {})
+    )
+
+    return c.json({
+      workflow_id: runId,
+      product_id: productId,
+      status: 'queued',
+    }, 201)
+  } catch (err) {
+    console.error('Error starting workflow:', err)
+    return c.json({ error: 'Failed to start workflow' }, 500)
+  }
+})
+
+// GET /workflow/:id - Get workflow status
+workflowRoutes.get('/:id', async (c) => {
+  try {
+    const runId = c.req.param('id')
+    
+    // Fetch workflow run
+    const run = await c.env.DB.prepare(
+      'SELECT * FROM workflow_runs WHERE id = ?'
+    ).bind(runId).first()
+    
+    if (!run) {
+      return c.json({ error: 'Workflow not found' }, 404)
+    }
+    
+    // Fetch all steps for this run
+    const steps = await c.env.DB.prepare(
+      'SELECT id, step_name, step_type, step_order, status, started_at, completed_at, error, ai_model_used, ai_models_tried, tokens_used, cost_usd FROM workflow_steps WHERE run_id = ? ORDER BY step_order'
+    ).bind(runId).all()
+    
+    const status: WorkflowStatus = {
+      id: run.id as string,
+      product_id: run.product_id as string,
+      status: run.status as WorkflowStatus['status'],
+      current_step: run.current_step as string | null,
+      steps: steps.results.map((s: any) => ({
+        id: s.id,
+        step_name: s.step_name,
+        status: s.status,
+        started_at: s.started_at,
+        completed_at: s.completed_at,
+        error: s.error,
+        ai_model_used: s.ai_model_used,
+        ai_models_tried: s.ai_models_tried,
+        tokens_used: s.tokens_used,
+        cost_usd: s.cost_usd,
+      })),
+      error: run.error as string | null,
+      started_at: run.started_at as string | null,
+      completed_at: run.completed_at as string | null,
+    }
+    
+    return c.json(status)
+  } catch (err) {
+    console.error('Error fetching workflow:', err)
+    return c.json({ error: 'Failed to fetch workflow' }, 500)
+  }
+})
+
+// GET /workflow/:id/status - Get simplified workflow status
+workflowRoutes.get('/:id/status', async (c) => {
+  try {
+    const runId = c.req.param('id')
+    
+    const run = await c.env.DB.prepare(
+      'SELECT id, status, current_step, error, started_at, completed_at FROM workflow_runs WHERE id = ?'
+    ).bind(runId).first()
+    
+    if (!run) {
+      return c.json({ error: 'Workflow not found' }, 404)
+    }
+    
+    return c.json({
+      id: run.id,
+      status: run.status,
+      current_step: run.current_step,
+      error: run.error,
+      started_at: run.started_at,
+      completed_at: run.completed_at,
+    })
+  } catch (err) {
+    console.error('Error fetching workflow status:', err)
+    return c.json({ error: 'Failed to fetch workflow status' }, 500)
+  }
+})
+
+// POST /workflow/:id/cancel - Cancel a running workflow
+workflowRoutes.post('/:id/cancel', async (c) => {
+  try {
+    const runId = c.req.param('id')
+    
+    const result = await c.env.DB.prepare(`
+      UPDATE workflow_runs 
+      SET status = 'cancelled', completed_at = ?, error = ?
+      WHERE id = ? AND status IN ('queued', 'running')
+    `).bind(new Date().toISOString(), 'Cancelled by user', runId).run()
+    
+    if (result.meta.changes === 0) {
+      return c.json({ error: 'Workflow not found or already completed' }, 404)
+    }
+    
+    return c.json({ message: 'Workflow cancelled' })
+  } catch (err) {
+    console.error('Error cancelling workflow:', err)
+    return c.json({ error: 'Failed to cancel workflow' }, 500)
+  }
+})

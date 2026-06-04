@@ -1,0 +1,15 @@
+name: Add New Publishing Platform
+description: Adds a new social media platform adapter
+
+steps:
+  - name: Create platform adapter
+    description: Create a new file in packages/publishers/src/platforms/ following the BasePlatformPublisher interface
+
+  - name: Register adapter
+    description: Add the new adapter to packages/publishers/src/publisher-factory.ts
+
+  - name: Add credentials
+    description: Add the platform API keys to packages/config/src/env.ts and .env.example
+
+  - name: Add GitHub secret
+    description: Remind to add new API key secrets in GitHub repo settings

@@ -1,0 +1,25 @@
+# ============================================================
+# nexus-api worker secrets (copy to .dev.vars for local dev,
+# or `wrangler secret put <NAME>` in production)
+# ============================================================
+# These power REAL publishing. Without them, the publish endpoints return an
+# honest "not configured" error (they never fake a successful publish).
+
+# --- Storefronts ---
+GUMROAD_ACCESS_TOKEN=   # https://app.gumroad.com/settings/advanced (create access token)
+SHOPIFY_STORE=          # e.g. my-store.myshopify.com
+SHOPIFY_ADMIN_TOKEN=    # Shopify admin app → Admin API access token (write_products)
+
+# --- Social posting (one key fans out to IG / X / TikTok / FB / LinkedIn / Pinterest) ---
+AYRSHARE_API_KEY=       # https://app.ayrshare.com/api (connect your social accounts there)
+
+# --- Generic fallback: route any unsupported platform/channel through a webhook
+#     (Zapier / Make / your own endpoint) which receives the listing/social JSON.
+PUBLISH_WEBHOOK_URL=
+
+# --- Internal Services ---
+# URL for the Nexus AI service endpoint
+# Default: https://nexus-ai/task
+# Validation: Must be a valid HTTP(S) URL
+# Used for AI task processing and model failover
+NEXUS_AI_URL=https://nexus-ai/task

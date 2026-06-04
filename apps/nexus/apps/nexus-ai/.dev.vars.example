@@ -1,0 +1,27 @@
+# ============================================================
+# nexus-ai worker secrets (copy to .dev.vars for local dev,
+# or `wrangler secret put <NAME>` in production)
+# ============================================================
+# The 15-step pipeline uses a failover chain — configuring ANY ONE of these
+# switches that task from the offline template to a real AI provider. Set as
+# many as you like; the registry picks the best available one per task.
+
+# --- Text / reasoning LLMs (one is enough to go "real") ---
+GROQ_API_KEY=          # https://console.groq.com/keys  (free tier, fastest to start)
+OPENAI_API_KEY=        # https://platform.openai.com/api-keys (also used for image gen)
+ANTHROPIC_API_KEY=     # https://console.anthropic.com/settings/keys
+DEEPSEEK_API_KEY=      # https://platform.deepseek.com/api_keys (cheap, strong)
+GOOGLE_API_KEY=        # https://aistudio.google.com/app/apikey (Gemini)
+SILICONFLOW_API_KEY=   # https://siliconflow.cn (Qwen / Doubao)
+MOONSHOT_API_KEY=      # https://platform.moonshot.cn (Kimi, long context)
+HF_TOKEN=              # https://huggingface.co/settings/tokens
+
+# --- Web research / trends (optional, improves market_research) ---
+TAVILY_API_KEY=        # https://app.tavily.com
+EXA_API_KEY=           # https://dashboard.exa.ai
+SERPAPI_KEY=           # https://serpapi.com/manage-api-key
+
+# --- Image generation (one is enough for real hero images) ---
+FAL_KEY=               # https://fal.ai/dashboard/keys  (FLUX — fast + cheap)
+# OPENAI_API_KEY also enables DALL·E / gpt-image-1 (see above)
+IDEOGRAM_API_KEY=      # https://ideogram.ai (best for text-on-design / t-shirts)

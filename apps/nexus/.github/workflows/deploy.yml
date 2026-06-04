@@ -1,0 +1,277 @@
+name: NEXUS Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_migrations:
+        description: 'Skip database migrations'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  NODE_VERSION: '20'
+  WRANGLER_VERSION: '3'
+
+jobs:
+  setup-cloudflare:
+    name: Setup Cloudflare Infrastructure
+    runs-on: ubuntu-latest
+    outputs:
+      d1_database_id: ${{ steps.create_db.outputs.d1_id }}
+      kv_namespace_id: ${{ steps.create_kv.outputs.kv_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Wrangler
+        run: npm install -g wrangler@${{ env.WRANGLER_VERSION }}
+
+      - name: Authenticate with Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      # Create D1 Database
+      - name: Create D1 Database
+        id: create_db
+        run: |
+          echo "Creating D1 database..."
+          RESULT=$(wrangler d1 create nexus-db --json)
+          echo "d1_id=$(echo $RESULT | jq -r '.id')" >> $GITHUB_OUTPUT
+          echo "Database ID: $(echo $RESULT | jq -r '.id')"
+
+      # Update wrangler.toml with D1 ID
+      - name: Update wrangler.toml with D1 ID
+        run: |
+          D1_ID=${{ steps.create_db.outputs.d1_id }}
+          sed -i "s/database_id = \"YOUR_D1_DATABASE_ID\"/database_id = \"$D1_ID\"/" apps/nexus-api/wrangler.toml
+          echo "Updated D1 ID in wrangler.toml"
+
+      # Create KV Namespace
+      - name: Create KV Namespace
+        id: create_kv
+        run: |
+          echo "Creating KV namespace..."
+          RESULT=$(wrangler kv:namespace create nexus-config --json)
+          echo "kv_id=$(echo $RESULT | jq -r '.id')" >> $GITHUB_OUTPUT
+          echo "KV ID: $(echo $RESULT | jq -r '.id')"
+
+      # Update wrangler.toml with KV ID
+      - name: Update wrangler.toml with KV ID
+        run: |
+          KV_ID=${{ steps.create_kv.outputs.kv_id }}
+          sed -i "s/id = \"YOUR_KV_ID\"/id = \"$KV_ID\"/" apps/nexus-api/wrangler.toml
+          sed -i "s/preview_id = \"YOUR_KV_PREVIEW_ID\"/preview_id = \"$KV_ID\"/" apps/nexus-api/wrangler.toml
+          echo "Updated KV ID in wrangler.toml"
+
+      # Create R2 Bucket
+      - name: Create R2 Bucket
+        run: |
+          echo "Creating R2 bucket..."
+          wrangler r2 bucket create nexus-assets || echo "Bucket may already exist"
+          echo "R2 bucket created"
+
+      # Store outputs for other jobs
+      - name: Save outputs
+        run: |
+          echo "${{ steps.create_db.outputs.d1_id }}" > d1_id.txt
+          echo "${{ steps.create_kv.outputs.kv_id }}" > kv_id.txt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-ids
+          path: |
+            d1_id.txt
+            kv_id.txt
+            apps/nexus-api/wrangler.toml
+          retention-days: 1
+
+  run-migrations:
+    name: Run Database Migrations
+    runs-on: ubuntu-latest
+    needs: setup-cloudflare
+    if: ${{ !inputs.skip_migrations }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cloudflare-ids
+          path: .
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Wrangler
+        run: npm install -g wrangler@${{ env.WRANGLER_VERSION }}
+
+      - name: Authenticate with Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Restore wrangler.toml
+        run: mv apps/nexus-api/wrangler.toml apps/nexus-api/wrangler.toml.new || true
+        shell: bash
+
+      - name: Run Migrations
+        run: |
+          echo "Running database migrations..."
+          for migration in migrations/*.sql; do
+            echo "Running: $migration"
+            wrangler d1 execute nexus-db --file="$migration" --yes || echo "Migration may have already run"
+          done
+          echo "Migrations complete"
+
+  deploy-api:
+    name: Deploy Nexus API
+    runs-on: ubuntu-latest
+    needs: [setup-cloudflare, run-migrations]
+    environment:
+      name: production
+      url: https://nexus-api.${{ secrets.CLOUDFLARE_ACCOUNT_SUBDOMAIN }}.workers.dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cloudflare-ids
+          path: .
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Wrangler
+        run: npm install -g wrangler@${{ env.WRANGLER_VERSION }}
+
+      - name: Authenticate with Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Add API Keys as Secrets
+        run: |
+          echo "Adding secrets..."
+          echo "${{ secrets.DEEPSEEK_API_KEY }}" | wrangler secret put DEEPSEEK_API_KEY --name nexus-api
+          echo "${{ secrets.ANTHROPIC_API_KEY }}" | wrangler secret put ANTHROPIC_API_KEY --name nexus-api
+          echo "${{ secrets.TAVILY_API_KEY }}" | wrangler secret put TAVILY_API_KEY --name nexus-ai
+          echo "${{ secrets.EXA_API_KEY }}" | wrangler secret put EXA_API_KEY --name nexus-ai
+
+      - name: Deploy Nexus API
+        working-directory: apps/nexus-api
+        run: wrangler deploy --env production
+
+  deploy-ai:
+    name: Deploy Nexus AI
+    runs-on: ubuntu-latest
+    needs: [setup-cloudflare, run-migrations]
+    environment:
+      name: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cloudflare-ids
+          path: .
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Wrangler
+        run: npm install -g wrangler@${{ env.WRANGLER_VERSION }}
+
+      - name: Authenticate with Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+      - name: Add AI Secrets
+        run: |
+          echo "${{ secrets.TAVILY_API_KEY }}" | wrangler secret put TAVILY_API_KEY --name nexus-ai
+          echo "${{ secrets.EXA_API_KEY }}" | wrangler secret put EXA_API_KEY --name nexus-ai
+          echo "${{ secrets.SERPAPI_KEY }}" | wrangler secret put SERPAPI_KEY --name nexus-ai
+
+      - name: Deploy Nexus AI
+        working-directory: apps/nexus-ai
+        run: wrangler deploy --env production
+
+  deploy-web:
+    name: Deploy Nexus Web
+    runs-on: ubuntu-latest
+    needs: [deploy-api]
+    environment:
+      name: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build Web App
+        working-directory: apps/web
+        run: |
+          NEXT_PUBLIC_API_URL=https://nexus-api.${{ secrets.CLOUDFLARE_ACCOUNT_SUBDOMAIN }}.workers.dev pnpm build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: nexus-web
+          directory: apps/web/.next
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+  complete:
+    name: Setup Complete
+    runs-on: ubuntu-latest
+    needs: [deploy-api, deploy-ai, deploy-web]
+    steps:
+      - name: Summary
+        run: |
+          echo "## NEXUS Deployment Complete! 🎉"
+          echo ""
+          echo "### Deployed Services:"
+          echo "- **API**: https://nexus-api.${{ secrets.CLOUDFLARE_ACCOUNT_SUBDOMAIN }}.workers.dev"
+          echo "- **AI Worker**: nexus-ai (internal)"
+          echo "- **Web**: https://nexus-web.${{ secrets.CLOUDFLARE_ACCOUNT_SUBDOMAIN }}.pages.dev"
+          echo ""
+          echo "### Next Steps:"
+          echo "1. Configure your domains in the dashboard"
+          echo "2. Add AI API keys if not already added"
+          echo "3. Run your first workflow!"

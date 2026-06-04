@@ -1,0 +1,26 @@
+{
+  "name": "@repo/agents",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "init:check": "node scripts/init-check.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@mastra/core": "^1.40.0",
+    "@mastra/libsql": "^1.12.1",
+    "@mastra/loggers": "^1.1.2",
+    "@mastra/memory": "^1.20.2",
+    "@repo/config": "workspace:^",
+    "@repo/tools": "workspace:^",
+    "@repo/workflows": "workspace:^",
+    "dotenv": "^16.4.7",
+    "zod": "^3.23.8"
+  }
+}

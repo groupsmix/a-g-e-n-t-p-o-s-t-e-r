@@ -1,0 +1,3 @@
+apps/web/.vercel/
+# Wrangler copies migrations here; canonical source is nexus/migrations/
+apps/nexus-api/migrations/

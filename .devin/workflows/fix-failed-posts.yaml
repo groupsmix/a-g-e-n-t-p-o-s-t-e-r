@@ -1,0 +1,13 @@
+name: Retry Failed Posts
+description: Identifies failed content queue items and retries them
+
+steps:
+  - name: Check failed items
+    description: Query Supabase for items with status=failed and retry_count < 3
+
+  - name: Reset status
+    description: Update failed items to status=pending and increment retry_count
+
+  - name: Trigger daily run
+    description: Trigger the daily-run workflow immediately
+    command: gh workflow run daily-run.yml
