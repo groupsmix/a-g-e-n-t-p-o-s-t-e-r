@@ -1,8 +1,10 @@
-name: Deploy
+name: Deploy Workers
 
+# Manual-only until CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets are set
+# on this repo. Cloudflare Pages auto-deploys via git integration — this workflow
+# only handles the Workers (nexus-ai, nexus-api) and D1 migrations.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -13,27 +15,23 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: nexus
+        working-directory: apps/nexus
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: nexus/pnpm-lock.yaml
+          cache-dependency-path: apps/nexus/pnpm-lock.yaml
 
       - run: pnpm install --frozen-lockfile
 
       - name: Install wrangler
         run: npm install -g wrangler@3
 
-      # FIX #7 — Removed `|| true` so lint failures now block the deploy.
-      # A failing lint check that silently passes defeats the purpose of having lint.
       - name: Lint
         run: pnpm lint
 
@@ -43,28 +41,17 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      # Build frontend using next-on-pages
-      - name: Build frontend
-        run: pnpm --filter web pages:build
-        env:
-          NEXT_PUBLIC_API_URL: https://nexus-api.professional-inbox-simo.workers.dev
-
       # Deploy nexus-ai worker
       - name: Deploy nexus-ai
         run: wrangler deploy
-        working-directory: nexus/apps/nexus-ai
+        working-directory: apps/nexus/apps/nexus-ai
 
       # Deploy nexus-api worker
       - name: Deploy nexus-api
         run: wrangler deploy
-        working-directory: nexus/apps/nexus-api
+        working-directory: apps/nexus/apps/nexus-api
 
-      # Deploy frontend to Cloudflare Pages
-      - name: Deploy frontend
-        run: wrangler pages deploy .vercel/output/static --project-name nexus-web
-        working-directory: nexus/apps/web
-
-      # Run D1 migrations — fail loudly so broken migrations don't go unnoticed
+      # Run D1 migrations
       - name: Run D1 migrations
         run: wrangler d1 migrations apply nexus-db --remote
-        working-directory: nexus/apps/nexus-api
+        working-directory: apps/nexus/apps/nexus-api
