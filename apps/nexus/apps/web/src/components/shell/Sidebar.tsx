@@ -36,9 +36,9 @@ const defaultSections: { title: string; items: Item[]; collapsible?: boolean }[]
       { to: '/jobs', label: 'Freelance Jobs', icon: Briefcase },
       { to: '/jobs/new?type=digital_product', label: 'Digital Products', icon: Package },
       { to: '/jobs/new?type=pod_product', label: 'Print on Demand', icon: Shirt },
-      { to: '/content', label: 'Content & Media', icon: FileText },
-      { to: '/affiliate-marketing', label: 'Affiliate Marketing', icon: Link2 },
-      { to: '/ecommerce-retail', label: 'E-Commerce & Retail', icon: ShoppingCart },
+      // Content / Affiliate / E-Commerce domains intentionally omitted —
+      // no /api/content, /api/affiliate-marketing, or /api/ecommerce-retail
+      // backend exists yet. Add them back when the routes ship.
     ],
   },
   {
