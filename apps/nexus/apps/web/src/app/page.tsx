@@ -10,6 +10,7 @@ import {
 import { api, type AutopilotStatus, type RevenueResponse, type Digest, type LearningStats } from '@/lib/api'
 import type { Product } from '@nexus/types'
 import { PageBody } from '@/components/shell/AppShell'
+import { SetupBanner } from '@/components/shared/SetupBanner'
 
 interface Counts { total: number; pending: number; approved: number; published: number }
 
@@ -55,6 +56,9 @@ export default function HomePage() {
           <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
+
+      {/* Setup checklist — auto-hides once password + Gumroad are set */}
+      <SetupBanner />
 
       {/* Hero: greeting + primary metric */}
       <div className="flex items-end justify-between">
