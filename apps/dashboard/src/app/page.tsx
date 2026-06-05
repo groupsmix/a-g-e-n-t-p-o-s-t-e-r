@@ -11,6 +11,8 @@ import {
 } from "recharts";
 
 interface StatsPayload {
+  configured?: boolean;
+  error?: string;
   queuePending: number;
   queue: Array<{
     id: string;
@@ -104,6 +106,50 @@ export default function DashboardPage() {
           className="mt-4 rounded bg-slate-700 px-4 py-2 text-sm"
         >
           Retry
+        </button>
+      </main>
+    );
+  }
+
+  if (stats.configured === false) {
+    return (
+      <main className="mx-auto max-w-3xl space-y-6 p-8">
+        <header>
+          <h1 className="text-3xl font-semibold tracking-tight">Posteragent</h1>
+          <p className="text-slate-400">Setup required</p>
+        </header>
+        <div className="rounded-xl border border-amber-700/40 bg-amber-900/20 p-5 text-sm">
+          <p className="font-medium text-amber-200">
+            Supabase is not configured.
+          </p>
+          <p className="mt-2 text-amber-200/80">
+            {stats.error ??
+              "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in this environment."}
+          </p>
+        </div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 text-sm text-slate-300 space-y-3">
+          <p className="font-medium text-slate-100">Local setup</p>
+          <pre className="overflow-x-auto rounded bg-slate-950/80 p-3 text-xs text-slate-200">
+{`cp apps/dashboard/.env.local.example apps/dashboard/.env.local
+# then fill in:
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   GITHUB_TOKEN
+#   GITHUB_REPO=groupsmix/a-g-e-n-t-p-o-s-t-e-r
+pnpm --filter @repo/dashboard dev`}
+          </pre>
+          <p className="font-medium text-slate-100 mt-4">Vercel setup</p>
+          <p>
+            Add the same four variables in your Vercel project settings, then
+            redeploy.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="rounded bg-slate-700 px-4 py-2 text-sm"
+        >
+          Recheck
         </button>
       </main>
     );

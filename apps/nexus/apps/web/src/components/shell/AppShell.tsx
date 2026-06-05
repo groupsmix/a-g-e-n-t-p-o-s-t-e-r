@@ -1,13 +1,17 @@
 import { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { AuthGate } from "./AuthGate";
+import { ApiMisconfigBanner } from "@/components/shared/ApiMisconfigBanner";
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <AuthGate>
       <div className="flex min-h-screen bg-background text-foreground">
         <Sidebar />
-        <main className="flex-1 min-w-0 pt-14 md:pt-0">{children}</main>
+        <main className="flex-1 min-w-0 pt-14 md:pt-0">
+          <ApiMisconfigBanner />
+          {children}
+        </main>
       </div>
     </AuthGate>
   );

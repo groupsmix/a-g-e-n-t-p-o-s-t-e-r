@@ -1,19 +1,37 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
-function getSupabase() {
+function getSupabase(): SupabaseClient | null {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
-  }
+  if (!url || !key) return null;
   return createClient(url, key);
 }
 
+const EMPTY_PAYLOAD = {
+  configured: false,
+  queuePending: 0,
+  queue: [],
+  recentPosts: [],
+  sites: [],
+  revenueToday: 0,
+  revenueChart: [],
+  postsPublishedToday: 0,
+} as const;
+
 export async function GET() {
   const supabase = getSupabase();
+  if (!supabase) {
+    // Return a 200 with `configured: false` so the dashboard renders a setup
+    // screen instead of an opaque 500. Operators see a clear path forward.
+    return NextResponse.json({
+      ...EMPTY_PAYLOAD,
+      error:
+        "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY not configured. Copy apps/dashboard/.env.local.example to apps/dashboard/.env.local and fill in your Supabase project values, or set them in Vercel.",
+    });
+  }
   const today = new Date().toISOString().split("T")[0];
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     .toISOString()
