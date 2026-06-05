@@ -46,7 +46,38 @@ import type {
 // Re-export queue/publish types explicitly
 export type { Job, QueueStats, JobStatus, PublishProductResult };
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'
+const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL || ''
+const FALLBACK_API_BASE = 'http://localhost:8787'
+
+export const API_BASE: string = RAW_API_BASE || FALLBACK_API_BASE
+export const API_BASE_IS_FALLBACK: boolean = !RAW_API_BASE
+
+/**
+ * True when running in a real browser whose origin is NOT localhost, while
+ * API_BASE still points to the local Cloudflare Worker. This is the symptom
+ * of NEXT_PUBLIC_API_URL being unset at build time on Vercel — every API
+ * call will silently fail.
+ *
+ * Components can read this to surface a visible warning instead of letting
+ * the dashboard look like it works but show no data.
+ */
+export function isApiMisconfigured(): boolean {
+  if (!API_BASE_IS_FALLBACK) return false
+  if (typeof window === 'undefined') return false
+  const host = window.location.hostname
+  return host !== 'localhost' && host !== '127.0.0.1' && !host.endsWith('.local')
+}
+
+// Log a single loud warning at module load so the misconfiguration shows up
+// even on pages that don't render the banner.
+if (typeof window !== 'undefined' && isApiMisconfigured()) {
+  // eslint-disable-next-line no-console
+  console.error(
+    '[nexus] NEXT_PUBLIC_API_URL is not set. API calls will fail because API_BASE is defaulting to ' +
+      FALLBACK_API_BASE +
+      '. Rebuild with `pnpm --filter @nexus/web pages:ship` or set NEXT_PUBLIC_API_URL on the Cloudflare Pages project, then redeploy.',
+  )
+}
 
 export function assetUrl(path?: string | null): string | null {
   if (!path) return null

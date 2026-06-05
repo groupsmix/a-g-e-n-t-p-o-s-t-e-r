@@ -2888,9 +2888,19 @@ main().catch(err => {
 
 # PHASE 9 — DASHBOARD
 
+> **⚠️ OBSOLETE (2026-06-05).** The Supabase-based `apps/dashboard/` scaffold
+> from this phase was removed. It was never wired into the real architecture
+> and conflicted with the live setup, which uses Cloudflare D1, Workers, and
+> Pages — not Supabase or Vercel.
+>
+> **The real dashboard is `apps/nexus/apps/web`**, deploys to Cloudflare Pages
+> via `pnpm --filter @nexus/web pages:ship`, and is documented in
+> `apps/nexus/DEPLOY.md`. The instructions below are kept only as historical
+> context for the original task plan.
+
 ---
 
-## TASK 9.1 — Next.js Dashboard App
+## TASK 9.1 — Next.js Dashboard App  *(OBSOLETE — see note above)*
 
 **Context:** A simple personal dashboard to see stats, queue, and revenue. Built with Next.js + Supabase.
 
@@ -3181,7 +3191,7 @@ PHASE 8 - AUTOMATION
 [ ] 8.2 Entry point scripts (run-daily.ts, run-pull-stats.ts, run-generate-site.ts)
 
 PHASE 9 - DASHBOARD
-[ ] 9.1 Next.js dashboard deployed to Vercel
+[~] 9.1 OBSOLETE — Supabase/Vercel scaffold removed 2026-06-05. Real dashboard is apps/nexus/apps/web on Cloudflare Pages.
 
 PHASE 10 - DEVIN
 [ ] 10.1 Devin workflow YAMLs (add-niche, add-platform, fix-failed-posts)

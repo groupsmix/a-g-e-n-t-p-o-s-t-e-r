@@ -6,8 +6,7 @@ Personal AI content machine: NEXUS orchestration, site factory, Mastra agents, R
 
 | Path | Purpose |
 |------|---------|
-| `apps/nexus/` | Existing NEXUS monorepo (API, AI worker, web UI) |
-| `apps/dashboard/` | Control panel (TASK 9.1) |
+| `apps/nexus/` | NEXUS monorepo — API + AI worker (Cloudflare Workers) + web UI (Cloudflare Pages) |
 | `apps/factory/` | CosmicJS site generator (TASK 6.x) |
 | `packages/*` | Shared agents, tools, workflows, publishers, generators, CMS, config |
 | `ref/` | Cloned reference repos (do not import directly in production code) |
