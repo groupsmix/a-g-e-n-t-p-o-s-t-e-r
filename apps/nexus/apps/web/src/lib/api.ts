@@ -75,7 +75,7 @@ if (typeof window !== 'undefined' && isApiMisconfigured()) {
   console.error(
     '[nexus] NEXT_PUBLIC_API_URL is not set. API calls will fail because API_BASE is defaulting to ' +
       FALLBACK_API_BASE +
-      '. Set NEXT_PUBLIC_API_URL in your Vercel project to your deployed Cloudflare Worker URL.',
+      '. Rebuild with `pnpm --filter @nexus/web pages:ship` or set NEXT_PUBLIC_API_URL on the Cloudflare Pages project, then redeploy.',
   )
 }
 
