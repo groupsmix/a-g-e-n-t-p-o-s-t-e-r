@@ -335,8 +335,8 @@ PHASE 2 — BRAIN LAYER
 [x] TASK-203  Memory dashboard UI                               (apps/dashboard /brain — summary tiles, signals, memory explorer, journal timeline, persona+NOW; pluggable BrainSource)
 
 PHASE 3 — NEXUS API
-[~] TASK-300  NEXUS API server (Hono)                          (orchestrator lib shipped; nexus-api routes pending)
-[x] TASK-301  Agent registry                                   (@posteragent/orchestrator — typed AgentTaskType → handler map)
+[x] TASK-300  NEXUS API server (Hono)                          (nexus-api routes wired: /api/agents/{registry,run} + /api/brain/{summary,memories,journal,persona,now,signals} — dashboard nexusApiSource flipped to real HTTP)
+[x] TASK-301  Agent registry                                   (@posteragent/orchestrator — typed AgentTaskType → handler map; mirrored in nexus-api/services/agent-registry.ts)
 [x] TASK-302  BaseAgent with memory + identity injection       (@posteragent/orchestrator — BaseAgent + runAgentTask)
 
 PHASE 4 — RESEARCH
