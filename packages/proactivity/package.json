@@ -1,0 +1,30 @@
+{
+  "name": "@posteragent/proactivity",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TASK-202 — proactivity engine. Scans journal + NOW + tasks, emits nudges, optionally auto-queues follow-ups.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./run": "./src/run.ts",
+    "./scanners": "./src/scanners/index.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@posteragent/identity": "workspace:*",
+    "@posteragent/logger": "workspace:*",
+    "@posteragent/memory": "workspace:*",
+    "@posteragent/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  }
+}
