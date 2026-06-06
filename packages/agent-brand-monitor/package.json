@@ -1,0 +1,28 @@
+{
+  "name": "@posteragent/agent-brand-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TASK-402 — Brand Monitor Agent. Reddit / HackerNews / Google News / YouTube / X mention scanner with LLM sentiment + alert detection.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./adapters": "./src/adapters/index.ts",
+    "./pipeline": "./src/pipeline/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@posteragent/logger": "workspace:*",
+    "@posteragent/memory": "workspace:*",
+    "@posteragent/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  }
+}
