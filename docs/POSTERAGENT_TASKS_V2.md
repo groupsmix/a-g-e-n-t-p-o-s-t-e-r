@@ -348,7 +348,7 @@ PHASE 4 — RESEARCH
 [x] TASK-405  Context engineering pipeline                     (@posteragent/context-engine — retrieve → assemble → compress (LLM summariser or truncate) → emit ContextBundle+UsageReport; wired into BaseAgent so every agent call gets memories+past-tasks+signals; observability via recordUsage)
 
 PHASE 5 — BUILDER
-[ ] TASK-500  App builder agent
+[x] TASK-500  App builder agent                                  (this branch — agent-app-builder, spec→deploy)
 [ ] TASK-501  Site factory agent (CosmicJS)
 [ ] TASK-502  Product generator
 [ ] TASK-503  Documentation writer
