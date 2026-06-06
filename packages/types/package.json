@@ -1,0 +1,17 @@
+{
+  "name": "@posteragent/types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared TypeScript interfaces for the posteragent monorepo",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
