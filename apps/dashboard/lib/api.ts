@@ -126,9 +126,52 @@ export function rowToTask(row: AgentTaskRow): AgentTask {
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
+// ── Keys / credentials vault ────────────────────────────────────────────────
+
+export type KeyGroup = 'AI' | 'Publishing' | 'Social' | 'Email'
+
+export interface KeyRow {
+  key: string
+  label: string
+  group: KeyGroup
+  help: string
+  worker: 'ai' | 'api'
+  configured: boolean
+  masked: string | null
+  encrypted: boolean
+}
+
+export interface KeyListResponse {
+  keys: KeyRow[]
+  kek_configured: boolean
+}
+
+export interface KeySaveResponse {
+  ok: boolean
+  written: number
+  ai_forwarded: boolean
+  errors?: string[]
+}
+
+export interface KeyTestResponse {
+  ok: boolean
+  status?: string
+  message: string
+  latency_ms?: number
+}
+
 export const api = {
   /** GET /api/health — surface health-check status to the UI. */
   health: () => request<HealthResponse>('/api/health'),
+
+  /** Credentials vault — list, save, ping. */
+  keys: {
+    list: () => request<KeyListResponse>('/api/keys'),
+    save: (keys: Record<string, string>) =>
+      request<KeySaveResponse>('/api/keys', { method: 'POST', json: { keys } }),
+    test: (key: string) =>
+      request<KeyTestResponse>(`/api/keys/test/${encodeURIComponent(key)}`, { method: 'POST' }),
+  },
 
   /** GET /api/tasks?status=&type=&limit=&since= — list agent tasks. */
   listTasks: async (params?: {
