@@ -26,7 +26,7 @@ import type {
 const SYSTEM_PROMPT = `You are a research planner. Given a user query, produce 2 to {{MAX}} sub-questions that, when answered, give a thorough, citation-ready response to the query.
 
 Rules:
-- Each sub-question must be answerable by a web search.
+- Each sub-question must be answerable by retrieving information (from web search or stored memory).
 - Sub-questions should cover different angles (definition, comparison, risk, current state, examples).
 - Do NOT repeat the original query verbatim as a sub-question.
 - Output STRICTLY this JSON shape and nothing else:

@@ -341,7 +341,7 @@ PHASE 3 — NEXUS API
 
 PHASE 4 — RESEARCH
 [x] TASK-400  Deep research agent                              (@posteragent/agent-research — planner/searcher/synthesizer + Anthropic+Tavily adapters; orchestrator wires via registry.override)
-[ ] TASK-401  Agentic RAG over own data
+[x] TASK-401  Agentic RAG over own data                       (@posteragent/agent-research — MemoryClient lane runs parallel with web; web-only, memory-only, hybrid modes; brain citations tagged kind="memory" and not re-persisted)
 [ ] TASK-402  Brand monitor agent
 [ ] TASK-403  YouTube trend analyser
 [ ] TASK-404  Financial analysis agent
