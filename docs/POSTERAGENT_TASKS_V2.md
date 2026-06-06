@@ -340,7 +340,7 @@ PHASE 3 — NEXUS API
 [x] TASK-302  BaseAgent with memory + identity injection       (@posteragent/orchestrator — BaseAgent + runAgentTask)
 
 PHASE 4 — RESEARCH
-[ ] TASK-400  Deep research agent
+[x] TASK-400  Deep research agent                              (@posteragent/agent-research — planner/searcher/synthesizer + Anthropic+Tavily adapters; orchestrator wires via registry.override)
 [ ] TASK-401  Agentic RAG over own data
 [ ] TASK-402  Brand monitor agent
 [ ] TASK-403  YouTube trend analyser
