@@ -344,7 +344,7 @@ PHASE 4 — RESEARCH
 [x] TASK-401  Agentic RAG over own data                       (@posteragent/agent-research — MemoryClient lane runs parallel with web; web-only, memory-only, hybrid modes; brain citations tagged kind="memory" and not re-persisted)
 [x] TASK-402  Brand monitor agent                              (@posteragent/agent-brand-monitor — Reddit+HN+News+YouTube sources, Anthropic batch sentiment classifier, heuristic fallback, negative-spike/viral/competitor alerts, cron-ready)
 [x] TASK-403  YouTube trend analyser                           (@posteragent/agent-trend-finder — fetch → title/hook/thumb/velocity extract → keyword cluster (LLM relabel) → gap-find (few-results / low-coverage / outdated) → LLM brief generation → ContentBrief[] queue-ready for Writer)
-[ ] TASK-404  Financial analysis agent
+[x] TASK-404  Financial analysis agent                         (@posteragent/agent-finance — CoinGecko + Finnhub price sources, Gumroad + Amazon Associates revenue sources, D1 cost ledger, P&L roll-up, 4-week MA+linear forecast, MTD budget guard, price-move/revenue-dip/budget alerts)
 [ ] TASK-405  Context engineering pipeline
 
 PHASE 5 — BUILDER
