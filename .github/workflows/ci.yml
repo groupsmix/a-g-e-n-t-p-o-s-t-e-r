@@ -46,6 +46,25 @@ jobs:
 
       - run: pnpm --filter @posteragent/dashboard build
 
+  brain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @posteragent/memory --filter @posteragent/identity typecheck
+
+      - run: pnpm --filter @posteragent/memory --filter @posteragent/identity test
+
   nexus:
     runs-on: ubuntu-latest
     defaults:
