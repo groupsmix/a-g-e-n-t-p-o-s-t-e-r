@@ -343,7 +343,7 @@ PHASE 4 — RESEARCH
 [x] TASK-400  Deep research agent                              (@posteragent/agent-research — planner/searcher/synthesizer + Anthropic+Tavily adapters; orchestrator wires via registry.override)
 [x] TASK-401  Agentic RAG over own data                       (@posteragent/agent-research — MemoryClient lane runs parallel with web; web-only, memory-only, hybrid modes; brain citations tagged kind="memory" and not re-persisted)
 [x] TASK-402  Brand monitor agent                              (@posteragent/agent-brand-monitor — Reddit+HN+News+YouTube sources, Anthropic batch sentiment classifier, heuristic fallback, negative-spike/viral/competitor alerts, cron-ready)
-[ ] TASK-403  YouTube trend analyser
+[x] TASK-403  YouTube trend analyser                           (@posteragent/agent-trend-finder — fetch → title/hook/thumb/velocity extract → keyword cluster (LLM relabel) → gap-find (few-results / low-coverage / outdated) → LLM brief generation → ContentBrief[] queue-ready for Writer)
 [ ] TASK-404  Financial analysis agent
 [ ] TASK-405  Context engineering pipeline
 
