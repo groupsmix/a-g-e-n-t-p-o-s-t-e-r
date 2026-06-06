@@ -61,9 +61,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm --filter @posteragent/memory --filter @posteragent/identity --filter @posteragent/orchestrator typecheck
+      - run: pnpm --filter @posteragent/memory --filter @posteragent/identity --filter @posteragent/orchestrator --filter @posteragent/proactivity typecheck
 
-      - run: pnpm --filter @posteragent/memory --filter @posteragent/identity --filter @posteragent/orchestrator test
+      - run: pnpm --filter @posteragent/memory --filter @posteragent/identity --filter @posteragent/orchestrator --filter @posteragent/proactivity test
 
   nexus:
     runs-on: ubuntu-latest
