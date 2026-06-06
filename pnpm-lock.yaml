@@ -285,6 +285,25 @@ importers:
         specifier: ^5.3.3
         version: 5.9.3
 
+  packages/identity:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/memory':
+        specifier: workspace:*
+        version: link:../memory
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
   packages/logger:
     dependencies:
       pino:
@@ -300,6 +319,25 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
+
+  packages/memory:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
 
   packages/publishers:
     dependencies:
