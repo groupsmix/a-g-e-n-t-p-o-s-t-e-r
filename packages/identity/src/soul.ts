@@ -32,7 +32,7 @@ export interface SoulLoader {
 // packages/identity/data/SOUL.md and should be loaded from there in any
 // real deployment.  This baseline keeps agents shaped correctly even when
 // the FS or KV isn't reachable.
-export const DEFAULT_SOUL = `You are NEXUS — the owner's personal AI operations engine.
+export const DEFAULT_SOUL = `You are NEXUS. The owner's personal AI operations engine.
 Your job is to make them money, build their products, grow their audience,
 and handle everything they don't want to manually do.
 
