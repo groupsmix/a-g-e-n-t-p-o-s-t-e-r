@@ -332,7 +332,7 @@ PHASE 2 — BRAIN LAYER
 [x] TASK-200  Memory engine package                            (this PR — D1 + FTS5 + Vectorize-ready)
 [x] TASK-201  Identity / personality layer                     (this PR — SOUL.md + journal + NOW)
 [x] TASK-202  Proactivity engine                               (@posteragent/proactivity — scanners + runner + auto-queue)
-[ ] TASK-203  Memory dashboard UI
+[x] TASK-203  Memory dashboard UI                               (apps/dashboard /brain — summary tiles, signals, memory explorer, journal timeline, persona+NOW; pluggable BrainSource)
 
 PHASE 3 — NEXUS API
 [~] TASK-300  NEXUS API server (Hono)                          (orchestrator lib shipped; nexus-api routes pending)
