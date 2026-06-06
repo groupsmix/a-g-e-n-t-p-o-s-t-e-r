@@ -40,8 +40,9 @@ All five delegate to a `BrainSource` interface chosen via
 - `BRAIN_SOURCE=demo` (default) — synthetic in-memory fixtures so the
   UI is shippable immediately and demo-able in CI.
 - `BRAIN_SOURCE=nexus` — `nexusApiSource` that proxies to the
-  nexus-api worker once TASK-300 routes land. Currently passes
-  through to demo so the dashboard never breaks during the rollout.
+  nexus-api worker. As of TASK-300 this issues real HTTP and falls
+  back per-call to the demo source on any failure so the dashboard
+  never goes blank during a rollout or outage.
 
 Switching backends is one env var. No UI changes.
 
@@ -74,10 +75,13 @@ UI components are intentionally untested here — they're declarative
 shells over the source layer and would gain little from snapshot tests.
 Real-data integration testing comes once nexus-api routes land.
 
-## Wiring to real data (TASK-300 follow-up)
+## Wiring to real data (TASK-300 — done)
 
-Replace the body of `nexusApiSource()` in `lib/brain/source.ts` with
-HTTP calls into the nexus-api worker. One file change, no UI churn.
+Live as of TASK-300. `nexusApiSource()` in `lib/brain/source.ts` issues
+real HTTP against `/api/brain/*` on the nexus-api worker, with a graceful
+per-call fallback to the demo fixtures on any failure (HTTP, parse,
+shape). Flip `BRAIN_SOURCE=nexus` + set `NEXUS_API_BASE_URL` and the page
+goes live.
 
 ## What is NOT in this PR
 

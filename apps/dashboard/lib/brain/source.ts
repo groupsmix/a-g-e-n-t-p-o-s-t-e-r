@@ -265,20 +265,124 @@ export const demoSource: BrainSource = {
   },
 }
 
-// ─── nexus-api source (stub) ─────────────────────────────────────────
+// ─── nexus-api source (real HTTP — TASK-300) ─────────────────────────
 
 /**
- * Production source.  Wires to /api/brain/* on the nexus-api worker
- * once TASK-300 lands those endpoints.  Until then, returns the demo
- * source so the dashboard isn't broken in environments that flip
- * BRAIN_SOURCE=nexus prematurely.
+ * Production source.  Wires to /api/brain/* on the nexus-api worker.
+ *
+ * Failure mode is graceful: any HTTP / parse / shape error falls back
+ * to the demo source for that single call so the dashboard never goes
+ * blank in production. The source `name` flips to "nexus-api (fallback)"
+ * for the failed request so it's visible in the JSON envelope returned
+ * by each /api/brain/* dashboard route.
+ *
+ * The optional `bearer` is the auth token from the credentials vault —
+ * once the worker's access gate is armed, requests need it. Until then,
+ * the gate is inactive and the header is harmless.
  */
-export function nexusApiSource(_opts: {
+export interface NexusApiSourceOpts {
   baseUrl: string
   fetch?: typeof fetch
-}): BrainSource {
-  // TODO(TASK-300): replace this passthrough with real HTTP calls.
-  return { ...demoSource, name: 'nexus-api (passthrough → demo)' }
+  bearer?: string
+  /** Per-request timeout (default 8s). */
+  timeoutMs?: number
+}
+
+export function nexusApiSource(opts: NexusApiSourceOpts): BrainSource {
+  const baseUrl = opts.baseUrl.replace(/\/$/, '')
+  const fetchImpl = opts.fetch ?? fetch
+  const timeoutMs = opts.timeoutMs ?? 8000
+
+  async function call<T>(
+    path: string,
+    fallback: () => Promise<T>,
+  ): Promise<{ data: T; fellBack: boolean }> {
+    const controller = new AbortController()
+    const t = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const headers: Record<string, string> = { accept: 'application/json' }
+      if (opts.bearer) headers.authorization = `Bearer ${opts.bearer}`
+      const res = await fetchImpl(`${baseUrl}${path}`, {
+        signal: controller.signal,
+        headers,
+      })
+      clearTimeout(t)
+      if (!res.ok) throw new Error(`nexus-api ${path}: ${res.status}`)
+      const json = (await res.json()) as T
+      return { data: json, fellBack: false }
+    } catch {
+      clearTimeout(t)
+      const data = await fallback()
+      return { data, fellBack: true }
+    }
+  }
+
+  return {
+    get name() {
+      return 'nexus-api'
+    },
+
+    async listMemories(o = {}) {
+      const params = new URLSearchParams()
+      if (o.type) params.set('type', o.type)
+      if (o.query) params.set('q', o.query)
+      if (o.limit) params.set('limit', String(o.limit))
+      const qs = params.toString() ? `?${params.toString()}` : ''
+      const { data } = await call<{ memories: MemoryItemDTO[] }>(
+        `/api/brain/memories${qs}`,
+        async () => ({ memories: await demoSource.listMemories(o) }),
+      )
+      return data.memories ?? []
+    },
+
+    async listJournal(o = {}) {
+      const params = new URLSearchParams()
+      if (o.sinceISO) params.set('since', o.sinceISO)
+      if (o.limit) params.set('limit', String(o.limit))
+      const qs = params.toString() ? `?${params.toString()}` : ''
+      const { data } = await call<{ entries: JournalEntryDTO[] }>(
+        `/api/brain/journal${qs}`,
+        async () => ({ entries: await demoSource.listJournal(o) }),
+      )
+      return data.entries ?? []
+    },
+
+    async getPersona() {
+      const { data } = await call<{ persona: PersonaDTO }>(
+        `/api/brain/persona`,
+        async () => ({ persona: await demoSource.getPersona() }),
+      )
+      return data.persona
+    },
+
+    async getNow(scope) {
+      const qs = scope ? `?scope=${encodeURIComponent(scope)}` : ''
+      const { data } = await call<{ now: NowEntryDTO | null }>(
+        `/api/brain/now${qs}`,
+        async () => ({ now: await demoSource.getNow(scope) }),
+      )
+      return data.now ?? null
+    },
+
+    async listSignals(o = {}) {
+      const params = new URLSearchParams()
+      if (o.limit) params.set('limit', String(o.limit))
+      const qs = params.toString() ? `?${params.toString()}` : ''
+      const { data } = await call<{ signals: SignalDTO[] }>(
+        `/api/brain/signals${qs}`,
+        async () => ({ signals: await demoSource.listSignals(o) }),
+      )
+      return data.signals ?? []
+    },
+
+    async getSummary() {
+      const { data } = await call<{ summary: BrainSummaryDTO }>(
+        `/api/brain/summary`,
+        async () => ({ summary: await demoSource.getSummary() }),
+      )
+      return data.summary
+    },
+  }
 }
 
 // ─── chooser ──────────────────────────────────────────────────────────
@@ -289,7 +393,10 @@ export function chooseBrainSource(
   const mode = (env.BRAIN_SOURCE ?? 'demo').toLowerCase()
   if (mode === 'nexus') {
     const baseUrl = env.NEXUS_API_BASE_URL ?? 'http://localhost:8787'
-    return nexusApiSource({ baseUrl })
+    return nexusApiSource({
+      baseUrl,
+      bearer: env.NEXUS_API_BEARER ?? undefined,
+    })
   }
   return demoSource
 }
