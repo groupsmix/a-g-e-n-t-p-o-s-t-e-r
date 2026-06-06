@@ -7,7 +7,11 @@
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "dependsOn": ["check-env"]
+    },
+    "check-env": {
+      "cache": false
     },
     "lint": {
       "dependsOn": ["^build"]

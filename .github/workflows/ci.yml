@@ -39,16 +39,12 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          cache-dependency-path: apps/nexus/pnpm-lock.yaml
 
       - run: pnpm install --frozen-lockfile
-        working-directory: .
 
-      - run: pnpm typecheck --filter=nexus...
-        working-directory: .
+      - run: pnpm typecheck
 
-      - run: pnpm test --filter=nexus...
-        working-directory: .
+      - run: pnpm test
 
-      - run: pnpm build --filter=nexus...
-        working-directory: .
+      - run: pnpm build

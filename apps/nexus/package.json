@@ -8,6 +8,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "clean": "turbo clean && rm -rf node_modules",
     "typecheck": "turbo typecheck --filter=@nexus/*",
+    "build": "turbo build --filter=@nexus/*",
     "test": "turbo test --filter=@nexus/*",
     "db:migrate": "wrangler d1 migrations apply nexus-db --local"
   },
