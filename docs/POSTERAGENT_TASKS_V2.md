@@ -335,9 +335,9 @@ PHASE 2 — BRAIN LAYER
 [ ] TASK-203  Memory dashboard UI
 
 PHASE 3 — NEXUS API
-[ ] TASK-300  NEXUS API server (Hono)
-[ ] TASK-301  Mastra agent registry
-[ ] TASK-302  Base agent with memory injection
+[~] TASK-300  NEXUS API server (Hono)                          (orchestrator lib shipped; nexus-api routes pending)
+[x] TASK-301  Agent registry                                   (@posteragent/orchestrator — typed AgentTaskType → handler map)
+[x] TASK-302  BaseAgent with memory + identity injection       (@posteragent/orchestrator — BaseAgent + runAgentTask)
 
 PHASE 4 — RESEARCH
 [ ] TASK-400  Deep research agent
