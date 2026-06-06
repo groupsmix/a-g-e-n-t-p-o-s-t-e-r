@@ -37,6 +37,15 @@ export interface Env {
     get(key: string): Promise<string | null>
   }
 
+  // Key-Encryption-Key for the credentials vault. 32 bytes encoded as 64-char
+  // hex (preferred) or base64url. Set via `wrangler secret put KEK`. The vault
+  // route refuses to write new entries when this isn't configured, but legacy
+  // plaintext rows still read OK so an unconfigured worker still boots.
+  KEK?: string
+
+  // Legacy alias for KEK. Honoured by the credentials vault for back-compat.
+  MASTER_KEY?: string
+
   // Cloudflare account ID for Images API
   CF_ACCOUNT_ID?: string
 

@@ -57,6 +57,7 @@ import { offerRoutes } from './routes/offers'
 import { trackedLinkRoutes } from './routes/tracked-links'
 import { eventRoutes } from './routes/events'
 import { signalRoutes } from './routes/signals'
+import { tasksRoutes } from './routes/tasks'
 
 // Create the main Hono app
 const app = new Hono<{ Bindings: Env }>()
@@ -83,14 +84,15 @@ app.use('*', async (c, next) => {
   })
 })
 
-// Health check endpoint
-app.get('/health', (c) => {
-  return c.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    version: '0.1.0',
-  })
+// Health check endpoint — exposed at both /health (root convention) and
+// /api/health (the dashboard's convention).  Both return the same shape.
+const healthPayload = () => ({
+  status: 'ok' as const,
+  timestamp: new Date().toISOString(),
+  version: '0.1.0',
 })
+app.get('/health', (c) => c.json(healthPayload()))
+app.get('/api/health', (c) => c.json(healthPayload()))
 
 // API version prefix
 const api = new Hono<{ Bindings: Env }>()
@@ -164,6 +166,7 @@ api.route('/offers', offerRoutes)
 api.route('/tracked-links', trackedLinkRoutes)
 api.route('/events', eventRoutes)
 api.route('/signals', signalRoutes)
+api.route('/tasks', tasksRoutes)
 
 // Mount API routes under /api
 app.route('/api', api)
