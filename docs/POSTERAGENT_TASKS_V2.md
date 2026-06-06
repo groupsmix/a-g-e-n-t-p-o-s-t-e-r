@@ -314,23 +314,23 @@ ONGOING: Phase 11 hardening (evals, CI, hardening)
 Legend: [ ] = TODO  [~] = In Progress  [P] = In PR / under review  [x] = Done  [!] = Blocked
 
 PHASE 0 — FOUNDATION
-[P] TASK-000  Validate monorepo boots                          (PR #5)
-[P] TASK-001  Fix workspace resolution                         (PR #5)
-[P] TASK-002  Shared type contracts                            (PR #5)
-[P] TASK-003  Logger & observability                           (PR #5)
-[P] TASK-004  Error recovery & retry layer                     (PR #5)
+[x] TASK-000  Validate monorepo boots                          (PR #5 — merged)
+[x] TASK-001  Fix workspace resolution                         (PR #5 — merged)
+[x] TASK-002  Shared type contracts                            (PR #5 — merged)
+[x] TASK-003  Logger & observability                           (PR #5 — merged)
+[x] TASK-004  Error recovery & retry layer                     (PR #5 — merged)
 
 PHASE 1 — DASHBOARD SHELL
-[P] TASK-100  Initialize dashboard app                         (PR #6)
-[P] TASK-101  Real-time task feed (D1 schema)                  (PR #6)
-[P] TASK-101b Tasks API on nexus-api                           (PR #7)
-[ ] TASK-102  Command palette                                  (planned PR after #7)
-[ ] TASK-103  Settings / API key manager
+[x] TASK-100  Initialize dashboard app                         (PR #6, landed via phase-1 stack)
+[x] TASK-101  Real-time task feed (D1 schema)                  (PR #6, landed via phase-1 stack)
+[x] TASK-101b Tasks API on nexus-api                           (PR #7, landed via phase-1 stack)
+[x] TASK-102  Command palette                                  (PR #9, landed via phase-1 stack)
+[x] TASK-103  Settings / API key manager                       (PR #10, landed via phase-1 stack)
 [ ] TASK-104  Dashboard metrics bar
 
 PHASE 2 — BRAIN LAYER
-[ ] TASK-200  Memory engine package
-[ ] TASK-201  Identity / personality layer
+[x] TASK-200  Memory engine package                            (this PR — D1 + FTS5 + Vectorize-ready)
+[x] TASK-201  Identity / personality layer                     (this PR — SOUL.md + journal + NOW)
 [ ] TASK-202  Proactivity engine
 [ ] TASK-203  Memory dashboard UI
 

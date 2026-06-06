@@ -25,6 +25,46 @@ jobs:
 
       - run: pnpm build --filter=@repo/config --filter=@repo/core --filter=@repo/agents --filter=@repo/tools --filter=@repo/workflows --filter=@repo/publishers --filter=@repo/generators --filter=@repo/cms --filter=@repo/factory --filter=@repo/runner
 
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @posteragent/dashboard typecheck
+
+      - run: pnpm --filter @posteragent/dashboard test
+
+      - run: pnpm --filter @posteragent/dashboard build
+
+  brain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @posteragent/memory --filter @posteragent/identity typecheck
+
+      - run: pnpm --filter @posteragent/memory --filter @posteragent/identity test
+
   nexus:
     runs-on: ubuntu-latest
     defaults:

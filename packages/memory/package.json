@@ -1,0 +1,31 @@
+{
+  "name": "@posteragent/memory",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Brain layer — hybrid memory store (D1 + FTS5 + vector-ready), retrieval with RRF, consolidation, and staleness pruning",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./store": "./src/store.ts",
+    "./retrieve": "./src/retrieve.ts",
+    "./embed": "./src/embed.ts",
+    "./consolidate": "./src/consolidate.ts",
+    "./prune": "./src/prune.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@posteragent/logger": "workspace:*",
+    "@posteragent/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  }
+}
