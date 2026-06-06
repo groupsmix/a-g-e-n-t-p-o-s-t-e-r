@@ -326,7 +326,7 @@ PHASE 1 — DASHBOARD SHELL
 [x] TASK-101b Tasks API on nexus-api                           (PR #7, landed via phase-1 stack)
 [x] TASK-102  Command palette                                  (PR #9, landed via phase-1 stack)
 [x] TASK-103  Settings / API key manager                       (PR #10, landed via phase-1 stack)
-[ ] TASK-104  Dashboard metrics bar
+[x] TASK-104  Dashboard metrics bar                              (this branch — /api/metrics/summary + live TopBar)
 
 PHASE 2 — BRAIN LAYER
 [x] TASK-200  Memory engine package                            (this PR — D1 + FTS5 + Vectorize-ready)

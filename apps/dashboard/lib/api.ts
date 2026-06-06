@@ -160,9 +160,31 @@ export interface KeyTestResponse {
   latency_ms?: number
 }
 
+// ── Metrics (TopBar KPI strip, TASK-104) ────────────────────────────────────
+
+export interface MetricValue {
+  value: number
+  display: string
+  delta: string | null
+  source: 'live' | 'unconfigured' | 'error'
+  note?: string
+}
+
+export interface MetricsSummary {
+  generated_at: string
+  tasks_today: MetricValue
+  ai_spend_today: MetricValue
+  active_agents: MetricValue
+  revenue_24h: MetricValue
+  leads_today: MetricValue
+}
+
 export const api = {
   /** GET /api/health — surface health-check status to the UI. */
   health: () => request<HealthResponse>('/api/health'),
+
+  /** GET /api/metrics/summary — dashboard KPI strip (TASK-104). */
+  metricsSummary: () => request<MetricsSummary>('/api/metrics/summary'),
 
   /** Credentials vault — list, save, ping. */
   keys: {

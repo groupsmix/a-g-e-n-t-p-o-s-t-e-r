@@ -60,6 +60,7 @@ import { signalRoutes } from './routes/signals'
 import { tasksRoutes } from './routes/tasks'
 import { agentsRoutes } from './routes/agents'
 import { brainRoutes } from './routes/brain'
+import { metricsRoutes } from './routes/metrics'
 
 // Create the main Hono app
 const app = new Hono<{ Bindings: Env }>()
@@ -172,6 +173,8 @@ api.route('/tasks', tasksRoutes)
 // Phase 3 — orchestrator surface + dashboard brain reads (TASK-300)
 api.route('/agents', agentsRoutes)
 api.route('/brain', brainRoutes)
+// Phase 1 — top-bar KPIs (TASK-104)
+api.route('/metrics', metricsRoutes)
 
 // Mount API routes under /api
 app.route('/api', api)
