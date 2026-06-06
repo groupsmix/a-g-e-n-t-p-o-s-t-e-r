@@ -34,28 +34,54 @@ const ICONS: Record<string, LucideIcon> = {
   Settings,
 }
 
+import type { AgentTaskType } from '@posteragent/types'
+import { api } from '@/lib/api'
+
+interface Intent {
+  label: string
+  route: string
+  type: AgentTaskType
+  payload: Record<string, unknown>
+}
+
 /**
  * Simple keyword-based intent parser. Maps a free-text query to an AgentTaskType
- * and a target route. Real semantic routing comes in Phase 2.
+ * + target route + structured payload. Real semantic routing lives in Phase 2.
  */
-function parseIntent(q: string): { label: string; route: string; type: string } | null {
+function parseIntent(q: string): Intent | null {
   const lc = q.toLowerCase().trim()
   if (!lc) return null
 
-  if (/^(research|find|investigate)\b/.test(lc))
-    return { label: `Research "${q.replace(/^research\s+/i, '')}"`, route: '/research', type: 'research' }
-  if (/^build (an? )?app\b/.test(lc))
-    return { label: `Build app: ${q.replace(/^build (an? )?app\s+/i, '')}`, route: '/builder', type: 'build-app' }
-  if (/^build (an? )?(site|website|landing)\b/.test(lc))
-    return { label: `Build site: ${q.replace(/^build (an? )?(site|website|landing)\s+/i, '')}`, route: '/builder', type: 'build-site' }
-  if (/^write\b/.test(lc))
-    return { label: `Write: ${q.replace(/^write\s+/i, '')}`, route: '/content', type: 'write' }
-  if (/^analy(s|z)e\b/.test(lc))
-    return { label: `Analyse: ${q.replace(/^analy(s|z)e\s+/i, '')}`, route: '/analyse', type: 'analyse' }
-  if (/^publish\b/.test(lc))
-    return { label: `Publish: ${q.replace(/^publish\s+/i, '')}`, route: '/publisher', type: 'publish' }
-  if (/^(scrape|find) leads?\b/.test(lc))
-    return { label: `Lead scrape: ${q}`, route: '/leads', type: 'lead-scrape' }
+  const strip = (re: RegExp): string => q.replace(re, '').trim()
+
+  if (/^(research|find|investigate)\b/.test(lc)) {
+    const topic = strip(/^(research|find|investigate)\s+/i)
+    return { label: `Research "${topic}"`, route: '/research', type: 'research', payload: { topic } }
+  }
+  if (/^build (an? )?app\b/.test(lc)) {
+    const idea = strip(/^build (an? )?app\s+/i)
+    return { label: `Build app: ${idea}`, route: '/builder', type: 'build-app', payload: { idea } }
+  }
+  if (/^build (an? )?(site|website|landing)\b/.test(lc)) {
+    const idea = strip(/^build (an? )?(site|website|landing)\s+/i)
+    return { label: `Build site: ${idea}`, route: '/builder', type: 'build-site', payload: { idea } }
+  }
+  if (/^write\b/.test(lc)) {
+    const brief = strip(/^write\s+/i)
+    return { label: `Write: ${brief}`, route: '/content', type: 'write', payload: { brief } }
+  }
+  if (/^analy(s|z)e\b/.test(lc)) {
+    const target = strip(/^analy(s|z)e\s+/i)
+    return { label: `Analyse: ${target}`, route: '/analyse', type: 'analyse', payload: { target } }
+  }
+  if (/^publish\b/.test(lc)) {
+    const what = strip(/^publish\s+/i)
+    return { label: `Publish: ${what}`, route: '/publisher', type: 'publish', payload: { what } }
+  }
+  if (/^(scrape|find) leads?\b/.test(lc)) {
+    const query = strip(/^(scrape|find) leads?\s+/i)
+    return { label: `Lead scrape: ${query}`, route: '/leads', type: 'lead-scrape', payload: { query } }
+  }
 
   return null
 }
@@ -64,6 +90,8 @@ export function CommandPalette(): JSX.Element {
   const router = useRouter()
   const { commandPaletteOpen, closeCommandPalette, toggleCommandPalette } = useUi()
   const [query, setQuery] = React.useState('')
+  const [running, setRunning] = React.useState(false)
+  const [errorMsg, setErrorMsg] = React.useState<string | null>(null)
 
   // Cmd-K / Ctrl-K to toggle
   React.useEffect(() => {
@@ -84,6 +112,28 @@ export function CommandPalette(): JSX.Element {
     router.push(route)
     closeCommandPalette()
     setQuery('')
+    setErrorMsg(null)
+  }
+
+  /**
+   * Dispatch the parsed intent: create the agent_task via nexus-api, then
+   * route the user to the module page where the live feed will show it.
+   */
+  const runIntent = async (i: Intent): Promise<void> => {
+    setRunning(true)
+    setErrorMsg(null)
+    try {
+      await api.createTask({
+        type: i.type,
+        payload: { ...i.payload, source: 'command-palette' },
+        origin: 'dashboard',
+      })
+      go(i.route)
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'failed to queue task')
+    } finally {
+      setRunning(false)
+    }
   }
 
   if (!commandPaletteOpen) return <></>
@@ -120,16 +170,23 @@ export function CommandPalette(): JSX.Element {
               <Command.Group heading="Run">
                 <Command.Item
                   value={`run-${intent.type}`}
-                  onSelect={() => go(intent.route)}
+                  disabled={running}
+                  onSelect={() => void runIntent(intent)}
                   className={cn(
                     'flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm',
                     'data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground',
+                    running && 'opacity-60',
                   )}
                 >
                   <Sparkles className="h-4 w-4 text-primary" />
                   <span>{intent.label}</span>
-                  <span className="ml-auto text-xs text-muted-foreground">{intent.type}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {running ? 'queueing…' : intent.type}
+                  </span>
                 </Command.Item>
+                {errorMsg && (
+                  <p className="px-2 pb-2 text-xs text-red-400">{errorMsg}</p>
+                )}
               </Command.Group>
             )}
 

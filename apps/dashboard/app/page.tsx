@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { MetricCard } from '@/components/shared/MetricCard'
 import { AgentStatus } from '@/components/shared/AgentStatus'
-import { Activity, Sparkles } from 'lucide-react'
+import { LiveActivityFeed } from '@/components/shared/LiveActivityFeed'
+import { Sparkles } from 'lucide-react'
 
 export default function Home(): JSX.Element {
   return (
@@ -37,20 +38,9 @@ export default function Home(): JSX.Element {
 
       {/* Activity feed */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-primary" />
-              <CardTitle>Live activity</CardTitle>
-            </div>
-            <span className="text-xs text-muted-foreground">SSE stream — coming TASK-101</span>
-          </CardHeader>
-          <CardContent>
-            <div className="flex h-64 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
-              No tasks yet. Run something from <kbd className="mx-1 rounded border bg-muted px-1 py-0.5 font-mono">⌘K</kbd>.
-            </div>
-          </CardContent>
-        </Card>
+        <div className="lg:col-span-2">
+          <LiveActivityFeed />
+        </div>
 
         <Card>
           <CardHeader>
