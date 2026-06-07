@@ -373,7 +373,7 @@ PHASE 8 — LEADS
 PHASE 9 — AUTONOME
 [x] TASK-900  Autonome mode (self-running dashboard)              (this branch — packages/agent-autonome)
 [x] TASK-901  Revenue tracker                                  (this branch — packages/agent-revenue)
-[ ] TASK-902  Cost management & budget guard
+[x] TASK-902  Cost management & budget guard                   (this branch — packages/agent-budget)
 
 PHASE 10 — MCP SERVERS
 [ ] TASK-1000 Graphiti MCP (memory graph)

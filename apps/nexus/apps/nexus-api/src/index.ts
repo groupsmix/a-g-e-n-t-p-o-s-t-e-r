@@ -65,6 +65,7 @@ import { publisherQueueRoutes } from './routes/publisher-queue'
 import { analyticsRoutes, buildAdapters as buildAnalyticsAdapters } from './routes/analytics'
 import { autonomeRoutes, runAutonomeTick } from './routes/autonome'
 import { revenueRoutes, runRevenueTick } from './routes/revenue'
+import { budgetRoutes } from './routes/budget'
 import {
   D1SnapshotStore,
   collectAnalytics,
@@ -192,6 +193,8 @@ api.route('/analytics', analyticsRoutes)
 api.route('/autonome', autonomeRoutes)
 // Phase 9 — revenue tracker (TASK-901)
 api.route('/revenue', revenueRoutes)
+// Phase 9 — cost / budget guard (TASK-902)
+api.route('/budget', budgetRoutes)
 
 // Mount API routes under /api
 app.route('/api', api)
