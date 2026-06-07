@@ -42,17 +42,44 @@ import { MemoryStore } from '@posteragent/memory'
 
 const logger = createLogger({ service: 'orchestrator-bridge' })
 
+type Registry = ReturnType<typeof wireRegistry>
+
 /**
- * Build the wired registry once per Worker invocation. The Worker
- * runtime reuses the same isolate for many requests, so we can lazily
- * cache the registry as a module-level singleton keyed by env identity.
+ * Build the wired registry.
+ *
+ * Previous implementation cached a `Registry` keyed on the `env` object
+ * identity. In a Cloudflare Worker isolate, `env` is reused across many
+ * requests, so the cache hit was effectively permanent — meaning two
+ * real failure modes (AUDIT-PR20 #3):
+ *
+ *   1. Secret rotation race: `SECRETS.get(...)` was captured once at
+ *      first build, so a rotated key kept yielding 401s until isolate
+ *      eviction (hours).
+ *   2. No mutex: two concurrent cold-start requests both saw `null`,
+ *      both built, the last writer won, the other's adapter array was
+ *      silently discarded.
+ *
+ * Replaced with the in-flight Promise pattern: concurrent cold-start
+ * callers share one build, and we deliberately do NOT cache the
+ * resolved registry across requests — every call re-fetches secrets so
+ * key rotation takes effect immediately. Adapter constructors (D1
+ * wrappers, MemoryStore) are all cheap, so this is a few microseconds
+ * of overhead per request in exchange for correctness.
  */
-let cachedRegistry: ReturnType<typeof wireRegistry> | null = null
-let cachedFor: unknown = null
+let inflight: Promise<Registry> | null = null
 
-export async function getWiredRegistry(env: Env): Promise<ReturnType<typeof wireRegistry>> {
-  if (cachedRegistry && cachedFor === env) return cachedRegistry
+export async function getWiredRegistry(env: Env): Promise<Registry> {
+  if (inflight) return inflight
+  inflight = buildRegistry(env).finally(() => {
+    // Null out the slot after settle (success or failure) so the next
+    // request re-fetches secrets. On failure the next caller retries
+    // from scratch instead of inheriting a stuck rejection.
+    inflight = null
+  })
+  return inflight
+}
 
+async function buildRegistry(env: Env): Promise<Registry> {
   const deps: WireDeps = {}
 
   // Pull secrets through the Secrets Store. Missing keys leave the
@@ -117,34 +144,42 @@ export async function getWiredRegistry(env: Env): Promise<ReturnType<typeof wire
   // adapter array — wireRegistry will keep dispatching to the stub
   // until then.
 
-  cachedRegistry = wireRegistry(deps)
-  cachedFor = env
-  return cachedRegistry
+  return wireRegistry(deps)
 }
 
 /**
  * Drain up to `max` queued agent_tasks rows. Each task is wrapped with
- * BaseAgent (memory + identity + journal). Errors are swallowed per
- * task — one bad task can't stop the whole tick.
+ * BaseAgent (memory + identity + journal). Errors are captured per
+ * task and surfaced in the return value — one bad task can't stop the
+ * whole tick, but the operator can see what failed without opening D1.
  */
-export async function drainOrchestratorQueue(env: Env, max = 5): Promise<{
+export interface DrainResult {
   drained: number
   succeeded: number
   failed: number
-}> {
+  /** Capped at the first 5 task-level error strings, never raw upstream errors. */
+  errors: Array<{ id: string; error: string }>
+}
+
+async function drainOrchestratorQueue(env: Env, max = 5): Promise<DrainResult> {
   const registry = await getWiredRegistry(env)
   const identity = await buildIdentityLayer(env)
 
+  // AUDIT-PR20 #5: previously this `.all()` was wrapped in
+  // `.catch(() => ({ results: [] }))`, which made D1 outages and
+  // schema-migration mismatches look identical to "no work to do."
+  // Now we let it throw and tickOrchestrator's outer catch handles
+  // surfacing the error, so the failure is visible in logs.
   const ids = await env.DB
     .prepare(
       `SELECT id FROM agent_tasks WHERE status = 'queued' ORDER BY created_at ASC LIMIT ?`,
     )
     .bind(max)
     .all<{ id: string }>()
-    .catch(() => ({ results: [] as { id: string }[] }))
 
   let succeeded = 0
   let failed = 0
+  const errors: Array<{ id: string; error: string }> = []
   for (const { id } of ids.results ?? []) {
     try {
       const result = await runAgentTask(id, {
@@ -153,23 +188,40 @@ export async function drainOrchestratorQueue(env: Env, max = 5): Promise<{
         identity,
         log: logger as never,
       })
-      if (result.status === 'done') succeeded++
-      else failed++
+      if (result.status === 'done') {
+        succeeded++
+      } else {
+        failed++
+        if (errors.length < 5) {
+          errors.push({ id, error: (result.error ?? 'failed').slice(0, 200) })
+        }
+      }
     } catch (err) {
       failed++
-      logger.error('orchestrator-bridge: task crashed', err instanceof Error ? err : new Error(String(err)), { id })
+      const msg = err instanceof Error ? err.message : String(err)
+      logger.error(
+        'orchestrator-bridge: task crashed',
+        err instanceof Error ? err : new Error(msg),
+        { id },
+      )
+      if (errors.length < 5) {
+        errors.push({ id, error: msg.slice(0, 200) })
+      }
     }
   }
 
-  return { drained: ids.results?.length ?? 0, succeeded, failed }
+  return { drained: ids.results?.length ?? 0, succeeded, failed, errors }
 }
 
 /**
  * Run the proactivity engine: read journal + NOW + tasks state and
  * auto-queue follow-up agent_tasks rows. Read-only first pass, write
  * mode is enabled by passing autoQueue: true.
+ *
+ * Module-private — only called by `tickOrchestrator` (AUDIT-PR20
+ * dead-code: previously exported but had no external callers).
  */
-export async function tickProactivity(env: Env): Promise<void> {
+async function tickProactivity(env: Env): Promise<void> {
   try {
     const report = await runProactivity({
       db: env.DB as never,
@@ -196,6 +248,12 @@ export async function tickOrchestrator(env: Env): Promise<void> {
 
   // 2. Make sure an autonome-run task is queued. We don't queue every
   //    tick — only when there isn't already one queued or running.
+  //
+  //    AUDIT-PR20 #5: previously `.catch(() => null)` on the SELECT and
+  //    `.catch(() => void 0)` on the INSERT silently swallowed D1
+  //    errors. We now let them throw into the outer try/catch so the
+  //    log line tells you what went wrong instead of cheerfully
+  //    reporting "no autonome task queued."
   try {
     const open = await env.DB
       .prepare(
@@ -204,7 +262,6 @@ export async function tickOrchestrator(env: Env): Promise<void> {
          LIMIT 1`,
       )
       .first<{ id: string }>()
-      .catch(() => null)
     if (!open) {
       const id = crypto.randomUUID().replace(/-/g, '')
       const now = new Date().toISOString()
@@ -216,20 +273,36 @@ export async function tickOrchestrator(env: Env): Promise<void> {
         )
         .bind(id, now, now)
         .run()
-        .catch(() => void 0)
     }
   } catch (err) {
     logger.error('orchestrator-bridge: autonome enqueue error', err instanceof Error ? err : new Error(String(err)))
   }
 
   // 3. Drain the queue.
-  const drained = await drainOrchestratorQueue(env, 5)
-  logger.info('orchestrator drain', drained)
+  try {
+    const drained = await drainOrchestratorQueue(env, 5)
+    // Cast through `unknown` because `DrainResult` is a fixed-field
+    // type but the logger's LogContext expects an index signature.
+    logger.info('orchestrator drain', { ...drained } as unknown as Record<string, unknown>)
+  } catch (err) {
+    // Bubbled D1 errors land here. Previously hidden by the in-loop
+    // `.catch(() => ({ results: [] }))`.
+    logger.error(
+      'orchestrator-bridge: drain failed',
+      err instanceof Error ? err : new Error(String(err)),
+    )
+  }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-async function buildIdentityLayer(env: Env): Promise<IdentityLayer | undefined> {
+/**
+ * Build the IdentityLayer for this Worker env. Exported so the
+ * money-machine chain can build it once at chain start and thread it
+ * through every stage (AUDIT-PR20 #2). Returns `undefined` if
+ * construction fails — BaseAgent will fall back to its default identity.
+ */
+export async function buildIdentityLayer(env: Env): Promise<IdentityLayer | undefined> {
   try {
     const soulLoader = env.CONFIG ? new KvSoulLoader(env.CONFIG) : undefined
     return new IdentityLayer(env.DB as never, { soulLoader })

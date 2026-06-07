@@ -3,7 +3,6 @@ import {
   MODEL_PRICING,
   UNKNOWN_MODEL_PRICE,
   estimateCostUsd,
-  preflightEstimate,
 } from './cost.js'
 
 describe('estimateCostUsd', () => {
@@ -25,12 +24,6 @@ describe('estimateCostUsd', () => {
   it('falls back to UNKNOWN_MODEL_PRICE for unknown models', () => {
     const got = estimateCostUsd('made-up-model', 1_000_000, 0)
     expect(got).toBe(UNKNOWN_MODEL_PRICE.input)
-  })
-
-  it('preflightEstimate is identical to estimateCostUsd for the same inputs', () => {
-    expect(preflightEstimate('gpt-5-mini', 10_000, 2_000)).toBe(
-      estimateCostUsd('gpt-5-mini', 10_000, 2_000),
-    )
   })
 
   it('rounds to 6 decimal places', () => {

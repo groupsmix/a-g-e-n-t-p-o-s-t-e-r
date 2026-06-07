@@ -32,7 +32,6 @@
  * its stub — the orchestrator still dispatches without throwing.
  */
 
-import type { AgentTaskType } from '@posteragent/types'
 import type {
   LLMClient,
   MemoryClient,
@@ -307,8 +306,9 @@ function wrapRevenueHandler(rev: NonNullable<WireDeps['revenue']>): AgentHandler
   }
 }
 
-// ─── Re-exports for ergonomics ───────────────────────────────────────────────
-
-export { defaultRegistry, AgentRegistry } from './registry.js'
-export type { AgentHandler, AgentContext, HandlerOutcome } from './types.js'
-export type { AgentTaskType }
+// Re-exports removed (AUDIT-PR20 dead-code): `defaultRegistry`,
+// `AgentRegistry`, `AgentHandler`, `AgentContext`, `HandlerOutcome`,
+// and `AgentTaskType` are already exported from the package root
+// (`packages/orchestrator/src/index.ts`). The duplicates here are a
+// trap — they invite consumers to deep-import from `./wire` and lock in
+// a brittle path. Import from `@posteragent/orchestrator` instead.

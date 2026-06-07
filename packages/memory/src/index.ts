@@ -7,7 +7,6 @@
  *     MemoryStore,
  *     MemoryRetriever,
  *     NullEmbeddingProvider,
- *     OpenAIEmbeddingProvider,
  *     WorkersAIEmbeddingProvider,
  *     extractFromJournal,
  *     extractFromTaskResult,
@@ -25,14 +24,12 @@ export { MemoryRetriever } from './retrieve.js'
 
 export {
   NullEmbeddingProvider,
-  OpenAIEmbeddingProvider,
   WorkersAIEmbeddingProvider,
   cosineSimilarity,
   EMBEDDING_DIMS,
 } from './embed.js'
 export type {
   EmbeddingProvider,
-  OpenAIEmbedOptions,
   WorkersAIBinding,
 } from './embed.js'
 

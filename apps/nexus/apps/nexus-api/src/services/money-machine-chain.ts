@@ -34,8 +34,9 @@ import { createLogger } from '@nexus/logger'
 
 import { runAgentTask } from '@posteragent/orchestrator'
 import type { AgentTaskType } from '@posteragent/types'
+import type { IdentityLayer } from '@posteragent/identity'
 
-import { getWiredRegistry } from './orchestrator-bridge'
+import { buildIdentityLayer, getWiredRegistry } from './orchestrator-bridge'
 
 const logger = createLogger({ service: 'money-machine-chain' })
 
@@ -90,6 +91,120 @@ interface StageOutcome {
   costUsd?: number
 }
 
+// ─── Input validation ─────────────────────────────────────────────────────
+//
+// Caps prevent unbounded payloads from landing in D1 TEXT columns and
+// from being concatenated into every downstream LLM prompt. Values match
+// AUDIT-PR20 #9 recommendations.
+
+const LIMITS = {
+  topic: 500,
+  niche: 100,
+  brandContext: 4000,
+  ownNarrative: 20_000,
+  platforms: 10,
+  formats: 10,
+  style: 50,
+  publishAt: 64,
+} as const
+
+const VALID_FORMATS = new Set([
+  'blog', 'thread', 'instagram', 'linkedin', 'newsletter', 'tiktok', 'youtube_script',
+])
+const VALID_PLATFORMS = new Set([
+  'x', 'linkedin', 'instagram', 'tiktok', 'youtube', 'threads', 'pinterest', 'newsletter', 'blog',
+])
+const VALID_STYLES = new Set(['casual', 'authoritative', 'punchy'])
+
+export type ValidatedInput =
+  | { ok: true; input: MoneyMachineChainInput }
+  | { ok: false; error: string }
+
+export function validateChainInput(raw: unknown): ValidatedInput {
+  if (!raw || typeof raw !== 'object') {
+    return { ok: false, error: 'body must be a JSON object' }
+  }
+  const r = raw as Record<string, unknown>
+
+  // Required
+  const topic = r.topic
+  if (typeof topic !== 'string' || topic.trim().length === 0) {
+    return { ok: false, error: 'topic is required and must be a non-empty string' }
+  }
+  if (topic.length > LIMITS.topic) {
+    return { ok: false, error: `topic exceeds ${LIMITS.topic} chars` }
+  }
+  const niche = r.niche
+  if (typeof niche !== 'string' || niche.trim().length === 0) {
+    return { ok: false, error: 'niche is required and must be a non-empty string' }
+  }
+  if (niche.length > LIMITS.niche) {
+    return { ok: false, error: `niche exceeds ${LIMITS.niche} chars` }
+  }
+
+  // Optional strings — type-check and cap
+  if (r.brandContext !== undefined) {
+    if (typeof r.brandContext !== 'string') {
+      return { ok: false, error: 'brandContext must be a string' }
+    }
+    if (r.brandContext.length > LIMITS.brandContext) {
+      return { ok: false, error: `brandContext exceeds ${LIMITS.brandContext} chars` }
+    }
+  }
+  if (r.ownNarrative !== undefined) {
+    if (typeof r.ownNarrative !== 'string') {
+      return { ok: false, error: 'ownNarrative must be a string' }
+    }
+    if (r.ownNarrative.length > LIMITS.ownNarrative) {
+      return { ok: false, error: `ownNarrative exceeds ${LIMITS.ownNarrative} chars` }
+    }
+  }
+  if (r.publishAt !== undefined) {
+    if (typeof r.publishAt !== 'string' || r.publishAt.length > LIMITS.publishAt) {
+      return { ok: false, error: 'publishAt must be a short ISO date string' }
+    }
+  }
+  if (r.style !== undefined) {
+    if (typeof r.style !== 'string' || !VALID_STYLES.has(r.style)) {
+      return { ok: false, error: `style must be one of ${[...VALID_STYLES].join(', ')}` }
+    }
+  }
+
+  // Arrays — type, length, and member values
+  if (r.formats !== undefined) {
+    if (!Array.isArray(r.formats)) return { ok: false, error: 'formats must be an array' }
+    if (r.formats.length > LIMITS.formats) {
+      return { ok: false, error: `formats exceeds ${LIMITS.formats} items` }
+    }
+    for (const f of r.formats) {
+      if (typeof f !== 'string' || !VALID_FORMATS.has(f)) {
+        return { ok: false, error: `formats contains invalid value: ${String(f)}` }
+      }
+    }
+  }
+  if (r.platforms !== undefined) {
+    if (!Array.isArray(r.platforms)) return { ok: false, error: 'platforms must be an array' }
+    if (r.platforms.length > LIMITS.platforms) {
+      return { ok: false, error: `platforms exceeds ${LIMITS.platforms} items` }
+    }
+    for (const p of r.platforms) {
+      if (typeof p !== 'string' || !VALID_PLATFORMS.has(p)) {
+        return { ok: false, error: `platforms contains invalid value: ${String(p)}` }
+      }
+    }
+  }
+
+  // Booleans
+  if (r.withImage !== undefined && typeof r.withImage !== 'boolean') {
+    return { ok: false, error: 'withImage must be a boolean' }
+  }
+  if (r.skipResearch !== undefined && typeof r.skipResearch !== 'boolean') {
+    return { ok: false, error: 'skipResearch must be a boolean' }
+  }
+
+  return { ok: true, input: raw as MoneyMachineChainInput }
+}
+
 // ─── Chain runner ─────────────────────────────────────────────────────────
 
 export async function runMoneyMachineChain(
@@ -99,13 +214,18 @@ export async function runMoneyMachineChain(
   const chainId = crypto.randomUUID().replace(/-/g, '')
   const startedAt = Date.now()
   const registry = await getWiredRegistry(env)
+  // Build the IdentityLayer once at chain start and thread it through
+  // every stage. Without this, BaseAgent constructs a fresh default
+  // IdentityLayer per task → SOUL.md from KV is never loaded → every
+  // money-machine run publishes off-brand content. See AUDIT-PR20 #2.
+  const identity = await buildIdentityLayer(env)
 
   const stages: MoneyMachineChainResult['stages'] = {}
   let researchData: { narrative?: string; citations?: Array<{ url: string; title: string }>; findings?: unknown[] } | undefined
 
   // ── Stage 1: research ───────────────────────────────────────────────
   if (!input.skipResearch) {
-    const taskId = await enqueueAndRun(env, registry, 'research', {
+    const taskId = await enqueueAndRun(env, registry, identity, 'research', {
       query: input.topic,
     }, chainId)
     stages.research = taskId
@@ -122,7 +242,7 @@ export async function runMoneyMachineChain(
   }
 
   // ── Stage 2: write ──────────────────────────────────────────────────
-  const writeOutcome = await enqueueAndRun(env, registry, 'write', {
+  const writeOutcome = await enqueueAndRun(env, registry, identity, 'write', {
     brief: input.brandContext
       ? `${input.topic}\n\nBrand context: ${input.brandContext}`
       : input.topic,
@@ -142,14 +262,20 @@ export async function runMoneyMachineChain(
     return finalize(chainId, stages, startedAt, 'failed')
   }
 
-  // ── Stage 3: generate-image (per piece, optional) ───────────────────
+  // ── Stage 3: generate-image (per piece, opt-in only) ────────────────
+  // AUDIT-PR20 #4: default-on image generation was a wallet-drain trap
+  // when combined with the (then) unauthenticated route. We now require
+  // an explicit `withImage: true` to spend image credits.
   let imageUrl: string | undefined
-  if (input.withImage !== false) {
-    const imgOutcome = await enqueueAndRun(env, registry, 'generate-image', {
+  if (input.withImage === true) {
+    const imgOutcome = await enqueueAndRun(env, registry, identity, 'generate-image', {
       topic: pieces[0]?.title ?? input.topic,
       niche: input.niche,
       style: 'bold_typographic',
-      aspectRatio: '1:1',
+      // Platform-aware aspect ratio: Pinterest prefers 2:3, others square.
+      aspectRatio: (input.platforms?.includes('pinterest') && input.platforms.length === 1)
+        ? '2:3'
+        : '1:1',
     }, chainId)
     stages.generateImage = imgOutcome
     if (imgOutcome.status === 'done') {
@@ -160,19 +286,36 @@ export async function runMoneyMachineChain(
 
   // ── Stage 4: publish (per platform) ─────────────────────────────────
   if (input.platforms && input.platforms.length > 0) {
-    const jobs = input.platforms.map((platform) => {
+    const jobs: Array<{
+      platform: string
+      title: string
+      parts: string[]
+      publishAt?: string
+      media?: { kind: string; url: string }
+      meta: { chainId: string }
+    }> = []
+    for (const platform of input.platforms) {
       const piece = pickPieceForPlatform(pieces, platform)
-      return {
+      if (!piece) {
+        logger.warn('chain: no piece available for platform, skipping', {
+          chainId,
+          platform,
+        })
+        continue
+      }
+      jobs.push({
         platform,
         title: piece.title,
         parts: piece.parts ?? (piece.body ? [piece.body] : []),
         publishAt: input.publishAt,
         media: imageUrl ? { kind: 'image', url: imageUrl } : undefined,
         meta: { chainId },
-      }
-    })
-    const pubOutcome = await enqueueAndRun(env, registry, 'publish', { jobs }, chainId)
-    stages.publish = pubOutcome
+      })
+    }
+    if (jobs.length > 0) {
+      const pubOutcome = await enqueueAndRun(env, registry, identity, 'publish', { jobs }, chainId)
+      stages.publish = pubOutcome
+    }
   }
 
   const status: MoneyMachineChainResult['status'] =
@@ -194,6 +337,7 @@ export async function runMoneyMachineChain(
 async function enqueueAndRun(
   env: Env,
   registry: Awaited<ReturnType<typeof getWiredRegistry>>,
+  identity: IdentityLayer | undefined,
   type: AgentTaskType,
   payload: Record<string, unknown>,
   chainId: string,
@@ -220,6 +364,7 @@ async function enqueueAndRun(
     const result = await runAgentTask(id, {
       db: env.DB as never,
       registry,
+      identity,
       log: logger as never,
     })
     return {
@@ -238,10 +383,13 @@ async function enqueueAndRun(
   }
 }
 
+type Piece = { format: string; title: string; body?: string; parts?: string[] }
+
 function pickPieceForPlatform(
-  pieces: Array<{ format: string; title: string; body?: string; parts?: string[] }>,
+  pieces: Piece[],
   platform: string,
-): { title: string; body?: string; parts?: string[] } {
+): Piece | undefined {
+  if (pieces.length === 0) return undefined
   const preferred: Record<string, string> = {
     x: 'thread',
     linkedin: 'linkedin',

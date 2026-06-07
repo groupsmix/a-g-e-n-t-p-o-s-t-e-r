@@ -3,7 +3,7 @@
  *
  * NEXUS identity layer.  Exports:
  *
- *   - SOUL loading:           DEFAULT_SOUL, FsSoulLoader, KvSoulLoader,
+ *   - SOUL loading:           DEFAULT_SOUL, KvSoulLoader,
  *                             StaticSoulLoader, CachedSoulLoader
  *   - Prompt assembly:        assembleSystemPrompt
  *   - Journal:                Journal, JournalEntry, JournalOutcome
@@ -28,7 +28,6 @@ import {
 
 export {
   DEFAULT_SOUL,
-  FsSoulLoader,
   KvSoulLoader,
   StaticSoulLoader,
   CachedSoulLoader,

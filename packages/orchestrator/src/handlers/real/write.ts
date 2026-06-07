@@ -112,6 +112,13 @@ export function createWriteHandler(deps: WriteHandlerDeps): AgentHandler<WritePa
           const raw = completion.text.trim()
           pieces.push(parseFormat(format, brief, raw))
         } catch (err) {
+          // AUDIT-PR20 #10: if the request was cancelled (timeout / kill
+          // signal), re-throw so the outer task is marked failed and the
+          // remaining formats are not attempted. Otherwise we keep
+          // burning LLM credits past the deadline.
+          if (ctx.signal?.aborted) {
+            throw err
+          }
           ctx.log.warn('write: format failed', {
             format,
             error: err instanceof Error ? err.message : String(err),
@@ -172,10 +179,16 @@ function extractTitle(body: string, fallback: string): string {
 }
 
 function tryParseJsonArray(s: string): string[] | null {
-  // LLM might wrap in ```json fences
-  const cleaned = s.replace(/^```(json)?/m, '').replace(/```$/m, '').trim()
+  // AUDIT-PR20 #15: the LLM frequently emits leading prose
+  // ("Here you go:\n```json\n[...]\n```") and the previous regex
+  // (anchored at the start of a line) failed to strip the fence,
+  // so JSON.parse threw and we fell back to regex-split → garbage.
+  // Match the first fenced block anywhere in the string and try
+  // parsing only its contents. If no fence, try the raw string.
+  const fence = s.match(/```(?:json)?\s*\n?([\s\S]*?)```/)
+  const candidate = fence ? fence[1]!.trim() : s.trim()
   try {
-    const parsed = JSON.parse(cleaned)
+    const parsed = JSON.parse(candidate)
     if (Array.isArray(parsed) && parsed.every((p) => typeof p === 'string')) return parsed
   } catch {
     /* not JSON, fall back */

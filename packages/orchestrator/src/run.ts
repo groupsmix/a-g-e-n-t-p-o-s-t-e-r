@@ -224,7 +224,14 @@ function safeParse(v: string | null): Record<string, unknown> | undefined {
 function safeJson(v: unknown): string | null {
   try {
     return JSON.stringify(v)
-  } catch {
+  } catch (err) {
+    // AUDIT-PR20 #14: previously this silently returned null, so a row
+    // with `result = NULL` could mean either "no data" or "data had a
+    // circular ref". Log the failure so future-us can tell them apart.
+    // eslint-disable-next-line no-console
+    console.warn('[orch] safeJson failed — result will be stored as NULL', {
+      error: err instanceof Error ? err.message : String(err),
+    })
     return null
   }
 }

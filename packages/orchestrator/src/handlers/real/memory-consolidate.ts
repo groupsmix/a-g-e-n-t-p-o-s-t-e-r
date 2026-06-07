@@ -46,6 +46,7 @@ export function createMemoryConsolidateHandler(
 
       let memoriesWritten = 0
       const consolidatedIds: string[] = []
+      const failedEntries: Array<{ id: string; error: string }> = []
       for (const e of entries) {
         const puts = extractFromJournal({
           taskId: e.taskId ?? undefined,
@@ -55,21 +56,52 @@ export function createMemoryConsolidateHandler(
           learnings: e.learnings,
           followUps: e.followUps,
         })
+        // AUDIT-PR20 #8: previously a single failing `store.put` on entry
+        // N would exit the outer loop, leaving entries 1..N-1 unmarked.
+        // The next run would re-process them → duplicate memories. We
+        // now record the entry as consolidated only if ALL of its puts
+        // succeed; partial-success entries are skipped and surfaced so
+        // they can be retried on the next tick.
+        let allPutsOk = true
         for (const p of puts) {
-          await store.put(p)
-          memoriesWritten++
+          try {
+            await store.put(p)
+            memoriesWritten++
+          } catch (err) {
+            allPutsOk = false
+            failedEntries.push({
+              id: e.id,
+              error: err instanceof Error ? err.message : String(err),
+            })
+            ctx.log.warn('memory-consolidate: store.put failed', {
+              entryId: e.id,
+              error: err instanceof Error ? err.message : String(err),
+            })
+            break
+          }
         }
-        consolidatedIds.push(e.id)
+        if (allPutsOk) consolidatedIds.push(e.id)
       }
       if (consolidatedIds.length) await journal.markConsolidated(consolidatedIds)
 
+      const nextActions: string[] = []
+      if (entries.length === limit) {
+        nextActions.push('Run memory-consolidate again — pages of journal still pending')
+      }
+      if (failedEntries.length > 0) {
+        nextActions.push(
+          `Retry memory-consolidate for ${failedEntries.length} entries that failed mid-put`,
+        )
+      }
+
       return {
         data: { journalEntriesProcessed: entries.length, memoriesWritten },
-        summary: `Consolidated ${entries.length} journal entries → ${memoriesWritten} memories`,
+        summary:
+          failedEntries.length > 0
+            ? `Consolidated ${consolidatedIds.length}/${entries.length} entries → ${memoriesWritten} memories (${failedEntries.length} partial-failures)`
+            : `Consolidated ${entries.length} journal entries → ${memoriesWritten} memories`,
         memories: [],
-        nextActions: entries.length === limit
-          ? ['Run memory-consolidate again — pages of journal still pending']
-          : [],
+        nextActions,
         usage: {},
       }
     },
