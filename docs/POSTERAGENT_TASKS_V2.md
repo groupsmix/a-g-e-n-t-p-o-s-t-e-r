@@ -366,7 +366,7 @@ PHASE 7 — PUBLISHER
 [x] TASK-702  Platform analytics aggregator                      (this branch — packages/agent-analytics)
 
 PHASE 8 — LEADS
-[ ] TASK-800  Lead scraper agent
+[x] TASK-800  Lead scraper agent                                  (this branch — packages/agent-lead-scraper)
 [ ] TASK-801  Email campaign agent
 [ ] TASK-802  Affiliate & Amazon automation
 
