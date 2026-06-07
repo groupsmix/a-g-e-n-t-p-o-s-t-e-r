@@ -60,7 +60,6 @@ export type { RunAgentTaskDeps, RunAgentTaskOptions } from './run.js'
 
 export {
   estimateCostUsd,
-  preflightEstimate,
   MODEL_PRICING,
   UNKNOWN_MODEL_PRICE,
 } from './cost.js'

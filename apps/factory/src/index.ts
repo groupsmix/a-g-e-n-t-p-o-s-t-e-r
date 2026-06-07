@@ -6,10 +6,10 @@ export {
   type GenerateSiteResult,
 } from "./site-generator.js";
 
-/** Site generator entry — TASK 6.1 */
-export async function runFactory(): Promise<void> {
-  console.log("Factory — use `pnpm --filter @repo/factory run generate` or import generateSite()");
-}
+// `runFactory()` removed (AUDIT-PR20 dead-code) — never called.
+// `runFactoryWithConfig` below is the real entry point used by the
+// `pnpm --filter @repo/factory run generate` script and external
+// importers.
 
 export async function runFactoryWithConfig(config: SiteConfig): Promise<void> {
   const result = await generateSite(config);

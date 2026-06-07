@@ -244,7 +244,13 @@ function stripScore<T extends { item?: MemoryItem }>(hit: T): MemoryItem {
 
 const consoleLogger: AgentLogger = {
   debug(msg, meta) {
-    if (process.env.ORCHESTRATOR_DEBUG === '1') console.debug(`[orch] ${msg}`, meta)
+    // `process` is undefined in Cloudflare Workers unless nodejs_compat is
+    // enabled with the right flags. Guard so calling `log.debug(...)` on a
+    // BaseAgent without an explicit logger doesn't ReferenceError.
+    // AUDIT-PR20 #6.
+    if (typeof process !== 'undefined' && process.env?.ORCHESTRATOR_DEBUG === '1') {
+      console.debug(`[orch] ${msg}`, meta)
+    }
   },
   info(msg, meta) {
     console.log(`[orch] ${msg}`, meta ?? '')

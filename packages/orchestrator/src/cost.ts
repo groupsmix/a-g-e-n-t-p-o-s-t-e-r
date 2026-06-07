@@ -51,14 +51,6 @@ export function estimateCostUsd(
   return Math.round((inUsd + outUsd) * 1_000_000) / 1_000_000
 }
 
-/**
- * Pre-flight estimate based on a target output size.  Useful for the
- * dashboard's "estimated cost" preview before a task runs.
- */
-export function preflightEstimate(
-  model: string,
-  estimatedInputTokens: number,
-  estimatedOutputTokens: number,
-): number {
-  return estimateCostUsd(model, estimatedInputTokens, estimatedOutputTokens)
-}
+// `preflightEstimate` removed (AUDIT-PR20 dead-code): the only consumer
+// was its own self-pointing test; it was a pure pass-through to
+// `estimateCostUsd`. Use that directly with estimated token counts.

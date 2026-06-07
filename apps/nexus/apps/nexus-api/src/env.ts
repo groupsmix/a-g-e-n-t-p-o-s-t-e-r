@@ -60,4 +60,17 @@ export interface Env {
 
   // URL for the Nexus AI service endpoint (configurable, defaults to https://nexus-ai/task)
   NEXUS_AI_URL?: string
+
+  // Static admin token for /api/money-machine/* (paid LLM + image + publish).
+  // Required regardless of the dashboard access-gate state — these endpoints
+  // burn money, so they must never be reachable without explicit auth.
+  // Set via `wrangler secret put MONEY_MACHINE_TOKEN`. If unset, the routes
+  // are disabled entirely (return 503) — fail closed.
+  MONEY_MACHINE_TOKEN?: string
+
+  // Comma-separated allow-list of origins for CORS on /api/*. Defaults to
+  // wildcard only when unset (legacy behaviour for local dev). Set this in
+  // production to the dashboard origin(s), e.g.
+  //   "https://nexus-web-cl2.pages.dev,https://nexus.example.com".
+  ALLOWED_ORIGINS?: string
 }

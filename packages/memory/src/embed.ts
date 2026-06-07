@@ -39,58 +39,13 @@ export class NullEmbeddingProvider implements EmbeddingProvider {
   }
 }
 
-// ─── OpenAI ──────────────────────────────────────────────────────────────────
-
-export interface OpenAIEmbedOptions {
-  apiKey: string
-  model?: string
-  /** Cut the vector to this many dims (default: 384). */
-  dims?: number
-}
-
-export class OpenAIEmbeddingProvider implements EmbeddingProvider {
-  readonly name = 'openai'
-  private apiKey: string
-  private model: string
-  private dims: number
-
-  constructor(opts: OpenAIEmbedOptions) {
-    this.apiKey = opts.apiKey
-    this.model = opts.model ?? 'text-embedding-3-small'
-    this.dims = opts.dims ?? EMBEDDING_DIMS
-  }
-
-  async embed(text: string): Promise<number[] | null> {
-    if (!text || text.length === 0) return null
-    try {
-      const res = await fetch('https://api.openai.com/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.model,
-          // text-embedding-3-* supports `dimensions` for native truncation.
-          dimensions: this.dims,
-          input: text.slice(0, 8000), // hard cap on input length
-        }),
-      })
-      if (!res.ok) {
-        log.warn('openai embed failed', { status: res.status })
-        return null
-      }
-      const json = (await res.json()) as { data?: Array<{ embedding: number[] }> }
-      const vec = json.data?.[0]?.embedding
-      if (!vec || vec.length === 0) return null
-      // Defensive truncate in case the API ignores `dimensions`.
-      return vec.length > this.dims ? vec.slice(0, this.dims) : vec
-    } catch (err) {
-      log.warn('openai embed threw', { err: String(err) })
-      return null
-    }
-  }
-}
+// ─── OpenAI — REMOVED ────────────────────────────────────────────────────────
+//
+// `OpenAIEmbeddingProvider` and `OpenAIEmbedOptions` were removed
+// (AUDIT-PR20 dead-code). They had zero non-self consumers — the
+// Workers runtime uses `WorkersAIEmbeddingProvider` and the default
+// fallback is `NullEmbeddingProvider`. Re-add when a real OpenAI-backed
+// memory pipeline is built.
 
 // ─── Cloudflare Workers AI ───────────────────────────────────────────────────
 

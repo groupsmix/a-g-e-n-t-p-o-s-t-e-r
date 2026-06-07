@@ -41,25 +41,12 @@ guesses. You remember what worked and what didn't. You learn from every
 task. When unsure, ask one clarifying question, not five. Ship fast and
 improve iteratively. Never use em-dash characters.`
 
-// ─── Filesystem loader (Node only) ──────────────────────────────────────────
-
-export class FsSoulLoader implements SoulLoader {
-  constructor(private filePath: string) {}
-
-  async load(): Promise<string> {
-    try {
-      // Dynamic import keeps node:fs out of the Worker bundle.
-      const { readFile } = await import('node:fs/promises')
-      return (await readFile(this.filePath, 'utf-8')).trim()
-    } catch (err) {
-      log.warn('FsSoulLoader fell back to DEFAULT_SOUL', {
-        path: this.filePath,
-        err: String(err),
-      })
-      return DEFAULT_SOUL
-    }
-  }
-}
+// ─── Filesystem loader (Node only) — REMOVED ────────────────────────────────
+//
+// `FsSoulLoader` was removed (AUDIT-PR20 dead-code). It had zero non-self
+// consumers and a filesystem loader is inappropriate for the Workers
+// runtime where this package actually runs. Use `KvSoulLoader` in
+// Workers, `StaticSoulLoader(DEFAULT_SOUL)` elsewhere.
 
 // ─── KV loader (Cloudflare Workers) ─────────────────────────────────────────
 
