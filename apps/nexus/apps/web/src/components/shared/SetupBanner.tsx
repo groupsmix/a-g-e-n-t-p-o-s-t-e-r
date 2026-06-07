@@ -67,30 +67,30 @@ export function SetupBanner() {
         {steps.map((s) => (
           <div
             key={s.key}
-            className={`rounded-xl border p-4 ${
+            className={`min-w-0 rounded-xl border p-4 ${
               s.done ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-border bg-card'
             }`}
           >
-            <div className="flex items-center gap-2 font-medium text-sm">
+            <div className="flex min-w-0 items-center gap-2 font-medium text-sm">
               <span
-                className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${
+                className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
                   s.done ? 'bg-emerald-500/15 text-emerald-500' : 'bg-primary/10 text-primary'
                 }`}
               >
                 {s.done ? <CheckCircle2 className="h-4 w-4" /> : s.icon}
               </span>
-              {s.title}
+              <span className="truncate">{s.title}</span>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">{s.desc}</p>
+            <p className="mt-2 text-xs text-muted-foreground break-words">{s.desc}</p>
             {s.done ? (
               <div className="mt-3 text-xs font-medium text-emerald-500">Done</div>
             ) : (
               <Link
                 href={s.href}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+                className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
               >
-                {s.cta}
-                <ArrowRight className="h-3.5 w-3.5" />
+                <span className="truncate">{s.cta}</span>
+                <ArrowRight className="h-3.5 w-3.5 shrink-0" />
               </Link>
             )}
           </div>

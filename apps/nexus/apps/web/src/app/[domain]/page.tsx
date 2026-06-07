@@ -3,7 +3,7 @@
 export const runtime = 'edge'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, notFound } from 'next/navigation'
 import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/card'
 import { Plus, ChevronRight, Loader2 } from 'lucide-react'
@@ -40,15 +40,38 @@ export default function DomainPage() {
   const params = useParams()
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
+  const [unknownDomain, setUnknownDomain] = useState(false)
 
   useEffect(() => {
-    api.getDomains().then((domains: Domain[]) => {
-      const domain = domains.find((d) => d.slug === params.domain)
-      if (domain) {
-        api.getCategories(domain.id).then(setCategories)
-      }
-    }).finally(() => setLoading(false))
+    let cancelled = false
+    api.getDomains()
+      .then((domains: Domain[]) => {
+        if (cancelled) return
+        const domain = domains.find((d) => d.slug === params.domain)
+        if (!domain) {
+          // Slug isn't a real domain — these are typos / stale bookmarks /
+          // LLM-suggested URLs (e.g. /publisher, /opportunity-radar, /ab,
+          // /job-queue). Render a 404 instead of the misleading
+          // "Choose a category" fallback.
+          setUnknownDomain(true)
+          return
+        }
+        api.getCategories(domain.id).then((cs) => {
+          if (!cancelled) setCategories(cs)
+        })
+      })
+      .catch(() => {
+        if (!cancelled) setUnknownDomain(true)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
   }, [params.domain])
+
+  if (!loading && unknownDomain) {
+    notFound()
+  }
 
   return (
     <>

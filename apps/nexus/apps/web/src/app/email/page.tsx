@@ -31,10 +31,19 @@ export default function EmailPage() {
   const [productId, setProductId] = useState('')
   const [customSubject, setCustomSubject] = useState('')
 
+  const [loadError, setLoadError] = useState<string | null>(null)
+
   const refresh = useCallback(async () => {
-    const [s, c] = await Promise.all([api.getSubscribers(), api.getCampaigns()])
-    setSubs(s)
-    setCampaigns(c.campaigns)
+    setLoadError(null)
+    try {
+      const [s, c] = await Promise.all([api.getSubscribers(), api.getCampaigns()])
+      setSubs(s ?? { total: 0, active: 0, subscribers: [] })
+      setCampaigns(c?.campaigns ?? [])
+    } catch (err: unknown) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to load email data')
+      setSubs({ total: 0, active: 0, subscribers: [] })
+      setCampaigns([])
+    }
   }, [])
 
   useEffect(() => {
@@ -110,22 +119,29 @@ export default function EmailPage() {
           </div>
         ) : (
           <>
+            {loadError && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
+                <p className="font-medium text-destructive">Couldn&apos;t load email data</p>
+                <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
+              </div>
+            )}
+
             {/* Stats */}
             <div className="grid gap-4 sm:grid-cols-3">
               <Stat
                 icon={<Users className="h-5 w-5" />}
                 label="Total subscribers"
-                value={String(subs.total)}
+                value={String(subs.total ?? 0)}
               />
               <Stat
                 icon={<Mail className="h-5 w-5" />}
                 label="Active subscribers"
-                value={String(subs.active)}
+                value={String(subs.active ?? 0)}
               />
               <Stat
                 icon={<Send className="h-5 w-5" />}
                 label="Campaigns sent"
-                value={String(campaigns.filter((c) => c.status === 'sent').length)}
+                value={String((campaigns ?? []).filter((c) => c.status === 'sent').length)}
               />
             </div>
 
@@ -197,13 +213,13 @@ export default function EmailPage() {
               <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
                 <Send className="h-4 w-4" /> Campaigns
               </h2>
-              {campaigns.length === 0 ? (
+              {(campaigns ?? []).length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No campaigns yet. Create one to get started.
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {campaigns.map((c) => (
+                  {(campaigns ?? []).map((c) => (
                     <div
                       key={c.id}
                       className="rounded-lg border border-border/60 bg-background p-4"
@@ -267,7 +283,7 @@ export default function EmailPage() {
               <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
                 <Users className="h-4 w-4" /> Subscribers
               </h2>
-              {subs.subscribers.length === 0 ? (
+              {(subs.subscribers ?? []).length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No subscribers yet. Share the signup form to start collecting leads.
                 </p>
@@ -285,7 +301,7 @@ export default function EmailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {subs.subscribers.map((s) => (
+                      {(subs.subscribers ?? []).map((s) => (
                         <tr
                           key={s.id}
                           className="border-b border-border/40 last:border-0"

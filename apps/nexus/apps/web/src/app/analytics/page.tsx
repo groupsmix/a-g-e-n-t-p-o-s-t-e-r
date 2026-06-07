@@ -21,6 +21,7 @@ export default function AnalyticsPage() {
   }, [])
 
   const totals = data?.totals ?? { posts: 0, impressions: 0, engagements: 0, clicks: 0 }
+  const byPlatform = data?.by_platform ?? []
   const unconfigured = data?.source === 'unconfigured'
 
   return (
@@ -40,27 +41,27 @@ export default function AnalyticsPage() {
         )}
 
         <div className="grid gap-3 sm:grid-cols-4">
-          <Stat icon={<BarChart3 className="h-5 w-5 text-primary" />} label="Posts" value={loading ? '…' : String(totals.posts)} />
-          <Stat icon={<Eye className="h-5 w-5 text-blue-500" />} label="Impressions" value={loading ? '…' : totals.impressions.toLocaleString()} />
-          <Stat icon={<Heart className="h-5 w-5 text-rose-500" />} label="Engagements" value={loading ? '…' : totals.engagements.toLocaleString()} />
-          <Stat icon={<MousePointer className="h-5 w-5 text-emerald-500" />} label="Clicks" value={loading ? '…' : totals.clicks.toLocaleString()} />
+          <Stat icon={<BarChart3 className="h-5 w-5 text-primary" />} label="Posts" value={loading ? '…' : String(totals.posts ?? 0)} />
+          <Stat icon={<Eye className="h-5 w-5 text-blue-500" />} label="Impressions" value={loading ? '…' : (totals.impressions ?? 0).toLocaleString()} />
+          <Stat icon={<Heart className="h-5 w-5 text-rose-500" />} label="Engagements" value={loading ? '…' : (totals.engagements ?? 0).toLocaleString()} />
+          <Stat icon={<MousePointer className="h-5 w-5 text-emerald-500" />} label="Clicks" value={loading ? '…' : (totals.clicks ?? 0).toLocaleString()} />
         </div>
 
         <div className="rounded-xl border border-border bg-card">
           <div className="border-b border-border px-5 py-3 text-sm font-medium">By platform</div>
-          {!data || data.by_platform.length === 0 ? (
+          {byPlatform.length === 0 ? (
             <div className="px-5 py-8 text-center text-sm text-muted-foreground">
               {loading ? 'Loading…' : 'No platform data yet.'}
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {data.by_platform.map((p) => (
+              {byPlatform.map((p) => (
                 <div key={p.platform} className="grid grid-cols-5 gap-4 px-5 py-3 text-sm">
                   <div className="font-medium capitalize">{p.platform}</div>
-                  <div className="text-muted-foreground"><span className="text-foreground">{p.posts}</span> posts</div>
-                  <div className="text-muted-foreground"><span className="text-foreground">{p.impressions.toLocaleString()}</span> impr</div>
-                  <div className="text-muted-foreground"><span className="text-foreground">{p.engagements.toLocaleString()}</span> eng</div>
-                  <div className="text-muted-foreground"><span className="text-foreground">{p.clicks.toLocaleString()}</span> clicks</div>
+                  <div className="text-muted-foreground"><span className="text-foreground">{p.posts ?? 0}</span> posts</div>
+                  <div className="text-muted-foreground"><span className="text-foreground">{(p.impressions ?? 0).toLocaleString()}</span> impr</div>
+                  <div className="text-muted-foreground"><span className="text-foreground">{(p.engagements ?? 0).toLocaleString()}</span> eng</div>
+                  <div className="text-muted-foreground"><span className="text-foreground">{(p.clicks ?? 0).toLocaleString()}</span> clicks</div>
                 </div>
               ))}
             </div>

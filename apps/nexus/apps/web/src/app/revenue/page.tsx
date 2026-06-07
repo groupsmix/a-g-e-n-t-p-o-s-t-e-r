@@ -9,9 +9,17 @@ import { PageHeader, PageBody } from '@/components/shell/AppShell'
 export default function RevenuePage() {
   const [data, setData] = useState<RevenueResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   useEffect(() => {
-    api.getRevenue().then(setData).catch(() => setData(null)).finally(() => setLoading(false))
+    setFetchError(null)
+    api.getRevenue()
+      .then(setData)
+      .catch((err: unknown) => {
+        setFetchError(err instanceof Error ? err.message : 'Failed to load revenue')
+        setData(null)
+      })
+      .finally(() => setLoading(false))
   }, [])
 
   return (
@@ -24,6 +32,20 @@ export default function RevenuePage() {
         {loading && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading sales…
+          </div>
+        )}
+
+        {!loading && !data && (
+          <div className="rounded-xl border border-border bg-card p-6">
+            <div className="flex items-center gap-2 text-sm font-medium"><Plug className="h-4 w-4" /> Connect Gumroad</div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {fetchError
+                ? `Couldn't reach the revenue service: ${fetchError}. Add a Gumroad access token in Settings to start tracking real sales.`
+                : 'Add a Gumroad access token to track real sales.'}
+            </p>
+            <Link href="/settings/keys" className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+              Add Gumroad token
+            </Link>
           </div>
         )}
 
