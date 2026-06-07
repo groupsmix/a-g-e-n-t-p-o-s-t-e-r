@@ -1,0 +1,27 @@
+{
+  "name": "@posteragent/agent-publisher",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TASK-700 — Multi-platform Publisher. X, LinkedIn, Instagram, TikTok, YouTube, Newsletter, Blog.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./adapters": "./src/adapters/index.ts",
+    "./pipeline": "./src/pipeline/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@posteragent/logger": "workspace:*",
+    "@posteragent/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  }
+}
