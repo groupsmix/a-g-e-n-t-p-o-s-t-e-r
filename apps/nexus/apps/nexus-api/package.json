@@ -20,10 +20,13 @@
     "@posteragent/agent-budget": "workspace:*",
     "@posteragent/agent-mindsdb": "workspace:*",
     "@posteragent/agent-publisher": "workspace:*",
+    "@posteragent/agent-research": "workspace:*",
     "@posteragent/agent-revenue": "workspace:*",
     "@posteragent/identity": "workspace:*",
+    "@posteragent/memory": "workspace:*",
     "@posteragent/orchestrator": "workspace:*",
     "@posteragent/proactivity": "workspace:*",
+    "@posteragent/types": "workspace:*",
     "hono": "^4.0.0",
     "nanoid": "^3.3.11"
   },

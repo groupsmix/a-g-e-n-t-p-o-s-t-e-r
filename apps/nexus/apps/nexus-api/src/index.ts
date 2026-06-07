@@ -64,6 +64,8 @@ import { publisherQueueRoutes } from './routes/publisher-queue'
 import { analyticsRoutes, buildAdapters as buildAnalyticsAdapters } from './routes/analytics'
 import { autonomeRoutes, runAutonomeTick } from './routes/autonome'
 import { revenueRoutes, runRevenueTick } from './routes/revenue'
+import { tickOrchestrator } from './services/orchestrator-bridge'
+import { moneyMachineRoutes } from './routes/money-machine'
 import { budgetRoutes } from './routes/budget'
 import { insightsRoutes } from './routes/insights'
 import {
@@ -197,6 +199,9 @@ api.route('/revenue', revenueRoutes)
 api.route('/budget', budgetRoutes)
 // Phase 10 — MindsDB-backed unified insights (TASK-1003)
 api.route('/insights', insightsRoutes)
+// Auto money machine — end-to-end chain (research → write → generate → publish)
+// backed by the orchestrator's BaseAgent (memory + identity + journal).
+api.route('/money-machine', moneyMachineRoutes)
 
 // Mount API routes under /api
 app.route('/api', api)
@@ -242,7 +247,7 @@ export default {
     ctx.waitUntil(runRevenueTick(env).catch((err) => {
       logger.error('Revenue tick error', err instanceof Error ? err : new Error(String(err)))
     }))
-    // Drain job queue — up to 5 agent jobs per cron tick
+    // Drain legacy job queue — up to 5 agent jobs per cron tick.
     ctx.waitUntil((async () => {
       const { dequeue } = await import('./services/job-queue')
       const { runJob }  = await import('./services/agents')
@@ -252,6 +257,18 @@ export default {
         await runJob(env, job)
       }
     })())
+
+    // Brain-layer auto loop — proactivity → autonome enqueue → drain
+    // orchestrator agent_tasks via BaseAgent (memory + identity +
+    // journal). Runs in parallel with the legacy product pipeline.
+    ctx.waitUntil(
+      tickOrchestrator(env).catch((err) => {
+        logger.error(
+          'Orchestrator tick error',
+          err instanceof Error ? err : new Error(String(err)),
+        )
+      }),
+    )
   },
 }
 

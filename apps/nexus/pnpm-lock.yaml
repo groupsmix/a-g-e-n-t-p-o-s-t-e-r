@@ -214,9 +214,21 @@ importers:
 
   ../../packages/orchestrator:
     dependencies:
+      '@posteragent/agent-analytics':
+        specifier: workspace:*
+        version: link:../agent-analytics
+      '@posteragent/agent-autonome':
+        specifier: workspace:*
+        version: link:../agent-autonome
+      '@posteragent/agent-publisher':
+        specifier: workspace:*
+        version: link:../agent-publisher
       '@posteragent/agent-research':
         specifier: workspace:*
         version: link:../agent-research
+      '@posteragent/agent-revenue':
+        specifier: workspace:*
+        version: link:../agent-revenue
       '@posteragent/identity':
         specifier: workspace:*
         version: link:../identity
@@ -325,18 +337,27 @@ importers:
       '@posteragent/agent-publisher':
         specifier: workspace:*
         version: link:../../../../packages/agent-publisher
+      '@posteragent/agent-research':
+        specifier: workspace:*
+        version: link:../../../../packages/agent-research
       '@posteragent/agent-revenue':
         specifier: workspace:*
         version: link:../../../../packages/agent-revenue
       '@posteragent/identity':
         specifier: workspace:*
         version: link:../../../../packages/identity
+      '@posteragent/memory':
+        specifier: workspace:*
+        version: link:../../../../packages/memory
       '@posteragent/orchestrator':
         specifier: workspace:*
         version: link:../../../../packages/orchestrator
       '@posteragent/proactivity':
         specifier: workspace:*
         version: link:../../../../packages/proactivity
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../../../../packages/types
       hono:
         specifier: ^4.0.0
         version: 4.12.14
