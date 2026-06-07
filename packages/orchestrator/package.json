@@ -12,7 +12,9 @@
     "./run": "./src/run.ts",
     "./cost": "./src/cost.ts",
     "./types": "./src/types.ts",
-    "./handlers": "./src/handlers/index.ts"
+    "./wire": "./src/wire.ts",
+    "./handlers": "./src/handlers/index.ts",
+    "./handlers/real": "./src/handlers/real/index.ts"
   },
   "scripts": {
     "build": "tsc",
@@ -20,7 +22,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@posteragent/agent-analytics": "workspace:*",
+    "@posteragent/agent-autonome": "workspace:*",
+    "@posteragent/agent-publisher": "workspace:*",
     "@posteragent/agent-research": "workspace:*",
+    "@posteragent/agent-revenue": "workspace:*",
     "@posteragent/identity": "workspace:*",
     "@posteragent/logger": "workspace:*",
     "@posteragent/memory": "workspace:*",
