@@ -379,7 +379,7 @@ PHASE 10 — MCP SERVERS
 [x] TASK-1000 Graphiti MCP (memory graph)                       (this branch — packages/agent-memory-graph)
 [x] TASK-1001 Firecrawl MCP (web intelligence)                  (this branch — packages/agent-firecrawl)
 [x] TASK-1002 Voice interface                                  (this branch — packages/agent-voice)
-[ ] TASK-1003 MindsDB MCP (unified data)
+[x] TASK-1003 MindsDB MCP (unified data)                       (this branch — packages/agent-mindsdb)
 
 PHASE 11 — QUALITY
 [ ] TASK-1100 Agent evaluation framework

@@ -66,6 +66,7 @@ import { analyticsRoutes, buildAdapters as buildAnalyticsAdapters } from './rout
 import { autonomeRoutes, runAutonomeTick } from './routes/autonome'
 import { revenueRoutes, runRevenueTick } from './routes/revenue'
 import { budgetRoutes } from './routes/budget'
+import { insightsRoutes } from './routes/insights'
 import {
   D1SnapshotStore,
   collectAnalytics,
@@ -195,6 +196,8 @@ api.route('/autonome', autonomeRoutes)
 api.route('/revenue', revenueRoutes)
 // Phase 9 — cost / budget guard (TASK-902)
 api.route('/budget', budgetRoutes)
+// Phase 10 — MindsDB-backed unified insights (TASK-1003)
+api.route('/insights', insightsRoutes)
 
 // Mount API routes under /api
 app.route('/api', api)

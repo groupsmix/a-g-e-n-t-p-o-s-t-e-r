@@ -19,6 +19,7 @@
     "@posteragent/agent-autonome": "workspace:*",
     "@posteragent/agent-revenue": "workspace:*",
     "@posteragent/agent-budget": "workspace:*",
+    "@posteragent/agent-mindsdb": "workspace:*",
     "hono": "^4.0.0",
     "nanoid": "^3.3.11"
   },
