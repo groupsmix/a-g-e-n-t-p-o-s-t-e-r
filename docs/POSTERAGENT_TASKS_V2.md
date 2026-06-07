@@ -377,7 +377,7 @@ PHASE 9 — AUTONOME
 
 PHASE 10 — MCP SERVERS
 [x] TASK-1000 Graphiti MCP (memory graph)                       (this branch — packages/agent-memory-graph)
-[ ] TASK-1001 Firecrawl MCP (web intelligence)
+[x] TASK-1001 Firecrawl MCP (web intelligence)                  (this branch — packages/agent-firecrawl)
 [ ] TASK-1002 Voice interface
 [ ] TASK-1003 MindsDB MCP (unified data)
 
