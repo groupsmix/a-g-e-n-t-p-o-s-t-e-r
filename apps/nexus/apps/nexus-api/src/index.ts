@@ -62,6 +62,12 @@ import { agentsRoutes } from './routes/agents'
 import { brainRoutes } from './routes/brain'
 import { metricsRoutes } from './routes/metrics'
 import { publisherQueueRoutes } from './routes/publisher-queue'
+import { analyticsRoutes, buildAdapters as buildAnalyticsAdapters } from './routes/analytics'
+import {
+  D1SnapshotStore,
+  collectAnalytics,
+  loadPublishedPostsFromD1,
+} from '@posteragent/agent-analytics'
 
 // Create the main Hono app
 const app = new Hono<{ Bindings: Env }>()
@@ -178,6 +184,8 @@ api.route('/brain', brainRoutes)
 api.route('/metrics', metricsRoutes)
 // Phase 7 — publisher queue (TASK-701) backed by publish_jobs (TASK-700)
 api.route('/publisher-queue', publisherQueueRoutes)
+// Phase 7 — analytics aggregator (TASK-702)
+api.route('/analytics', analyticsRoutes)
 
 // Mount API routes under /api
 app.route('/api', api)
@@ -213,6 +221,8 @@ export default {
     ctx.waitUntil(backfillDeliverables(env))
     ctx.waitUntil(sendDailyDigest(env))
     ctx.waitUntil(runLearningSync(env))
+    // TASK-702 — daily platform analytics collector.
+    ctx.waitUntil(runAnalyticsCollector(env))
     // Drain job queue — up to 5 agent jobs per cron tick
     ctx.waitUntil((async () => {
       const { dequeue } = await import('./services/job-queue')
@@ -299,6 +309,29 @@ async function runTrendRadar(env: Env): Promise<void> {
     }
   } catch (err) {
     logger.error('Trend radar cron error', err instanceof Error ? err : new Error(String(err)))
+  }
+}
+
+// ------------------------------------------------------------
+// Analytics collector cron — TASK-702. Pulls recent published posts
+// from publish_jobs, hits each platform's analytics API, stores
+// snapshots in platform_analytics. Per-post errors are swallowed.
+// ------------------------------------------------------------
+async function runAnalyticsCollector(env: Env): Promise<void> {
+  try {
+    const posts = await loadPublishedPostsFromD1(env.DB, { windowDays: 30 })
+    if (posts.length === 0) return
+    const adapters = await buildAnalyticsAdapters(env)
+    const store = new D1SnapshotStore(env.DB)
+    const r = await collectAnalytics({ adapters, store, posts })
+    logger.info('Analytics collector run', {
+      attempted: r.attempted,
+      succeeded: r.succeeded,
+      failed: r.failed,
+      unrouted: r.unrouted,
+    })
+  } catch (err) {
+    logger.error('Analytics collector error', err instanceof Error ? err : new Error(String(err)))
   }
 }
 
