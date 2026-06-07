@@ -68,10 +68,10 @@ export default function PublisherQueuePage() {
         )}
 
         <div className="grid gap-3 sm:grid-cols-4">
-          <Stat icon={<Clock className="h-5 w-5 text-amber-500" />} label="Pending" value={summary ? String(summary.pending) : (loading ? '…' : '0')} />
-          <Stat icon={<Send className="h-5 w-5 text-primary" />} label="In progress" value={summary ? String(summary.in_progress) : (loading ? '…' : '0')} />
-          <Stat icon={<CheckCircle2 className="h-5 w-5 text-emerald-500" />} label="Succeeded" value={summary ? String(summary.succeeded) : (loading ? '…' : '0')} />
-          <Stat icon={<AlertCircle className="h-5 w-5 text-destructive" />} label="Failed" value={summary ? String(summary.failed) : (loading ? '…' : '0')} />
+          <Stat icon={<Clock className="h-5 w-5 text-amber-500" />} label="Pending" value={summary ? String(summary.pending ?? 0) : (loading ? '…' : '0')} />
+          <Stat icon={<Send className="h-5 w-5 text-primary" />} label="In progress" value={summary ? String(summary.in_progress ?? 0) : (loading ? '…' : '0')} />
+          <Stat icon={<CheckCircle2 className="h-5 w-5 text-emerald-500" />} label="Succeeded" value={summary ? String(summary.succeeded ?? 0) : (loading ? '…' : '0')} />
+          <Stat icon={<AlertCircle className="h-5 w-5 text-destructive" />} label="Failed" value={summary ? String(summary.failed ?? 0) : (loading ? '…' : '0')} />
         </div>
 
         <div className="flex items-center gap-2">

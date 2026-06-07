@@ -229,6 +229,7 @@ export default function OpportunitiesPage() {
   const [opportunities, setOpportunities] = useState<OpportunityInfo[]>([])
   const [summary, setSummary] = useState<OpportunitySummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
   const [scanPhase, setScanPhase] = useState(0)
   const [nicheInput, setNicheInput] = useState('')
@@ -238,6 +239,7 @@ export default function OpportunitiesPage() {
 
   const load = useCallback(() => {
     setLoading(true)
+    setLoadError(null)
     const params: { status?: string; format?: string; min_score?: number } = {}
     if (filterStatus) params.status = filterStatus
     if (filterFormat) params.format = filterFormat
@@ -247,10 +249,14 @@ export default function OpportunitiesPage() {
       api.getOpportunitySummary(),
     ])
       .then(([oppData, sumData]) => {
-        setOpportunities(oppData.opportunities)
+        setOpportunities(oppData.opportunities ?? [])
         setSummary(sumData)
       })
-      .catch(() => toast.error('Failed to load opportunities'))
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : 'Failed to load opportunities'
+        setLoadError(msg)
+        toast.error('Failed to load opportunities')
+      })
       .finally(() => setLoading(false))
   }, [filterStatus, filterFormat])
 
@@ -472,16 +478,28 @@ export default function OpportunitiesPage() {
         )}
 
         {/* All opportunities */}
-        {loading ? (
-          <div className="flex items-center justify-center py-12 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading opportunities...
-          </div>
-        ) : opportunities.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <Radar className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No opportunities found. Run a scan to discover trends.</p>
-          </div>
-        ) : (
+        {loadError ? (
+            <div className="text-center py-12">
+              <AlertTriangle className="h-10 w-10 mx-auto mb-3 text-destructive opacity-70" />
+              <p className="text-sm font-medium text-destructive">Failed to load opportunities</p>
+              <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
+              <button
+                onClick={() => load()}
+                className="mt-4 inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-sidebar-accent transition-colors"
+              >
+                <Loader2 className="h-3 w-3" /> Retry
+              </button>
+            </div>
+          ) : loading ? (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading opportunities...
+            </div>
+          ) : opportunities.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Radar className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No opportunities found. Run a scan to discover trends.</p>
+            </div>
+          ) : (
           <div className="space-y-3">
             {opportunities.map((opp) => (
               <OpportunityCard

@@ -269,19 +269,19 @@ function MetricCard({ label, value, icon, sub, trend, href, accent }: {
   return (
     <Link
       href={href}
-      className={`group rounded-xl border bg-card p-4 transition-colors ${
+      className={`group min-w-0 rounded-xl border bg-card p-4 transition-colors ${
         accent ? 'border-primary/30 hover:border-primary/50' : 'border-border hover:border-primary/30'
       }`}
     >
       <div className="flex items-center justify-between">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
           {icon}
         </span>
         {trend === 'up' && <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />}
         {trend === 'down' && <TrendingDown className="h-3.5 w-3.5 text-destructive" />}
       </div>
-      <div className={`mt-3 text-2xl font-semibold tabular-nums ${accent ? 'text-emerald-400' : ''}`}>{value}</div>
-      <div className="mt-0.5 text-xs text-muted-foreground">{sub ?? label}</div>
+      <div className={`mt-3 truncate text-2xl font-semibold tabular-nums ${accent ? 'text-emerald-400' : ''}`}>{value}</div>
+      <div className="mt-0.5 truncate text-xs text-muted-foreground">{sub ?? label}</div>
     </Link>
   )
 }

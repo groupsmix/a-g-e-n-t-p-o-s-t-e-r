@@ -78,8 +78,8 @@ export default function BudgetPage() {
         )}
 
         <div className="grid gap-3 sm:grid-cols-3">
-          <Stat label={`Total spend (${period})`} value={summary ? `$${summary.total_usd.toFixed(2)}` : (loading ? '…' : '$0.00')} />
-          <Stat label="Total runs" value={summary ? String(summary.total_runs) : (loading ? '…' : '0')} />
+          <Stat label={`Total spend (${period})`} value={summary ? `$${(summary.total_usd ?? 0).toFixed(2)}` : (loading ? '…' : '$0.00')} />
+          <Stat label="Total runs" value={summary ? String(summary.total_runs ?? 0) : (loading ? '…' : '0')} />
           <Stat label="Active caps" value={loading ? '…' : String(caps.filter((c) => c.enabled).length)} />
         </div>
 
@@ -109,11 +109,11 @@ export default function BudgetPage() {
         </Section>
 
         <Section title={`Spend by model`}>
-          {!summary || summary.by_model.length === 0 ? (
+          {!summary || (summary.by_model?.length ?? 0) === 0 ? (
             <Empty>No usage logged for this period.</Empty>
           ) : (
             <div className="divide-y divide-border">
-              {summary.by_model.map((m) => (
+              {(summary.by_model ?? []).map((m) => (
                 <div key={m.model} className="flex items-center justify-between gap-4 px-5 py-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{m.model}</div>
@@ -127,11 +127,11 @@ export default function BudgetPage() {
         </Section>
 
         <Section title={`Spend by task`}>
-          {!summary || summary.by_task.length === 0 ? (
+          {!summary || (summary.by_task?.length ?? 0) === 0 ? (
             <Empty>No task-typed usage logged.</Empty>
           ) : (
             <div className="divide-y divide-border">
-              {summary.by_task.map((t) => (
+              {(summary.by_task ?? []).map((t) => (
                 <div key={t.task_type} className="flex items-center justify-between gap-4 px-5 py-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium">{t.task_type}</div>

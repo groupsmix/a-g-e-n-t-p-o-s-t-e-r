@@ -308,8 +308,8 @@ export default function SleepModePage() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" /> Max daily AI spend
               </div>
               <p className="text-xs text-muted-foreground mb-3">Estimated USD cap per day. Leave blank for no limit.</p>
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground text-sm">$</span>
+              <div className="flex min-w-0 items-center gap-1">
+                <span className="shrink-0 text-muted-foreground text-sm">$</span>
                 <input
                   type="number" min={0} step={1} placeholder="No limit"
                   value={state.max_spend_usd ?? ''}
@@ -319,7 +319,7 @@ export default function SleepModePage() {
                     setState((s) => ({ ...s, max_spend_usd: v }))
                     scheduleNumericSave({ max_spend_usd: v })
                   }}
-                  className="flex-1 rounded-md border border-border bg-muted px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="min-w-0 flex-1 rounded-md border border-border bg-muted px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
             </div>
