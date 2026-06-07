@@ -1,6 +1,0 @@
-export { analyseFinance } from './finance.js'
-export type { AnalyseFinanceInput } from './finance.js'
-export { buildPnl } from './pnl.js'
-export { forecastRevenue } from './forecast.js'
-export { checkBudget } from './budget.js'
-export { detectFinanceAlerts } from './alerter.js'

@@ -20,6 +20,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@posteragent/agent-research": "workspace:*",
     "@posteragent/identity": "workspace:*",
     "@posteragent/logger": "workspace:*",
     "@posteragent/memory": "workspace:*",

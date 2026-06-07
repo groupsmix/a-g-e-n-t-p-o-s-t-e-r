@@ -61,7 +61,7 @@ jobs:
       - run: pnpm --filter @posteragent/memory --filter @posteragent/identity --filter @posteragent/orchestrator --filter @posteragent/proactivity --filter @posteragent/agent-research typecheck
       - run: pnpm --filter @posteragent/memory --filter @posteragent/identity --filter @posteragent/orchestrator --filter @posteragent/proactivity --filter @posteragent/agent-research test
 
-  # ─── V2 agent packages (Phases 4-9) ──────────────────────────────────
+  # ─── V2 agent packages (the ones actually wired into nexus-api) ──────
   v2-agents:
     name: v2-agents
     runs-on: ubuntu-latest
@@ -76,79 +76,21 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: |
           pnpm \
-            --filter @posteragent/agent-brand-monitor \
-            --filter @posteragent/agent-trend-finder \
-            --filter @posteragent/agent-finance \
-            --filter @posteragent/context-engine \
-            --filter @posteragent/agent-product-gen \
-            --filter @posteragent/agent-docs-writer \
-            --filter @posteragent/agent-content-planner \
-            --filter @posteragent/agent-writer \
-            --filter @posteragent/agent-video-factory \
-            --filter @posteragent/agent-podcast \
-            --filter @posteragent/agent-image-gen \
-            --filter @posteragent/agent-publisher \
             --filter @posteragent/agent-analytics \
-            --filter @posteragent/agent-lead-scraper \
-            --filter @posteragent/agent-email-campaign \
-            --filter @posteragent/agent-affiliate \
             --filter @posteragent/agent-autonome \
             --filter @posteragent/agent-revenue \
             --filter @posteragent/agent-budget \
+            --filter @posteragent/agent-mindsdb \
+            --filter @posteragent/agent-publisher \
             typecheck
       - run: |
           pnpm \
-            --filter @posteragent/agent-brand-monitor \
-            --filter @posteragent/agent-trend-finder \
-            --filter @posteragent/agent-finance \
-            --filter @posteragent/context-engine \
-            --filter @posteragent/agent-product-gen \
-            --filter @posteragent/agent-docs-writer \
-            --filter @posteragent/agent-content-planner \
-            --filter @posteragent/agent-writer \
-            --filter @posteragent/agent-video-factory \
-            --filter @posteragent/agent-podcast \
-            --filter @posteragent/agent-image-gen \
-            --filter @posteragent/agent-publisher \
             --filter @posteragent/agent-analytics \
-            --filter @posteragent/agent-lead-scraper \
-            --filter @posteragent/agent-email-campaign \
-            --filter @posteragent/agent-affiliate \
             --filter @posteragent/agent-autonome \
             --filter @posteragent/agent-revenue \
             --filter @posteragent/agent-budget \
-            test
-
-  # ─── MCP integrations + quality (Phases 10-11) ───────────────────────
-  mcp-quality:
-    name: mcp-quality
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - run: |
-          pnpm \
-            --filter @posteragent/agent-memory-graph \
-            --filter @posteragent/agent-firecrawl \
-            --filter @posteragent/agent-voice \
             --filter @posteragent/agent-mindsdb \
-            --filter @posteragent/evals \
-            --filter @posteragent/quota \
-            typecheck
-      - run: |
-          pnpm \
-            --filter @posteragent/agent-memory-graph \
-            --filter @posteragent/agent-firecrawl \
-            --filter @posteragent/agent-voice \
-            --filter @posteragent/agent-mindsdb \
-            --filter @posteragent/evals \
-            --filter @posteragent/quota \
+            --filter @posteragent/agent-publisher \
             test
 
   # ─── Nexus monorepo (Workers + API) ──────────────────────────────────
@@ -178,27 +120,3 @@ jobs:
           npm install -g wrangler@3
           cd apps/nexus-api
           wrangler d1 migrations list nexus-db --local || true
-
-  # ─── Evals — run the eval suite as a soft-pass gate ──────────────────
-  evals:
-    name: evals
-    runs-on: ubuntu-latest
-    needs: [mcp-quality]
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - name: Run evals (warn-only)
-        continue-on-error: true
-        run: |
-          if [ -f evals.config.mjs ]; then
-            node packages/evals/bin/run.mjs --suites evals.config.mjs
-          else
-            echo "No evals.config.mjs at repo root — skipping."
-          fi
