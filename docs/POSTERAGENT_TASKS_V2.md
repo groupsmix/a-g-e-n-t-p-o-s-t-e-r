@@ -368,7 +368,7 @@ PHASE 7 — PUBLISHER
 PHASE 8 — LEADS
 [x] TASK-800  Lead scraper agent                                  (this branch — packages/agent-lead-scraper)
 [x] TASK-801  Email campaign agent                                (this branch — packages/agent-email-campaign)
-[ ] TASK-802  Affiliate & Amazon automation
+[x] TASK-802  Affiliate & Amazon automation                       (this branch — packages/agent-affiliate)
 
 PHASE 9 — AUTONOME
 [ ] TASK-900  Autonome mode (self-running)
