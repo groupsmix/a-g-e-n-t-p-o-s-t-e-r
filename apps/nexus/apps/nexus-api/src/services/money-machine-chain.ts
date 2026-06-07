@@ -32,8 +32,8 @@
 import type { Env } from '../env'
 import { createLogger } from '@nexus/logger'
 
-import { runAgentTask, type AgentTaskType } from '@posteragent/orchestrator'
-import type { AgentTask } from '@posteragent/types'
+import { runAgentTask } from '@posteragent/orchestrator'
+import type { AgentTaskType } from '@posteragent/types'
 
 import { getWiredRegistry } from './orchestrator-bridge'
 

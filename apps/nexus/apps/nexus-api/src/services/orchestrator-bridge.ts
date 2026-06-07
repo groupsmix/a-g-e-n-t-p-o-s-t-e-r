@@ -87,10 +87,14 @@ export async function getWiredRegistry(env: Env): Promise<ReturnType<typeof wire
   if (env.GUMROAD_ACCESS_TOKEN || amazonReportUrl) {
     const revenueAdapters: unknown[] = []
     if (env.GUMROAD_ACCESS_TOKEN) {
-      revenueAdapters.push(new GumroadAdapter({ accessToken: env.GUMROAD_ACCESS_TOKEN }))
+      // GumroadAdapter is webhook-driven; presence of the access token
+      // just acts as a feature flag for now.
+      revenueAdapters.push(new GumroadAdapter())
     }
     if (amazonReportUrl) {
-      revenueAdapters.push(new AmazonCsvAdapter({ url: amazonReportUrl }))
+      // AmazonCsvAdapter is push-based (fed by the report-upload route);
+      // the URL is queued there, not via constructor.
+      revenueAdapters.push(new AmazonCsvAdapter())
     }
     deps.revenue = {
       adapters: revenueAdapters,
@@ -225,7 +229,7 @@ export async function tickOrchestrator(env: Env): Promise<void> {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-async function buildIdentityLayer(env: Env): Promise<unknown> {
+async function buildIdentityLayer(env: Env): Promise<IdentityLayer | undefined> {
   try {
     const soulLoader = env.CONFIG ? new KvSoulLoader(env.CONFIG) : undefined
     return new IdentityLayer(env.DB as never, { soulLoader })
