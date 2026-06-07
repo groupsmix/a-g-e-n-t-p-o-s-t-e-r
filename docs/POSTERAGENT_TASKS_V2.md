@@ -376,7 +376,7 @@ PHASE 9 — AUTONOME
 [x] TASK-902  Cost management & budget guard                   (this branch — packages/agent-budget)
 
 PHASE 10 — MCP SERVERS
-[ ] TASK-1000 Graphiti MCP (memory graph)
+[x] TASK-1000 Graphiti MCP (memory graph)                       (this branch — packages/agent-memory-graph)
 [ ] TASK-1001 Firecrawl MCP (web intelligence)
 [ ] TASK-1002 Voice interface
 [ ] TASK-1003 MindsDB MCP (unified data)
