@@ -371,7 +371,7 @@ PHASE 8 — LEADS
 [x] TASK-802  Affiliate & Amazon automation                       (this branch — packages/agent-affiliate)
 
 PHASE 9 — AUTONOME
-[ ] TASK-900  Autonome mode (self-running)
+[x] TASK-900  Autonome mode (self-running dashboard)              (this branch — packages/agent-autonome)
 [ ] TASK-901  Revenue tracker
 [ ] TASK-902  Cost management & budget guard
 

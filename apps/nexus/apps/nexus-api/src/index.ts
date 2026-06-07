@@ -63,6 +63,7 @@ import { brainRoutes } from './routes/brain'
 import { metricsRoutes } from './routes/metrics'
 import { publisherQueueRoutes } from './routes/publisher-queue'
 import { analyticsRoutes, buildAdapters as buildAnalyticsAdapters } from './routes/analytics'
+import { autonomeRoutes, runAutonomeTick } from './routes/autonome'
 import {
   D1SnapshotStore,
   collectAnalytics,
@@ -186,6 +187,8 @@ api.route('/metrics', metricsRoutes)
 api.route('/publisher-queue', publisherQueueRoutes)
 // Phase 7 — analytics aggregator (TASK-702)
 api.route('/analytics', analyticsRoutes)
+// Phase 9 — autonome mode (TASK-900)
+api.route('/autonome', autonomeRoutes)
 
 // Mount API routes under /api
 app.route('/api', api)
@@ -223,6 +226,10 @@ export default {
     ctx.waitUntil(runLearningSync(env))
     // TASK-702 — daily platform analytics collector.
     ctx.waitUntil(runAnalyticsCollector(env))
+    // TASK-900 — hourly Autonome tick.
+    ctx.waitUntil(runAutonomeTick(env).catch((err) => {
+      logger.error('Autonome tick error', err instanceof Error ? err : new Error(String(err)))
+    }))
     // Drain job queue — up to 5 agent jobs per cron tick
     ctx.waitUntil((async () => {
       const { dequeue } = await import('./services/job-queue')
