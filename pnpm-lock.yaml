@@ -483,9 +483,21 @@ importers:
 
   packages/orchestrator:
     dependencies:
+      '@posteragent/agent-analytics':
+        specifier: workspace:*
+        version: link:../agent-analytics
+      '@posteragent/agent-autonome':
+        specifier: workspace:*
+        version: link:../agent-autonome
+      '@posteragent/agent-publisher':
+        specifier: workspace:*
+        version: link:../agent-publisher
       '@posteragent/agent-research':
         specifier: workspace:*
         version: link:../agent-research
+      '@posteragent/agent-revenue':
+        specifier: workspace:*
+        version: link:../agent-revenue
       '@posteragent/identity':
         specifier: workspace:*
         version: link:../identity
