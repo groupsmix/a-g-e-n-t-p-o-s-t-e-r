@@ -372,7 +372,7 @@ PHASE 8 — LEADS
 
 PHASE 9 — AUTONOME
 [x] TASK-900  Autonome mode (self-running dashboard)              (this branch — packages/agent-autonome)
-[ ] TASK-901  Revenue tracker
+[x] TASK-901  Revenue tracker                                  (this branch — packages/agent-revenue)
 [ ] TASK-902  Cost management & budget guard
 
 PHASE 10 — MCP SERVERS

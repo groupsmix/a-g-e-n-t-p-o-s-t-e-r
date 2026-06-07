@@ -17,6 +17,7 @@
     "@nexus/types": "workspace:*",
     "@posteragent/agent-analytics": "workspace:*",
     "@posteragent/agent-autonome": "workspace:*",
+    "@posteragent/agent-revenue": "workspace:*",
     "hono": "^4.0.0",
     "nanoid": "^3.3.11"
   },

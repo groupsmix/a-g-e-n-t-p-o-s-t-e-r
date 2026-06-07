@@ -64,6 +64,7 @@ import { metricsRoutes } from './routes/metrics'
 import { publisherQueueRoutes } from './routes/publisher-queue'
 import { analyticsRoutes, buildAdapters as buildAnalyticsAdapters } from './routes/analytics'
 import { autonomeRoutes, runAutonomeTick } from './routes/autonome'
+import { revenueRoutes, runRevenueTick } from './routes/revenue'
 import {
   D1SnapshotStore,
   collectAnalytics,
@@ -189,6 +190,8 @@ api.route('/publisher-queue', publisherQueueRoutes)
 api.route('/analytics', analyticsRoutes)
 // Phase 9 — autonome mode (TASK-900)
 api.route('/autonome', autonomeRoutes)
+// Phase 9 — revenue tracker (TASK-901)
+api.route('/revenue', revenueRoutes)
 
 // Mount API routes under /api
 app.route('/api', api)
@@ -229,6 +232,10 @@ export default {
     // TASK-900 — hourly Autonome tick.
     ctx.waitUntil(runAutonomeTick(env).catch((err) => {
       logger.error('Autonome tick error', err instanceof Error ? err : new Error(String(err)))
+    }))
+    // TASK-901 — revenue pollers (affiliate / AdSense).
+    ctx.waitUntil(runRevenueTick(env).catch((err) => {
+      logger.error('Revenue tick error', err instanceof Error ? err : new Error(String(err)))
     }))
     // Drain job queue — up to 5 agent jobs per cron tick
     ctx.waitUntil((async () => {
