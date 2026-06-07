@@ -106,7 +106,7 @@ export async function planScenes(
   }
 
   // 5) Optional news-reel close-out if hook smells like a headline
-  if (/\b(launch|raises|announces|hits|beats|drops)\b/i.test(brief.hook)) {
+  if (/\b(launch(?:es|ed|ing)?|raise(?:s|d)?|announce(?:s|d)?|hits?|beats?|drops?)\b/i.test(brief.hook)) {
     scenes.push({
       id: id('s', scenes.length),
       kind: 'news-reel',

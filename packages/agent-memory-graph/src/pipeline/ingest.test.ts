@@ -16,6 +16,7 @@ describe('memory graph ingest', () => {
       id: 'l1', handle: 'alice', platform: 'x',
       context: 'asked about agent setup', score: 80,
       sourceUrl: 'https://x.com/alice/status/1', status: 'prospect',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
     })
     const ctx = await contextFor(c, 'g1', 'agent setup')
     expect(ctx).toContain('Lead alice')

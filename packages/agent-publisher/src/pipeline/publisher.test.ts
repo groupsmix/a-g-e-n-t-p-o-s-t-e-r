@@ -54,10 +54,10 @@ describe('runPublisher', () => {
   })
 
   it('future jobs are marked scheduled without dispatch', async () => {
-    const publish = vi.fn(async () => ({ ok: true, platform: 'x', postId: 'x1' }))
+    const publish = vi.fn(async (_job: any) => ({ ok: true, platform: 'x', postId: 'x1' }))
     const report = await runPublisher(
       { jobs: [{ platform: 'x', title: 'a', parts: ['hi'], publishAt: new Date(Date.now() + 60_000).toISOString() } as any] },
-      { adapters: [{ platform: 'x', publish }] },
+      { adapters: [{ platform: 'x', publish } as any] },
     )
     expect(report.results[0]!.scheduled).toBe(true)
     expect(publish).not.toHaveBeenCalled()

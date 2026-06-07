@@ -23,7 +23,7 @@ const pastTasks: PastTaskRetriever = {
     return [
       {
         id: 't1',
-        taskType: 'research',
+        taskType: 'research' as const,
         summary: 'Researched Tavily vs Brave for search adapter.',
         resultExcerpt: 'Tavily wins on snippet quality.',
         status: 'done' as const,

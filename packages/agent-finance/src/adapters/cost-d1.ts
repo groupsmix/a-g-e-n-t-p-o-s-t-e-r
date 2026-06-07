@@ -44,7 +44,7 @@ export function createD1CostLedger(opts: D1CostLedgerOptions): CostLedger {
         .filter((r) => r && r.amount_usd != null)
         .map(
           (r): CostEntry => ({
-            postedAt: r.posted_at,
+            postedAt: r.posted_at ?? input.sinceIso,
             category: r.category ?? 'unknown',
             amountUsd: Number(r.amount_usd) || 0,
             taskId: r.id,

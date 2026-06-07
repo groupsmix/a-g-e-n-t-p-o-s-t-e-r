@@ -86,11 +86,11 @@ jobs:
             --filter @posteragent/agent-writer \
             --filter @posteragent/agent-video-factory \
             --filter @posteragent/agent-podcast \
-            --filter @posteragent/agent-image \
+            --filter @posteragent/agent-image-gen \
             --filter @posteragent/agent-publisher \
             --filter @posteragent/agent-analytics \
-            --filter @posteragent/agent-leads \
-            --filter @posteragent/agent-email \
+            --filter @posteragent/agent-lead-scraper \
+            --filter @posteragent/agent-email-campaign \
             --filter @posteragent/agent-affiliate \
             --filter @posteragent/agent-autonome \
             --filter @posteragent/agent-revenue \
@@ -108,11 +108,11 @@ jobs:
             --filter @posteragent/agent-writer \
             --filter @posteragent/agent-video-factory \
             --filter @posteragent/agent-podcast \
-            --filter @posteragent/agent-image \
+            --filter @posteragent/agent-image-gen \
             --filter @posteragent/agent-publisher \
             --filter @posteragent/agent-analytics \
-            --filter @posteragent/agent-leads \
-            --filter @posteragent/agent-email \
+            --filter @posteragent/agent-lead-scraper \
+            --filter @posteragent/agent-email-campaign \
             --filter @posteragent/agent-affiliate \
             --filter @posteragent/agent-autonome \
             --filter @posteragent/agent-revenue \

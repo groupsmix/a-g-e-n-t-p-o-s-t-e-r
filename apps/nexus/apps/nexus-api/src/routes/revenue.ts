@@ -16,7 +16,6 @@ import {
   D1RevenueStore,
   parseGumroadSale,
   parseAmazonCsv,
-  AmazonCsvAdapter,
   AffiliatePollAdapter,
   AdsenseAdapter,
   runRevenueOnce,
@@ -91,7 +90,7 @@ revenueRoutes.post('/gumroad/webhook', async (c) => {
       const text = await c.req.text()
       payload = Object.fromEntries(new URLSearchParams(text).entries())
     }
-    const event = parseGumroadSale(payload as Parameters<typeof parseGumroadSale>[0])
+    const event = parseGumroadSale(payload as unknown as Parameters<typeof parseGumroadSale>[0])
     const store = new D1RevenueStore(c.env.DB)
     await store.upsert([event])
     // Mirror into gumroad_sales so TASK-900's progress source counts it.

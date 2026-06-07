@@ -26,8 +26,13 @@ export function segmentScript(script: string): ScriptSegment[] {
   for (const raw of lines) {
     const m = raw.match(TAG_RX)
     if (m) {
-      flush()
-      curVoice = m[1]!.toLowerCase()
+      const nextVoice = m[1]!.toLowerCase()
+      // Only emit a boundary when the speaker actually changes; consecutive
+      // lines from the same voice get merged into a single TTS segment.
+      if (nextVoice !== curVoice) {
+        flush()
+        curVoice = nextVoice
+      }
       if (m[2]) buf.push(m[2]!.trim())
     } else if (raw.trim()) {
       buf.push(raw.trim())
