@@ -354,7 +354,7 @@ PHASE 5 — BUILDER
 [x] TASK-503  Documentation writer agent                         (this branch — agent-docs-writer)
 
 PHASE 6 — CONTENT
-[ ] TASK-600  Content planner agent
+[x] TASK-600  Content planner agent                              (this branch — agent-content-planner)
 [ ] TASK-601  Writer agent (multi-format)
 [ ] TASK-602  Video factory (Remotion)
 [ ] TASK-603  AI podcast generator
