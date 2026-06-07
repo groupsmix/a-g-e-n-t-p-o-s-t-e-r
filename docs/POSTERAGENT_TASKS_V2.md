@@ -382,7 +382,7 @@ PHASE 10 — MCP SERVERS
 [x] TASK-1003 MindsDB MCP (unified data)                       (this branch — packages/agent-mindsdb)
 
 PHASE 11 — QUALITY
-[ ] TASK-1100 Agent evaluation framework
+[x] TASK-1100 Agent evaluation framework                       (this branch — packages/evals)
 [~] TASK-1101 GitHub Actions CI pipeline                       (Node 24 bump shipped this PR; deploy.yml hardening pending)
 [ ] TASK-1102 Rate limit & quota manager
 ```
