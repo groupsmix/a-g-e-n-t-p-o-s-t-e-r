@@ -27,7 +27,33 @@
 export { BaseAgent } from './base-agent.js'
 export type { BaseAgentOptions } from './base-agent.js'
 
-export { AgentRegistry, defaultRegistry } from './registry.js'
+export { defaultRegistry, AgentRegistry } from './registry.js'
+export { wireRegistry } from './wire.js'
+export type { WireDeps } from './wire.js'
+export {
+  createWriteHandler,
+  type WritePayload,
+  type WriteFormat,
+  type WriteHandlerDeps,
+} from './handlers/real/write.js'
+export {
+  createGenerateImageHandler,
+  type GenerateImagePayload,
+  type ImageClient,
+  type ImageModel,
+  type PosterStyle,
+  type AspectRatio,
+} from './handlers/real/generate-image.js'
+export {
+  createGenerateVideoHandler,
+  type GenerateVideoPayload,
+  type VideoRenderer,
+  type VideoComposition,
+} from './handlers/real/generate-video.js'
+export {
+  createMemoryConsolidateHandler,
+  type MemoryConsolidatePayload,
+} from './handlers/real/memory-consolidate.js'
 
 export { runAgentTask } from './run.js'
 export type { RunAgentTaskDeps, RunAgentTaskOptions } from './run.js'
