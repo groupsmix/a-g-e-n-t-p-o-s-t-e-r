@@ -350,7 +350,7 @@ PHASE 4 — RESEARCH
 PHASE 5 — BUILDER
 [x] TASK-500  App builder agent                                  (this branch — agent-app-builder, spec→deploy)
 [x] TASK-501  Site factory agent (CosmicJS)                      (this branch — agent-site-factory)
-[ ] TASK-502  Product generator
+[x] TASK-502  Product generator                                  (this branch — agent-product-gen)
 [ ] TASK-503  Documentation writer
 
 PHASE 6 — CONTENT
