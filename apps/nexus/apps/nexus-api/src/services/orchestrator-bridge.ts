@@ -1,0 +1,238 @@
+/**
+ * orchestrator-bridge.ts
+ *
+ * Wires the brain layer (BaseAgent + memory + identity + journal) into
+ * the nexus-api worker. Produces a fully-wired registry from the
+ * Worker `env`, drains the orchestrator's agent_tasks queue, and gives
+ * the scheduled() handler a single entry-point: `tickOrchestrator(env)`.
+ *
+ * The legacy `services/agents.runJob` product pipeline (Researcher /
+ * Scorer / Builder / Inspector / Publisher / Marketer / Analyst) is
+ * UNCHANGED. This bridge runs alongside it, draining the parallel
+ * `agent_tasks` table populated by:
+ *
+ *   • the proactivity engine (`runProactivity` with autoQueue:true)
+ *   • the autonome agent (`runAutonomeOnce` → enqueue ≤5 tasks)
+ *   • dashboard/UI direct dispatch
+ *   • the command palette
+ *
+ * Each drained task runs through `runAgentTask` → BaseAgent, which
+ * gives it automatic memory retrieval, system-prompt assembly from
+ * SOUL.md + persona + NOW, and a journal_entries row.
+ */
+
+import type { Env } from '../env'
+import { createLogger } from '@nexus/logger'
+
+import { wireRegistry, runAgentTask, type WireDeps } from '@posteragent/orchestrator'
+import { createAnthropicLLM, createTavilySearch } from '@posteragent/agent-research/adapters'
+import { D1BudgetStore } from '@posteragent/agent-budget'
+import { D1SnapshotStore } from '@posteragent/agent-analytics'
+import {
+  D1GoalSource,
+  D1TaskEnqueuer,
+  DefaultPlanner,
+  ConsoleNotificationSink,
+  D1ProgressSource,
+} from '@posteragent/agent-autonome'
+import { D1RevenueStore, GumroadAdapter, AmazonCsvAdapter } from '@posteragent/agent-revenue'
+import { runProactivity } from '@posteragent/proactivity'
+import { IdentityLayer, KvSoulLoader } from '@posteragent/identity'
+import { MemoryStore } from '@posteragent/memory'
+
+const logger = createLogger({ service: 'orchestrator-bridge' })
+
+/**
+ * Build the wired registry once per Worker invocation. The Worker
+ * runtime reuses the same isolate for many requests, so we can lazily
+ * cache the registry as a module-level singleton keyed by env identity.
+ */
+let cachedRegistry: ReturnType<typeof wireRegistry> | null = null
+let cachedFor: unknown = null
+
+export async function getWiredRegistry(env: Env): Promise<ReturnType<typeof wireRegistry>> {
+  if (cachedRegistry && cachedFor === env) return cachedRegistry
+
+  const deps: WireDeps = {}
+
+  // Pull secrets through the Secrets Store. Missing keys leave the
+  // corresponding handler as its stub — never a hard failure.
+  const [anthropicKey, tavilyKey, amazonReportUrl] = await Promise.all([
+    env.SECRETS.get('ANTHROPIC_API_KEY').catch(() => null),
+    env.SECRETS.get('TAVILY_API_KEY').catch(() => null),
+    env.SECRETS.get('AMAZON_REPORT_URL').catch(() => null),
+  ])
+
+  if (anthropicKey) {
+    deps.llm = createAnthropicLLM({ apiKey: anthropicKey })
+  }
+  if (tavilyKey) {
+    deps.search = createTavilySearch({ apiKey: tavilyKey })
+  }
+  // Memory RAG.
+  deps.memory = new MemoryStore(env.DB) as unknown as WireDeps['memory']
+
+  // Budget guard.
+  deps.budget = { store: new D1BudgetStore(env.DB) }
+
+  // Analytics — uses already-wired adapters from the analytics route.
+  // We expose a thin Analytics handler with the D1 snapshot store; the
+  // adapter map is filled at dispatch time via the task payload.
+  deps.analytics = {
+    adapters: {},
+    store: new D1SnapshotStore(env.DB),
+  }
+
+  // Revenue — Gumroad / Amazon (others can be added).
+  if (env.GUMROAD_ACCESS_TOKEN || amazonReportUrl) {
+    const revenueAdapters: unknown[] = []
+    if (env.GUMROAD_ACCESS_TOKEN) {
+      revenueAdapters.push(new GumroadAdapter({ accessToken: env.GUMROAD_ACCESS_TOKEN }))
+    }
+    if (amazonReportUrl) {
+      revenueAdapters.push(new AmazonCsvAdapter({ url: amazonReportUrl }))
+    }
+    deps.revenue = {
+      adapters: revenueAdapters,
+      store: new D1RevenueStore(env.DB),
+    }
+  }
+
+  // Autonome — hourly tick sources.
+  deps.autonome = {
+    goals: new D1GoalSource(env.DB),
+    progress: new D1ProgressSource(env.DB),
+    planner: new DefaultPlanner(),
+    enqueuer: new D1TaskEnqueuer(env.DB),
+    notifier: new ConsoleNotificationSink(),
+  }
+
+  // Publisher adapters are platform-specific and configured per
+  // deployment in apps/nexus/apps/nexus-api/src/routes/publisher-queue.ts.
+  // Leave the publish handler as its stub until that route exports its
+  // adapter array — wireRegistry will keep dispatching to the stub
+  // until then.
+
+  cachedRegistry = wireRegistry(deps)
+  cachedFor = env
+  return cachedRegistry
+}
+
+/**
+ * Drain up to `max` queued agent_tasks rows. Each task is wrapped with
+ * BaseAgent (memory + identity + journal). Errors are swallowed per
+ * task — one bad task can't stop the whole tick.
+ */
+export async function drainOrchestratorQueue(env: Env, max = 5): Promise<{
+  drained: number
+  succeeded: number
+  failed: number
+}> {
+  const registry = await getWiredRegistry(env)
+  const identity = await buildIdentityLayer(env)
+
+  const ids = await env.DB
+    .prepare(
+      `SELECT id FROM agent_tasks WHERE status = 'queued' ORDER BY created_at ASC LIMIT ?`,
+    )
+    .bind(max)
+    .all<{ id: string }>()
+    .catch(() => ({ results: [] as { id: string }[] }))
+
+  let succeeded = 0
+  let failed = 0
+  for (const { id } of ids.results ?? []) {
+    try {
+      const result = await runAgentTask(id, {
+        db: env.DB as never,
+        registry,
+        identity,
+        log: logger as never,
+      })
+      if (result.status === 'done') succeeded++
+      else failed++
+    } catch (err) {
+      failed++
+      logger.error('orchestrator-bridge: task crashed', err instanceof Error ? err : new Error(String(err)), { id })
+    }
+  }
+
+  return { drained: ids.results?.length ?? 0, succeeded, failed }
+}
+
+/**
+ * Run the proactivity engine: read journal + NOW + tasks state and
+ * auto-queue follow-up agent_tasks rows. Read-only first pass, write
+ * mode is enabled by passing autoQueue: true.
+ */
+export async function tickProactivity(env: Env): Promise<void> {
+  try {
+    const report = await runProactivity({
+      db: env.DB as never,
+      autoQueue: true,
+      log: logger as never,
+    })
+    logger.info('proactivity tick', {
+      signals: report.signals.length,
+      queued: report.queued?.length ?? 0,
+    })
+  } catch (err) {
+    logger.error('proactivity tick error', err instanceof Error ? err : new Error(String(err)))
+  }
+}
+
+/**
+ * Single entrypoint for the scheduled() handler. Runs proactivity →
+ * autonome via the registry's autonome-run handler (by enqueueing one
+ * agent_tasks row) → drains the queue. All steps swallow errors.
+ */
+export async function tickOrchestrator(env: Env): Promise<void> {
+  // 1. Proactivity — scan + auto-queue.
+  await tickProactivity(env)
+
+  // 2. Make sure an autonome-run task is queued. We don't queue every
+  //    tick — only when there isn't already one queued or running.
+  try {
+    const open = await env.DB
+      .prepare(
+        `SELECT id FROM agent_tasks
+         WHERE type = 'autonome-run' AND status IN ('queued', 'running')
+         LIMIT 1`,
+      )
+      .first<{ id: string }>()
+      .catch(() => null)
+    if (!open) {
+      const id = crypto.randomUUID().replace(/-/g, '')
+      const now = new Date().toISOString()
+      await env.DB
+        .prepare(
+          `INSERT INTO agent_tasks
+            (id, type, payload, status, created_at, updated_at)
+           VALUES (?, 'autonome-run', '{}', 'queued', ?, ?)`,
+        )
+        .bind(id, now, now)
+        .run()
+        .catch(() => void 0)
+    }
+  } catch (err) {
+    logger.error('orchestrator-bridge: autonome enqueue error', err instanceof Error ? err : new Error(String(err)))
+  }
+
+  // 3. Drain the queue.
+  const drained = await drainOrchestratorQueue(env, 5)
+  logger.info('orchestrator drain', drained)
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
+
+async function buildIdentityLayer(env: Env): Promise<unknown> {
+  try {
+    const soulLoader = env.CONFIG ? new KvSoulLoader(env.CONFIG) : undefined
+    return new IdentityLayer(env.DB as never, { soulLoader })
+  } catch (err) {
+    logger.warn('identity-layer: falling back to default', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return undefined
+  }
+}
