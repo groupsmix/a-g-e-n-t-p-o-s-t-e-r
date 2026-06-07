@@ -172,6 +172,345 @@ importers:
         specifier: ^5.3.3
         version: 5.9.3
 
+  packages/agent-affiliate:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-analytics:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-app-builder:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-autonome:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-brand-monitor:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/memory':
+        specifier: workspace:*
+        version: link:../memory
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-budget:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-content-planner:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-docs-writer:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-email-campaign:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-finance:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-firecrawl:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-image-gen:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-lead-scraper:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-memory-graph:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-mindsdb:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-podcast:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-product-gen:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-publisher:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
   packages/agent-research:
     dependencies:
       '@posteragent/logger':
@@ -180,6 +519,117 @@ importers:
       '@posteragent/memory':
         specifier: workspace:*
         version: link:../memory
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-revenue:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-site-factory:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-trend-finder:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-video-factory:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-voice:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
+  packages/agent-writer:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
       '@posteragent/types':
         specifier: workspace:*
         version: link:../types
@@ -254,6 +704,28 @@ importers:
         specifier: ^5.3.3
         version: 5.9.3
 
+  packages/context-engine:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@posteragent/memory':
+        specifier: workspace:*
+        version: link:../memory
+      '@posteragent/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
+
   packages/core:
     dependencies:
       '@repo/config':
@@ -266,6 +738,25 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
+
+  packages/evals:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      tsx:
+        specifier: ^4.7.0
+        version: 4.22.4
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
 
   packages/generators:
     dependencies:
@@ -420,6 +911,22 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
+
+  packages/quota:
+    dependencies:
+      '@posteragent/logger':
+        specifier: workspace:*
+        version: link:../logger
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.2.0
+        version: 1.6.1(@types/node@20.19.41)(lightningcss@1.32.0)(terser@5.48.0)
 
   packages/resilience:
     dependencies:

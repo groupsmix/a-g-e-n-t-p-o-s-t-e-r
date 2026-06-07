@@ -1,3 +1,13 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+  # Outer-monorepo @posteragent/* packages consumed by nexus-api (PR #18).
+  # Mounted here as relative paths so pnpm can resolve workspace:* deps
+  # without merging the two workspaces.
+  - '../../packages/logger'
+  - '../../packages/types'
+  - '../../packages/agent-analytics'
+  - '../../packages/agent-autonome'
+  - '../../packages/agent-revenue'
+  - '../../packages/agent-budget'
+  - '../../packages/agent-mindsdb'

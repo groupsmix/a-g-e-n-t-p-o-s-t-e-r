@@ -29,7 +29,6 @@ import { teamRoutes } from './routes/team'
 import { scheduleRoutes, runDueSchedules } from './routes/schedules'
 import { autopilotRoutes, runAutopilot } from './routes/autopilot'
 import { authRoutes, getAccessHash, validateSessionToken } from './routes/auth'
-import { revenueRoutes } from './routes/revenue'
 import { marketingRoutes, runMarketing } from './routes/marketing'
 import { browserRoutes } from './routes/browser'
 import { backfillDeliverables } from './services/deliverable'
@@ -60,6 +59,18 @@ import { signalRoutes } from './routes/signals'
 import { tasksRoutes } from './routes/tasks'
 import { agentsRoutes } from './routes/agents'
 import { brainRoutes } from './routes/brain'
+import { metricsRoutes } from './routes/metrics'
+import { publisherQueueRoutes } from './routes/publisher-queue'
+import { analyticsRoutes, buildAdapters as buildAnalyticsAdapters } from './routes/analytics'
+import { autonomeRoutes, runAutonomeTick } from './routes/autonome'
+import { revenueRoutes, runRevenueTick } from './routes/revenue'
+import { budgetRoutes } from './routes/budget'
+import { insightsRoutes } from './routes/insights'
+import {
+  D1SnapshotStore,
+  collectAnalytics,
+  loadPublishedPostsFromD1,
+} from '@posteragent/agent-analytics'
 
 // Create the main Hono app
 const app = new Hono<{ Bindings: Env }>()
@@ -172,6 +183,20 @@ api.route('/tasks', tasksRoutes)
 // Phase 3 — orchestrator surface + dashboard brain reads (TASK-300)
 api.route('/agents', agentsRoutes)
 api.route('/brain', brainRoutes)
+// Phase 1 — top-bar KPIs (TASK-104)
+api.route('/metrics', metricsRoutes)
+// Phase 7 — publisher queue (TASK-701) backed by publish_jobs (TASK-700)
+api.route('/publisher-queue', publisherQueueRoutes)
+// Phase 7 — analytics aggregator (TASK-702)
+api.route('/analytics', analyticsRoutes)
+// Phase 9 — autonome mode (TASK-900)
+api.route('/autonome', autonomeRoutes)
+// Phase 9 — revenue tracker (TASK-901)
+api.route('/revenue', revenueRoutes)
+// Phase 9 — cost / budget guard (TASK-902)
+api.route('/budget', budgetRoutes)
+// Phase 10 — MindsDB-backed unified insights (TASK-1003)
+api.route('/insights', insightsRoutes)
 
 // Mount API routes under /api
 app.route('/api', api)
@@ -207,6 +232,16 @@ export default {
     ctx.waitUntil(backfillDeliverables(env))
     ctx.waitUntil(sendDailyDigest(env))
     ctx.waitUntil(runLearningSync(env))
+    // TASK-702 — daily platform analytics collector.
+    ctx.waitUntil(runAnalyticsCollector(env))
+    // TASK-900 — hourly Autonome tick.
+    ctx.waitUntil(runAutonomeTick(env).catch((err) => {
+      logger.error('Autonome tick error', err instanceof Error ? err : new Error(String(err)))
+    }))
+    // TASK-901 — revenue pollers (affiliate / AdSense).
+    ctx.waitUntil(runRevenueTick(env).catch((err) => {
+      logger.error('Revenue tick error', err instanceof Error ? err : new Error(String(err)))
+    }))
     // Drain job queue — up to 5 agent jobs per cron tick
     ctx.waitUntil((async () => {
       const { dequeue } = await import('./services/job-queue')
@@ -293,6 +328,29 @@ async function runTrendRadar(env: Env): Promise<void> {
     }
   } catch (err) {
     logger.error('Trend radar cron error', err instanceof Error ? err : new Error(String(err)))
+  }
+}
+
+// ------------------------------------------------------------
+// Analytics collector cron — TASK-702. Pulls recent published posts
+// from publish_jobs, hits each platform's analytics API, stores
+// snapshots in platform_analytics. Per-post errors are swallowed.
+// ------------------------------------------------------------
+async function runAnalyticsCollector(env: Env): Promise<void> {
+  try {
+    const posts = await loadPublishedPostsFromD1(env.DB, { windowDays: 30 })
+    if (posts.length === 0) return
+    const adapters = await buildAnalyticsAdapters(env)
+    const store = new D1SnapshotStore(env.DB)
+    const r = await collectAnalytics({ adapters, store, posts })
+    logger.info('Analytics collector run', {
+      attempted: r.attempted,
+      succeeded: r.succeeded,
+      failed: r.failed,
+      unrouted: r.unrouted,
+    })
+  } catch (err) {
+    logger.error('Analytics collector error', err instanceof Error ? err : new Error(String(err)))
   }
 }
 

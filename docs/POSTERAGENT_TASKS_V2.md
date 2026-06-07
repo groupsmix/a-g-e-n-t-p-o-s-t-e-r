@@ -326,7 +326,7 @@ PHASE 1 — DASHBOARD SHELL
 [x] TASK-101b Tasks API on nexus-api                           (PR #7, landed via phase-1 stack)
 [x] TASK-102  Command palette                                  (PR #9, landed via phase-1 stack)
 [x] TASK-103  Settings / API key manager                       (PR #10, landed via phase-1 stack)
-[ ] TASK-104  Dashboard metrics bar
+[x] TASK-104  Dashboard metrics bar                              (this branch — /api/metrics/summary + live TopBar)
 
 PHASE 2 — BRAIN LAYER
 [x] TASK-200  Memory engine package                            (this PR — D1 + FTS5 + Vectorize-ready)
@@ -342,49 +342,49 @@ PHASE 3 — NEXUS API
 PHASE 4 — RESEARCH
 [x] TASK-400  Deep research agent                              (@posteragent/agent-research — planner/searcher/synthesizer + Anthropic+Tavily adapters; orchestrator wires via registry.override)
 [x] TASK-401  Agentic RAG over own data                       (@posteragent/agent-research — MemoryClient lane runs parallel with web; web-only, memory-only, hybrid modes; brain citations tagged kind="memory" and not re-persisted)
-[ ] TASK-402  Brand monitor agent
-[ ] TASK-403  YouTube trend analyser
-[ ] TASK-404  Financial analysis agent
-[ ] TASK-405  Context engineering pipeline
+[x] TASK-402  Brand monitor agent                              (@posteragent/agent-brand-monitor — Reddit+HN+News+YouTube sources, Anthropic batch sentiment classifier, heuristic fallback, negative-spike/viral/competitor alerts, cron-ready)
+[x] TASK-403  YouTube trend analyser                           (@posteragent/agent-trend-finder — fetch → title/hook/thumb/velocity extract → keyword cluster (LLM relabel) → gap-find (few-results / low-coverage / outdated) → LLM brief generation → ContentBrief[] queue-ready for Writer)
+[x] TASK-404  Financial analysis agent                         (@posteragent/agent-finance — CoinGecko + Finnhub price sources, Gumroad + Amazon Associates revenue sources, D1 cost ledger, P&L roll-up, 4-week MA+linear forecast, MTD budget guard, price-move/revenue-dip/budget alerts)
+[x] TASK-405  Context engineering pipeline                     (@posteragent/context-engine — retrieve → assemble → compress (LLM summariser or truncate) → emit ContextBundle+UsageReport; wired into BaseAgent so every agent call gets memories+past-tasks+signals; observability via recordUsage)
 
 PHASE 5 — BUILDER
-[ ] TASK-500  App builder agent
-[ ] TASK-501  Site factory agent (CosmicJS)
-[ ] TASK-502  Product generator
-[ ] TASK-503  Documentation writer
+[x] TASK-500  App builder agent                                  (this branch — agent-app-builder, spec→deploy)
+[x] TASK-501  Site factory agent (CosmicJS)                      (this branch — agent-site-factory)
+[x] TASK-502  Product generator                                  (this branch — agent-product-gen)
+[x] TASK-503  Documentation writer agent                         (this branch — agent-docs-writer)
 
 PHASE 6 — CONTENT
-[ ] TASK-600  Content planner agent
-[ ] TASK-601  Writer agent (multi-format)
-[ ] TASK-602  Video factory (Remotion)
-[ ] TASK-603  AI podcast generator
-[ ] TASK-604  Image generation agent
+[x] TASK-600  Content planner agent                              (this branch — agent-content-planner)
+[x] TASK-601  Writer agent (multi-format)                        (this branch — agent-writer, 9 formats)
+[x] TASK-602  Video factory agent (Remotion)                     (this branch — agent-video-factory)
+[x] TASK-603  AI podcast generator                               (this branch — agent-podcast)
+[x] TASK-604  Image generation agent                             (this branch — agent-image-gen)
 
 PHASE 7 — PUBLISHER
-[ ] TASK-700  Multi-platform publisher agent
-[ ] TASK-701  Publisher dashboard UI
-[ ] TASK-702  Platform analytics aggregator
+[x] TASK-700  Multi-platform publisher agent                     (this branch — agent-publisher, 7 platforms)
+[x] TASK-701  Publisher dashboard UI                             (this branch — apps/dashboard/app/publisher)
+[x] TASK-702  Platform analytics aggregator                      (this branch — packages/agent-analytics)
 
 PHASE 8 — LEADS
-[ ] TASK-800  Lead scraper agent
-[ ] TASK-801  Email campaign agent
-[ ] TASK-802  Affiliate & Amazon automation
+[x] TASK-800  Lead scraper agent                                  (this branch — packages/agent-lead-scraper)
+[x] TASK-801  Email campaign agent                                (this branch — packages/agent-email-campaign)
+[x] TASK-802  Affiliate & Amazon automation                       (this branch — packages/agent-affiliate)
 
 PHASE 9 — AUTONOME
-[ ] TASK-900  Autonome mode (self-running)
-[ ] TASK-901  Revenue tracker
-[ ] TASK-902  Cost management & budget guard
+[x] TASK-900  Autonome mode (self-running dashboard)              (this branch — packages/agent-autonome)
+[x] TASK-901  Revenue tracker                                  (this branch — packages/agent-revenue)
+[x] TASK-902  Cost management & budget guard                   (this branch — packages/agent-budget)
 
 PHASE 10 — MCP SERVERS
-[ ] TASK-1000 Graphiti MCP (memory graph)
-[ ] TASK-1001 Firecrawl MCP (web intelligence)
-[ ] TASK-1002 Voice interface
-[ ] TASK-1003 MindsDB MCP (unified data)
+[x] TASK-1000 Graphiti MCP (memory graph)                       (this branch — packages/agent-memory-graph)
+[x] TASK-1001 Firecrawl MCP (web intelligence)                  (this branch — packages/agent-firecrawl)
+[x] TASK-1002 Voice interface                                  (this branch — packages/agent-voice)
+[x] TASK-1003 MindsDB MCP (unified data)                       (this branch — packages/agent-mindsdb)
 
 PHASE 11 — QUALITY
-[ ] TASK-1100 Agent evaluation framework
-[~] TASK-1101 GitHub Actions CI pipeline                       (Node 24 bump shipped this PR; deploy.yml hardening pending)
-[ ] TASK-1102 Rate limit & quota manager
+[x] TASK-1100 Agent evaluation framework                       (this branch — packages/evals)
+[x] TASK-1101 GitHub Actions CI pipeline                       (this branch — ci.yml expanded; deploy.yml gated on CI + D1 migrations job)
+[x] TASK-1102 Rate limit & quota manager                       (this branch — packages/quota)
 ```
 
 ---

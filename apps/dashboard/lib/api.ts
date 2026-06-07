@@ -160,9 +160,90 @@ export interface KeyTestResponse {
   latency_ms?: number
 }
 
+// ── Metrics (TopBar KPI strip, TASK-104) ────────────────────────────────────
+
+export interface MetricValue {
+  value: number
+  display: string
+  delta: string | null
+  source: 'live' | 'unconfigured' | 'error'
+  note?: string
+}
+
+export interface MetricsSummary {
+  generated_at: string
+  tasks_today: MetricValue
+  ai_spend_today: MetricValue
+  active_agents: MetricValue
+  revenue_24h: MetricValue
+  leads_today: MetricValue
+}
+
+// ── Publisher queue (TASK-701) ─────────────────────────────────────────────
+
+export type PublisherJobStatus = 'scheduled' | 'done' | 'failed'
+
+export interface PublisherJob {
+  idempotency_key: string
+  platform: string
+  publish_at: string | null
+  status: PublisherJobStatus
+  title: string
+  parts_count: number
+  created_at: string
+  completed_at: string | null
+  error: string | null
+  url: string | null
+  post_id: string | null
+}
+
+export interface PublisherSummary {
+  source: 'live' | 'unconfigured' | 'error'
+  status_counts: Record<PublisherJobStatus, number>
+  by_platform: Array<{ platform: string; status: PublisherJobStatus; n: number }>
+  upcoming: number
+  failed_24h: number
+  done_24h: number
+  note?: string
+}
+
+export interface PublisherCalendar {
+  window_start: string | null
+  window_end: string | null
+  jobs: PublisherJob[]
+}
+
 export const api = {
   /** GET /api/health — surface health-check status to the UI. */
   health: () => request<HealthResponse>('/api/health'),
+
+  /** GET /api/metrics/summary — dashboard KPI strip (TASK-104). */
+  metricsSummary: () => request<MetricsSummary>('/api/metrics/summary'),
+
+  /** Publisher queue (TASK-701) — backs apps/dashboard/app/publisher. */
+  publisher: {
+    summary: () => request<PublisherSummary>('/api/publisher-queue/summary'),
+    jobs: (params?: { platform?: string; status?: PublisherJobStatus; limit?: number }) => {
+      const q = new URLSearchParams()
+      if (params?.platform) q.set('platform', params.platform)
+      if (params?.status) q.set('status', params.status)
+      if (params?.limit) q.set('limit', String(params.limit))
+      const tail = q.toString() ? `?${q}` : ''
+      return request<{ jobs: PublisherJob[] }>(`/api/publisher-queue/jobs${tail}`)
+    },
+    calendar: (days = 14) =>
+      request<PublisherCalendar>(`/api/publisher-queue/calendar?days=${days}`),
+    retry: (id: string) =>
+      request<{ ok: true } | { error: string }>(
+        `/api/publisher-queue/jobs/${encodeURIComponent(id)}/retry`,
+        { method: 'POST' },
+      ),
+    remove: (id: string) =>
+      request<{ ok: true } | { error: string }>(
+        `/api/publisher-queue/jobs/${encodeURIComponent(id)}`,
+        { method: 'DELETE' },
+      ),
+  },
 
   /** Credentials vault — list, save, ping. */
   keys: {
