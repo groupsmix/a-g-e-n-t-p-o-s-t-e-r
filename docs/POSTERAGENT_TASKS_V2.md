@@ -383,7 +383,7 @@ PHASE 10 — MCP SERVERS
 
 PHASE 11 — QUALITY
 [x] TASK-1100 Agent evaluation framework                       (this branch — packages/evals)
-[~] TASK-1101 GitHub Actions CI pipeline                       (Node 24 bump shipped this PR; deploy.yml hardening pending)
+[x] TASK-1101 GitHub Actions CI pipeline                       (this branch — ci.yml expanded; deploy.yml gated on CI + D1 migrations job)
 [x] TASK-1102 Rate limit & quota manager                       (this branch — packages/quota)
 ```
 
