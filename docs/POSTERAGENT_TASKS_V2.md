@@ -357,7 +357,7 @@ PHASE 6 — CONTENT
 [x] TASK-600  Content planner agent                              (this branch — agent-content-planner)
 [x] TASK-601  Writer agent (multi-format)                        (this branch — agent-writer, 9 formats)
 [x] TASK-602  Video factory agent (Remotion)                     (this branch — agent-video-factory)
-[ ] TASK-603  AI podcast generator
+[x] TASK-603  AI podcast generator                               (this branch — agent-podcast)
 [ ] TASK-604  Image generation agent
 
 PHASE 7 — PUBLISHER
