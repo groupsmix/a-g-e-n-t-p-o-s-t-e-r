@@ -1,0 +1,28 @@
+{
+  "name": "@posteragent/agent-video-factory",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TASK-602 — Video Factory. Script → scene plan → Remotion render → captions → upload.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./adapters": "./src/adapters/index.ts",
+    "./pipeline": "./src/pipeline/index.ts",
+    "./scenes": "./src/scenes/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@posteragent/logger": "workspace:*",
+    "@posteragent/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  }
+}
