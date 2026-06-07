@@ -2,7 +2,7 @@
   "name": "@posteragent/dashboard",
   "version": "0.1.0",
   "private": true,
-  "description": "Unified Money Machine cockpit \u2014 Next.js 14 App Router dashboard",
+  "description": "Unified Money Machine cockpit — Next.js 14 App Router dashboard",
   "scripts": {
     "dev": "next dev --port 3030",
     "build": "next build",
@@ -12,6 +12,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@posteragent/identity": "workspace:*",
+    "@posteragent/memory": "workspace:*",
+    "@posteragent/proactivity": "workspace:*",
     "@posteragent/types": "workspace:*",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-slot": "^1.0.2",

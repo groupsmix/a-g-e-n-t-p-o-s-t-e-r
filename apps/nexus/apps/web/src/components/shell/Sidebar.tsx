@@ -9,7 +9,7 @@ import {
   Bot, CalendarClock, Rocket, LayoutDashboard, ChevronDown, DollarSign,
   Menu, X, LayoutGrid, Workflow, Brain, Sunrise, Shirt,
   ShoppingCart, Briefcase, Link2, FileText, FlaskConical, PenLine, Mail, Eye, Radar,
-  Sun, Moon, Monitor, Layers, BarChart3, Activity,
+  Sun, Moon, Monitor, Layers, BarChart3, Activity, Wallet, Send, Sparkles,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
@@ -20,7 +20,7 @@ type Item = { to: string; label: string; icon: React.ComponentType<{ className?:
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard, Bot, Package, Shirt, FileText, Briefcase, Link2, ShoppingCart,
   Rocket, ShieldCheck, DollarSign, Brain, Sunrise, Globe2, CalendarClock, History, BarChart3, Activity,
-  SettingsIcon, LayoutGrid, Workflow,
+  SettingsIcon, LayoutGrid, Workflow, Wallet, Send, Sparkles,
 }
 
 const topItems: Item[] = [
@@ -47,9 +47,14 @@ const defaultSections: { title: string; items: Item[]; collapsible?: boolean }[]
     items: [
       { to: '/money-workflow', label: 'Money Workflow', icon: BarChart3 },
       { to: '/autopilot',      label: 'Autopilot',      icon: Rocket },
+      { to: '/autonome',       label: 'Autonome',       icon: Rocket },
       { to: '/sleep-mode',     label: 'Sleep Mode',     icon: Moon },
       { to: '/review', label: 'Review Queue', icon: ShieldCheck },
       { to: '/revenue', label: 'Revenue', icon: DollarSign },
+      { to: '/budget', label: 'Budget', icon: Wallet },
+      { to: '/analytics', label: 'Analytics', icon: BarChart3 },
+      { to: '/insights', label: 'Insights', icon: Sparkles },
+      { to: '/publisher-queue', label: 'Publisher Queue', icon: Send },
       { to: '/learning', label: 'Learning Loop', icon: Brain },
       { to: '/ab-testing', label: 'A/B Testing', icon: FlaskConical },
       { to: '/blog', label: 'Blog Engine', icon: PenLine },

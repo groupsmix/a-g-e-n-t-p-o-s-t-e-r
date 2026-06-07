@@ -657,4 +657,62 @@ export const api = {
   requeueAllFailed: () => apiFetch<{ ok: boolean }>('/api/queue/requeue-all-failed', { method: 'POST' }),
   requeueJob: (jobId: string) => apiFetch<{ ok: boolean }>(`/api/queue/jobs/${jobId}/requeue`, { method: 'POST' }),
   cancelQueueJob: (jobId: string) => apiFetch<{ ok: boolean }>(`/api/queue/jobs/${jobId}`, { method: 'DELETE' }),
+
+  // ── V2 agents wired into nexus-api (Phase 9-10) ──────────────────────
+  // Autonome — goal-driven autonomous loop
+  getAutonomeGoals: () =>
+    apiFetch<{ source: 'live' | 'unconfigured'; goals: Array<{
+      id: string; title: string; metric: string; target: number;
+      period: string; tags?: string[]; enabled?: number | boolean;
+    }>; note?: string }>('/api/autonome/goals'),
+  getAutonomeRuns: () =>
+    apiFetch<{ source: 'live' | 'unconfigured'; runs: Array<{
+      id: string; goal_id: string; started_at: string; status: string;
+      tasks_enqueued?: number; notes?: string;
+    }>; note?: string }>('/api/autonome/runs'),
+  runAutonomeTick: () =>
+    apiFetch<{ ok: boolean; runs?: number; error?: string }>('/api/autonome/run', { method: 'POST' }),
+
+  // Budget — caps & usage rollups
+  getBudgetCaps: () =>
+    apiFetch<{ source: 'live' | 'unconfigured'; caps: Array<{
+      id?: string; scope: 'global' | 'task_type' | 'model'; match?: string;
+      period: 'day' | 'week' | 'month'; limit_usd: number; warn_at?: number;
+      enabled?: number | boolean;
+    }>; note?: string }>('/api/budget/caps'),
+  getBudgetSummary: (period: 'day' | 'week' | 'month' = 'week') =>
+    apiFetch<{ source: 'live' | 'unconfigured'; period: string;
+      total_usd: number; total_runs: number;
+      by_model: Array<{ model: string; count: number; cost: number }>;
+      by_task: Array<{ task_type: string; count: number; cost: number }>;
+      note?: string;
+    }>(`/api/budget/summary?period=${period}`),
+
+  // Analytics — multi-platform post performance
+  getAnalyticsSummary: () =>
+    apiFetch<{ source: 'live' | 'unconfigured';
+      totals: { posts: number; impressions: number; engagements: number; clicks: number };
+      by_platform: Array<{ platform: string; posts: number; impressions: number; engagements: number; clicks: number }>;
+      note?: string;
+    }>('/api/analytics/summary'),
+
+  // Publisher queue — scheduled cross-platform posts
+  getPublisherQueueSummary: () =>
+    apiFetch<{ source: 'live' | 'unconfigured';
+      pending: number; in_progress: number; succeeded: number; failed: number;
+      next_run_at?: string; note?: string;
+    }>('/api/publisher-queue/summary'),
+  getPublisherQueueJobs: (status?: string) => {
+    const q = status ? `?status=${encodeURIComponent(status)}` : ''
+    return apiFetch<{ source: 'live' | 'unconfigured'; jobs: Array<{
+      id: string; platform: string; status: string; scheduled_for?: string;
+      attempts?: number; last_error?: string; payload_kind?: string;
+    }>; note?: string }>(`/api/publisher-queue/jobs${q}`)
+  },
+
+  // Insights — MindsDB-backed predictions (query by saved query id)
+  getInsight: (queryId: string) =>
+    apiFetch<{ source: 'live' | 'unconfigured'; query_id: string;
+      rows?: unknown[]; note?: string;
+    }>(`/api/insights/${encodeURIComponent(queryId)}`),
 }
