@@ -61,6 +61,7 @@ import { tasksRoutes } from './routes/tasks'
 import { agentsRoutes } from './routes/agents'
 import { brainRoutes } from './routes/brain'
 import { metricsRoutes } from './routes/metrics'
+import { publisherQueueRoutes } from './routes/publisher-queue'
 
 // Create the main Hono app
 const app = new Hono<{ Bindings: Env }>()
@@ -175,6 +176,8 @@ api.route('/agents', agentsRoutes)
 api.route('/brain', brainRoutes)
 // Phase 1 — top-bar KPIs (TASK-104)
 api.route('/metrics', metricsRoutes)
+// Phase 7 — publisher queue (TASK-701) backed by publish_jobs (TASK-700)
+api.route('/publisher-queue', publisherQueueRoutes)
 
 // Mount API routes under /api
 app.route('/api', api)
