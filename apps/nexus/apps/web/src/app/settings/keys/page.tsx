@@ -43,8 +43,12 @@ const GROUP_BLURB: Record<ApiKeyInfo['group'], string> = {
   Email: 'Email scheduler output straight to your inbox. Resend has a free tier; set a From + To address.',
 }
 
+interface ActiveAiProvider { key: string; label: string; source: 'kv' | 'worker_secret' }
+
 export default function ApiKeysPage() {
   const [keys, setKeys] = useState<ApiKeyInfo[]>([])
+  const [activeAi, setActiveAi] = useState<ActiveAiProvider | null>(null)
+  const [aiCount, setAiCount] = useState(0)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -56,8 +60,16 @@ export default function ApiKeysPage() {
   const load = () => {
     setLoading(true)
     api.getKeys()
-      .then((r) => setKeys(r.keys))
-      .catch(() => setKeys([]))
+      .then((r) => {
+        setKeys(r.keys)
+        setActiveAi(r.ai_provider_source ?? null)
+        setAiCount(r.ai_configured_count ?? 0)
+      })
+      .catch(() => {
+        setKeys([])
+        setActiveAi(null)
+        setAiCount(0)
+      })
       .finally(() => setLoading(false))
     api.getSpend().then(setSpend).catch(() => setSpend(null))
     api.getProviders()
@@ -141,6 +153,40 @@ export default function ApiKeysPage() {
           </div>
         ) : (
           <div className="max-w-2xl space-y-6">
+            {/* Active AI provider banner — the runtime's own answer to
+                "which key is generating my content right now?". When this
+                is null, autopilot will refuse to start cycles. */}
+            {activeAi ? (
+              <section className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 flex items-start gap-3">
+                <Check className="h-4 w-4 mt-0.5 text-emerald-500 shrink-0" />
+                <div className="text-sm space-y-1">
+                  <div>
+                    Active AI provider:{' '}
+                    <span className="font-medium">{activeAi.label}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Source:{' '}
+                    {activeAi.source === 'kv'
+                      ? 'saved in the dashboard (KV)'
+                      : 'Worker secret (set via wrangler)'}
+                    {' · '}
+                    {aiCount} AI key{aiCount === 1 ? '' : 's'} configured
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <section className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 flex items-start gap-3">
+                <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-500 shrink-0" />
+                <div className="text-sm space-y-1">
+                  <div className="font-medium">No LLM provider is configured.</div>
+                  <div className="text-xs text-muted-foreground">
+                    Autopilot will refuse to start cycles until you add a key
+                    below. Groq is free and is enough to run the whole engine.
+                  </div>
+                </div>
+              </section>
+            )}
+
             {/* AI spend meter */}
             <section className="rounded-xl border border-border bg-card p-5 space-y-3">
               <div className="flex items-center gap-2">

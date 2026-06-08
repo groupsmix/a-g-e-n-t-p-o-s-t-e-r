@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Package, Trash2, Search } from 'lucide-react'
+import { Package, Trash2, Search, RotateCw, Loader2 } from 'lucide-react'
 import { api, type ProductScoreResponse } from '@/lib/api'
 import type { Product } from '@nexus/types'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
@@ -15,6 +15,7 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [retryingId, setRetryingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [scores, setScores] = useState<Record<string, number>>({})
 
@@ -46,6 +47,27 @@ export default function ProductsPage() {
       alert('Failed to delete. Please try again.')
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  // Re-dispatch the 15-step pipeline for a stuck or rejected product. We
+  // optimistically flip the row's status to 'running' so the UI reflects
+  // the new state immediately; if the server fails we roll the row back.
+  const handleRetry = async (p: Product) => {
+    setRetryingId(p.id)
+    const prevStatus = p.status
+    setProducts((list) =>
+      list.map((x) => (x.id === p.id ? { ...x, status: 'running' } : x)),
+    )
+    try {
+      await api.retryProduct(p.id)
+    } catch {
+      setProducts((list) =>
+        list.map((x) => (x.id === p.id ? { ...x, status: prevStatus } : x)),
+      )
+      alert('Failed to retry. Please try again.')
+    } finally {
+      setRetryingId(null)
     }
   }
 
@@ -132,6 +154,26 @@ export default function ProductsPage() {
                         >
                           View
                         </Link>
+                        {/* Retry is offered for any product the pipeline
+                            couldn't finish: stuck-in-running (wedged worker)
+                            or rejected (the sweep flips stale runners to
+                            rejected). The Worker stops any open run and
+                            queues a fresh one. */}
+                        {(p.status === 'running' || p.status === 'rejected') && (
+                          <button
+                            onClick={() => handleRetry(p)}
+                            disabled={retryingId === p.id}
+                            title="Retry pipeline"
+                            className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-foreground/30 disabled:opacity-50 transition-colors"
+                          >
+                            {retryingId === p.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RotateCw className="h-3.5 w-3.5" />
+                            )}
+                            Retry
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDelete(p)}
                           disabled={deletingId === p.id}

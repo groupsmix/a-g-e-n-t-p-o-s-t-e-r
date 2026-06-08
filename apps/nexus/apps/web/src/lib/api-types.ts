@@ -9,7 +9,21 @@ export interface ApiKeyInfo {
   help: string
   worker: 'ai' | 'api'
   configured: boolean
+  // Where the configured value actually comes from. Lets the dashboard
+  // distinguish "saved via the UI (KV)" from "set as a Worker secret
+  // (env var)" instead of just showing "Set" / "Not set".
+  source?: 'kv' | 'worker_secret' | null
   masked: string | null
+}
+
+// Response of GET /api/keys. The aggregate fields let the dashboard render
+// an honest "Active provider" banner so the user never again sees "engine
+// running" sitting next to a screen that says every key is unset.
+export interface KeysResponse {
+  keys: ApiKeyInfo[]
+  kek_configured: boolean
+  ai_configured_count: number
+  ai_provider_source: { key: string; label: string; source: 'kv' | 'worker_secret' } | null
 }
 
 export interface ManagerMessage {
@@ -315,6 +329,12 @@ export interface AutopilotStatus {
   est_revenue: { low: number; high: number; currency: string }
   winners: AutopilotWinner[]
   recent: AutopilotLogEntry[]
+  // Whether any LLM provider key is reachable by the Worker. The Worker
+  // refuses to flip the engine ON or run a cycle when this is false; the
+  // dashboard uses it to surface a "needs a key" warning instead of letting
+  // the user click Run and watch nothing happen.
+  ai_keys_configured?: boolean
+  ai_provider_source?: { key: string; source: 'kv' | 'worker_secret' } | null
 }
 
 // Email list builder types

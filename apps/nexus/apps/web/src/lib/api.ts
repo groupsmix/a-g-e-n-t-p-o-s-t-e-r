@@ -19,7 +19,7 @@ export * from './api-types'
 export type { Domain, Product, ProductDetail, WorkflowStatusResponse } from '@nexus/types'
 
 import type {
-  ApiKeyInfo, ManagerMessage, ManagerAction, ActionStep, ActionResult,
+  ApiKeyInfo, KeysResponse, ManagerMessage, ManagerAction, ActionStep, ActionResult,
   ManagerReply, AgentStep, BrowseResult, AssistResult, ActionType, BrowserAction,
   BrowserActionResult, ExecutionResult, FlowInfo, PlatformStatusInfo,
   ListingResult, PlatformListing, CompetitorEntry, CompetitorInsightsResponse,
@@ -168,6 +168,13 @@ export const api = {
       body: JSON.stringify(patch),
     }),
   deleteProduct: (id: string) => apiFetch<void>(`/api/products/${id}`, { method: 'DELETE' }),
+  // Re-dispatch the 15-step pipeline for a product that's stuck or rejected.
+  // The Worker resets the product to 'running' and queues a fresh workflow_run.
+  retryProduct: (id: string) =>
+    apiFetch<{ ok: boolean; workflow_id: string; product_id: string; status: string }>(
+      `/api/products/${id}/retry`,
+      { method: 'POST' },
+    ),
 
   // Trends
   getTrends: () => apiFetch<TrendAlert[]>('/api/trends'),
@@ -202,7 +209,7 @@ export const api = {
   updateSettings: (data: Partial<Settings>) => apiFetch<Settings>('/api/settings', { method: 'PATCH', body: JSON.stringify(data) }),
 
   // API keys (dashboard-managed provider credentials)
-  getKeys: () => apiFetch<{ keys: ApiKeyInfo[] }>('/api/keys'),
+  getKeys: () => apiFetch<KeysResponse>('/api/keys'),
   saveKeys: (keys: Record<string, string>) =>
     apiFetch<{ ok: boolean; written: number; ai_forwarded: boolean }>('/api/keys', {
       method: 'POST',

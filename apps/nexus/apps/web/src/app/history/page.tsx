@@ -44,6 +44,13 @@ function isRealTitle(name: unknown): name is string {
 // historically returned status="completed" for runs where every step
 // failed (BUG-213) — that's misleading. If we have step data, trust it
 // over the bare status label.
+//
+// Now that the engine emits 'partial' for mixed-outcome runs (some steps
+// completed, some failed), we mirror the same logic on the dashboard so
+// older runs in the DB get reclassified consistently with the new ones:
+//   - all-failed       → 'failed'
+//   - some-failed mix  → 'partial'  (was wrongly 'completed' or 'failed')
+//   - rest             → server status
 function reconcileStatus(
   status: string,
   stepsCompleted: number,
@@ -51,16 +58,17 @@ function reconcileStatus(
   stepCount: number,
 ): string {
   if (stepCount > 0 && stepsFailed > 0 && stepsCompleted === 0) return 'failed'
-  if (stepCount > 0 && stepsCompleted < stepCount && stepsFailed > 0 && status === 'completed') {
-    // Partial work but the run is marked done — surface the failure.
-    return 'failed'
-  }
+  if (stepCount > 0 && stepsCompleted > 0 && stepsFailed > 0) return 'partial'
   return status
 }
 
 function StatusPill({ status, failedStep }: { status: string; failedStep?: string | null }) {
+  // 'partial' gets its own amber pill so the user can tell at a glance
+  // that a run finished but lost steps along the way — distinct from a
+  // clean COMPLETED and from a hard FAILED.
   const cls =
     status === 'completed' ? 'bg-emerald-500/10 text-emerald-500' :
+    status === 'partial' ? 'bg-amber-500/10 text-amber-500' :
     status === 'running' ? 'bg-blue-500/10 text-blue-400' :
     status === 'failed' ? 'bg-red-500/10 text-red-500' :
     'bg-muted text-muted-foreground'
@@ -69,7 +77,7 @@ function StatusPill({ status, failedStep }: { status: string; failedStep?: strin
       <span className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${cls}`}>
         {status}
       </span>
-      {status === 'failed' && failedStep && (
+      {(status === 'failed' || status === 'partial') && failedStep && (
         <span className="text-[10px] text-destructive">at {failedStep}</span>
       )}
     </span>

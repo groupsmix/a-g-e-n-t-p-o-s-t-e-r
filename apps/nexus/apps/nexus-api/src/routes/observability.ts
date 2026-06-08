@@ -31,6 +31,18 @@ interface ProductRow {
   created_at: string
 }
 
+// BUG-FIX (D1_ERROR: no such column: domain_slug):
+//
+// The `products` and `workflow_runs` tables do not store `domain_slug` /
+// `category_slug` directly — they store `domain_id` / `category_id` and the
+// slug lives on the `domains` / `categories` tables. The previous queries
+// referenced `domain_slug`/`category_slug`/`updated_at` columns that don't
+// exist on those tables, which caused the dashboard's /observability page to
+// throw "D1_ERROR: no such column: domain_slug at offset 19". We now JOIN
+// through `products → domains → categories` to derive the slugs, and use
+// `completed_at` (which does exist) instead of the non-existent
+// `workflow_runs.updated_at`. Products use `name AS title` because the
+// table has a `name` column (no `title`).
 observabilityRoutes.get('/', async (c) => {
   try {
     const [
@@ -41,8 +53,16 @@ observabilityRoutes.get('/', async (c) => {
       aiSpend,
     ] = await Promise.all([
       c.env.DB.prepare(
-        `SELECT id, status, domain_slug, category_slug, created_at, updated_at
-         FROM workflow_runs ORDER BY created_at DESC LIMIT 20`,
+        `SELECT wr.id, wr.status,
+                d.slug AS domain_slug,
+                c.slug AS category_slug,
+                wr.created_at,
+                COALESCE(wr.completed_at, wr.started_at, wr.created_at) AS updated_at
+           FROM workflow_runs wr
+           JOIN products p   ON wr.product_id = p.id
+           LEFT JOIN domains    d ON p.domain_id    = d.id
+           LEFT JOIN categories c ON p.category_id  = c.id
+          ORDER BY wr.created_at DESC LIMIT 20`,
       ).all<WorkflowRow>(),
 
       c.env.DB.prepare(
@@ -52,9 +72,16 @@ observabilityRoutes.get('/', async (c) => {
       ).all<StepRow>(),
 
       c.env.DB.prepare(
-        `SELECT id, title, status, domain_slug, gumroad_url, created_at
-         FROM products WHERE status IN ('published', 'failed')
-         ORDER BY created_at DESC LIMIT 20`,
+        `SELECT p.id,
+                p.name AS title,
+                p.status,
+                d.slug AS domain_slug,
+                p.gumroad_url,
+                p.created_at
+           FROM products p
+           LEFT JOIN domains d ON p.domain_id = d.id
+          WHERE p.status IN ('published', 'failed', 'rejected')
+          ORDER BY p.created_at DESC LIMIT 20`,
       ).all<ProductRow>(),
 
       c.env.DB.prepare(

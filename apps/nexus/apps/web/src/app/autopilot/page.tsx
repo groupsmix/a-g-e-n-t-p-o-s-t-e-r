@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Rocket, Play, Loader2, TrendingUp, Package, DollarSign, Activity, Zap } from 'lucide-react'
+import { Rocket, Play, Loader2, TrendingUp, Package, DollarSign, Activity, Zap, AlertTriangle } from 'lucide-react'
 import { api, type AutopilotStatus } from '@/lib/api'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 
@@ -35,6 +35,13 @@ export default function AutopilotPage() {
     try {
       await api.toggleAutopilot({ enabled: !status.enabled })
       await refresh()
+    } catch (err) {
+      // The Worker returns 400 { error: 'no_ai_key', message: ... } when the
+      // user tries to flip the engine ON without any AI provider configured.
+      // Surface the message so they know to open Settings → Keys rather than
+      // assume the dashboard is broken.
+      const msg = err instanceof Error ? err.message : 'Failed to toggle autopilot'
+      if (typeof window !== 'undefined') window.alert(msg)
     } finally {
       setBusy(false)
     }
@@ -71,6 +78,25 @@ export default function AutopilotPage() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
         ) : (
           <>
+            {/* No-LLM-key warning. The Worker refuses both /toggle and /run
+                in this state; if the engine somehow stayed enabled (user
+                rotated keys after toggling on) we still want to scream. */}
+            {status.ai_keys_configured === false && (
+              <div className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4">
+                <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-500 shrink-0" />
+                <div className="text-sm space-y-1">
+                  <div className="font-medium">No LLM provider is configured.</div>
+                  <div className="text-xs text-muted-foreground">
+                    Autopilot will refuse to start a cycle until you add a key.{' '}
+                    <Link href="/settings/keys" className="underline">
+                      Open Settings → Keys
+                    </Link>{' '}
+                    — Groq is free and is enough to run the whole engine.
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Toggle */}
             <div className="flex flex-col gap-4 rounded-xl border border-border bg-card/50 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -83,13 +109,32 @@ export default function AutopilotPage() {
                 <p className="text-sm text-muted-foreground">
                   When ON, NEXUS builds {status.per_run} product{status.per_run > 1 ? 's' : ''} per day automatically (daily cron, 06:00 UTC).
                 </p>
+                {status.ai_provider_source ? (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Using{' '}
+                    <span className="font-mono">{status.ai_provider_source.key}</span>{' '}
+                    (
+                    {status.ai_provider_source.source === 'kv'
+                      ? 'saved key'
+                      : 'worker secret'}
+                    )
+                  </p>
+                ) : null}
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={runOnce} disabled={running}
+                <button onClick={runOnce}
+                  disabled={running || status.ai_keys_configured === false}
+                  title={status.ai_keys_configured === false ? 'Add an AI key first' : undefined}
                   className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm hover:bg-muted disabled:opacity-50">
                   {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} Run one cycle now
                 </button>
-                <button onClick={toggle} disabled={busy}
+                <button onClick={toggle}
+                  disabled={busy || (!status.enabled && status.ai_keys_configured === false)}
+                  title={
+                    !status.enabled && status.ai_keys_configured === false
+                      ? 'Add an AI key in Settings → Keys before turning the engine on'
+                      : undefined
+                  }
                   className={`inline-flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50 transition-colors ${status.enabled ? 'bg-destructive hover:bg-destructive/90' : 'bg-primary hover:bg-primary/90'}`}>
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
                   {status.enabled ? 'Turn OFF' : 'Turn ON'}

@@ -6,6 +6,7 @@ import { buildZip } from '../services/zip'
 import { generateDeliverableForProduct } from '../services/deliverable'
 import { RECIPE_OPTIONS, getRecipe } from '../services/recipes'
 import { publishProductToGumroad } from '../services/gumroad-publisher'
+import { ProductWorkflow } from '../services/workflow-engine'
 
 export const productRoutes = new Hono<{ Bindings: Env }>()
 
@@ -519,6 +520,73 @@ productRoutes.delete('/:id', async (c) => {
   } catch (err) {
     console.error('Error deleting product:', err)
     return c.json({ error: 'Failed to delete product' }, 500)
+  }
+})
+
+// POST /products/:id/retry — re-dispatch the 15-step pipeline for a product
+// that's stuck or rejected. This is the "Retry" button surfaced on the
+// Products grid: it cancels any live workflow run, flips the product back
+// to 'running', queues a fresh `workflow_runs` row, and kicks off
+// ProductWorkflow.run() in `waitUntil`. The user can then watch progress
+// on the History view as if it were a brand-new build.
+productRoutes.post('/:id/retry', async (c) => {
+  try {
+    const productId = c.req.param('id')
+
+    const product = await c.env.DB.prepare(
+      `SELECT p.id, p.user_input, p.niche, d.slug AS domain_slug, ca.slug AS category_slug
+         FROM products p
+         LEFT JOIN domains    d  ON p.domain_id   = d.id
+         LEFT JOIN categories ca ON p.category_id = ca.id
+        WHERE p.id = ?`,
+    ).bind(productId).first<{
+      id: string
+      user_input: string | null
+      niche: string | null
+      domain_slug: string | null
+      category_slug: string | null
+    }>()
+
+    if (!product) return c.json({ error: 'Product not found' }, 404)
+    if (!product.domain_slug || !product.category_slug) {
+      return c.json({ error: 'Product is missing domain/category — cannot retry' }, 400)
+    }
+
+    const now = new Date().toISOString()
+
+    // Cancel any open run so the History view doesn't double up on the same
+    // product. Anything `running`/`queued` is by definition wedged at this
+    // point (sweepStaleRuns moves real-in-flight rows along on its own).
+    await c.env.DB.prepare(
+      `UPDATE workflow_runs
+          SET status='failed', completed_at=?, error='superseded by manual retry'
+        WHERE product_id=? AND status IN ('running','queued')`,
+    ).bind(now, productId).run().catch(() => void 0)
+
+    await c.env.DB.prepare(
+      `UPDATE products SET status='running', updated_at=? WHERE id=?`,
+    ).bind(now, productId).run()
+
+    const runId = crypto.randomUUID()
+    await c.env.DB.prepare(
+      `INSERT INTO workflow_runs (id, product_id, status, created_at) VALUES (?, ?, 'queued', ?)`,
+    ).bind(runId, productId, now).run()
+
+    let userInput: Record<string, unknown> = {}
+    if (product.user_input) {
+      try { userInput = JSON.parse(product.user_input) as Record<string, unknown> } catch { /* ignore */ }
+    }
+    if (product.niche && !userInput.niche) userInput.niche = product.niche
+
+    const engine = new ProductWorkflow(c.env)
+    c.executionCtx.waitUntil(
+      engine.run(runId, productId, product.domain_slug, product.category_slug, userInput),
+    )
+
+    return c.json({ ok: true, workflow_id: runId, product_id: productId, status: 'queued' }, 202)
+  } catch (err) {
+    console.error('Error retrying product:', err)
+    return c.json({ error: 'Failed to retry product' }, 500)
   }
 })
 

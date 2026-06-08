@@ -84,6 +84,15 @@ async function readPlaintext(env: Env, key: string): Promise<string | null> {
 }
 
 // ─── GET / — list every known provider key with whether it's set (masked) ──
+//
+// We surface `source` per key so the dashboard can show the user where the
+// active key actually comes from: 'kv' (saved via this UI), 'worker_secret'
+// (set via `wrangler secret` on the Worker env), or null (truly not set).
+// Previously the UI said "Not set" for any key without a KV row even when a
+// worker secret was driving the engine — which is how an "engine running with
+// 39 products at $0.00" can happen alongside a screen that claims no keys are
+// configured. The aggregate `ai_configured_count` + `ai_provider_source` make
+// that mismatch impossible.
 keyRoutes.get('/', async (c) => {
   const kek = loadKek(c.env)
   const items = await Promise.all(
@@ -103,9 +112,16 @@ keyRoutes.get('/', async (c) => {
         }
       }
 
+      const source: 'kv' | 'worker_secret' | null = stored
+        ? 'kv'
+        : fromEnv
+          ? 'worker_secret'
+          : null
+
       return {
         ...spec,
         configured: Boolean(stored) || fromEnv,
+        source,
         masked: plaintext
           ? mask(plaintext)
           : stored
@@ -117,9 +133,24 @@ keyRoutes.get('/', async (c) => {
       }
     }),
   )
+
+  const aiItems = items.filter((k) => k.group === 'AI')
+  const aiConfigured = aiItems.filter((k) => k.configured)
+  // The "active" source for AI generation is the first AI key the runtime
+  // would actually pick up. KV beats worker secret because saving a key in
+  // the UI writes to KV and is forwarded to the AI worker; if KV is empty we
+  // fall back to whatever the AI worker has on its env.
+  const aiKv = aiConfigured.find((k) => k.source === 'kv')
+  const aiEnv = aiConfigured.find((k) => k.source === 'worker_secret')
+  const aiActive = aiKv ?? aiEnv ?? null
+
   return c.json({
     keys: items,
     kek_configured: kek !== null,
+    ai_configured_count: aiConfigured.length,
+    ai_provider_source: aiActive
+      ? { key: aiActive.key, label: aiActive.label, source: aiActive.source }
+      : null,
   })
 })
 
