@@ -60,6 +60,23 @@ export function validateEnv(): Env {
   return result.data;
 }
 
+/**
+ * Non-fatal variant of validateEnv: returns success/failure as a result
+ * instead of calling process.exit(1). Used by scripts/check-env.ts so a
+ * clean clone of the repo (e.g. someone who only wants to work on the
+ * Cloudflare stack in apps/nexus/) can boot without the legacy @repo/*
+ * secrets configured.
+ */
+export function tryValidateEnv():
+  | { ok: true; env: Env }
+  | { ok: false; fieldErrors: Record<string, string[] | undefined> } {
+  const result = envSchema.safeParse(process.env);
+  if (!result.success) {
+    return { ok: false, fieldErrors: result.error.flatten().fieldErrors };
+  }
+  return { ok: true, env: result.data };
+}
+
 /** Validated env — loaded on first access (safe for `tsc` without a `.env`). */
 export function getEnv(): Env {
   if (!cachedEnv) {

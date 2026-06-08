@@ -27,24 +27,52 @@ if (existsSync(envPath)) {
 const args = new Set(process.argv.slice(2))
 const skipNetwork = args.has('--env-only') || args.has('--skip-network')
 
+// Strict mode fails on any missing key. Default is lenient: print a warning
+// and continue, so a clean clone can boot the NEXUS Cloudflare stack
+// (which lives in apps/nexus/ and does NOT use this env schema at all)
+// without having to fill the legacy @repo/* secrets first.
+//
+// CI for the legacy stack passes --strict to enforce the full schema.
+const strict = args.has('--strict')
+
 async function main(): Promise<void> {
   console.log('🔍 NEXUS pre-flight check')
 
   // 1. Env validation
   console.log('\n1/2 Validating environment variables…')
-  try {
-    const { validateEnv } = await import('../packages/config/src/env.js')
-    validateEnv()
+  const { tryValidateEnv } = await import('../packages/config/src/env.js')
+  const result = tryValidateEnv()
+  if (result.ok) {
     console.log('   ✓ Environment OK')
-  } catch (err) {
-    // validateEnv() calls process.exit(1) internally on failure
-    console.error('   ✗ Environment validation failed')
-    if (err instanceof Error) console.error('  ', err.message)
+  } else if (strict) {
+    console.error('   ✗ Environment validation failed (strict mode)')
+    console.error('  ', result.fieldErrors)
     process.exit(1)
+  } else {
+    const missing = Object.entries(result.fieldErrors)
+      .filter(([, errs]) => errs && errs.length)
+      .map(([k]) => k)
+    console.warn(
+      `   ⚠ ${missing.length} legacy @repo/* env key(s) missing — continuing.`,
+    )
+    if (missing.length) console.warn('     missing:', missing.join(', '))
+    console.warn(
+      '     Set them before running daily-run / generate-site / stats-pull,',
+    )
+    console.warn(
+      '     or re-run with --strict to fail the boot if any are missing.',
+    )
   }
 
   if (skipNetwork) {
     console.log('\n   (skipping network checks — --env-only mode)')
+    process.exit(0)
+  }
+
+  // If env validation downgraded to a warning, skip network checks too —
+  // pinging services with missing keys would just produce noise.
+  if (!result.ok) {
+    console.log('\n   (skipping network checks — env was not fully validated)')
     process.exit(0)
   }
 
