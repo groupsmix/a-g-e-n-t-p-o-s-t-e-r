@@ -84,6 +84,10 @@ function AgentTab() {
   const [startUrl, setStartUrl] = useState('')
   const [running, setRunning] = useState(false)
   const [events, setEvents] = useState<AgentEvent[]>([])
+  // Latest live frame (inline JPEG data URL) streamed by the API while an
+  // action runs. Kept out of the event list so the feed doesn't bloat with
+  // hundreds of base64 blobs.
+  const [liveFrame, setLiveFrame] = useState<string | null>(null)
   const [error, setError] = useState('')
   const abortRef = useRef<AbortController | null>(null)
   const feedRef = useRef<HTMLDivElement>(null)
@@ -97,6 +101,7 @@ function AgentTab() {
     e.preventDefault()
     if (!goal.trim() || running) return
     setEvents([])
+    setLiveFrame(null)
     setError('')
     setRunning(true)
 
@@ -142,7 +147,19 @@ function AgentTab() {
 
           try {
             const evt = JSON.parse(dataLine.slice(6)) as AgentEvent
-            setEvents((prev) => [...prev, evt])
+            // Frame events are huge (base64 JPEG) and arrive at ~1.5fps.
+            // Route them to the live viewport only — never into the event log,
+            // or memory grows unbounded and the React tree thrashes.
+            if (evt.type === 'frame' && evt.screenshotDataUrl) {
+              setLiveFrame(evt.screenshotDataUrl)
+            } else {
+              setEvents((prev) => [...prev, evt])
+              // Also use observation screenshots as live frames so the viewport
+              // reflects the most recent state between actions.
+              if (evt.type === 'observation' && evt.screenshotUrl) {
+                setLiveFrame(evt.screenshotUrl)
+              }
+            }
           } catch {
             // skip malformed
           }
@@ -287,6 +304,42 @@ function AgentTab() {
                 <XCircle className="h-4 w-4 text-red-500" />
                 <span className="font-medium">Stopped</span>
               </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Live viewport — updates every ~600ms while the AI works */}
+      {(running || liveFrame) && (
+        <div className="overflow-hidden rounded-2xl border border-border bg-black shadow-card">
+          <div className="flex items-center justify-between border-b border-border bg-card/60 px-3 py-1.5 text-xs">
+            <div className="flex items-center gap-2">
+              {running ? (
+                <>
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                  <span className="font-medium uppercase tracking-wide text-red-500">Live</span>
+                </>
+              ) : (
+                <>
+                  <span className="h-2 w-2 rounded-full bg-muted-foreground/50" />
+                  <span className="font-medium uppercase tracking-wide text-muted-foreground">Last frame</span>
+                </>
+              )}
+              <span className="text-muted-foreground">AI agent viewport</span>
+            </div>
+          </div>
+          <div className="relative aspect-[16/10] w-full bg-black">
+            {liveFrame ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={liveFrame}
+                alt="Live browser viewport"
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Waiting for first frame…
+              </div>
             )}
           </div>
         </div>
