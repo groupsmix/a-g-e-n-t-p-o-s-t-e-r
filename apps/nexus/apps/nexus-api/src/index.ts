@@ -135,8 +135,10 @@ const api = new Hono<{ Bindings: Env }>()
 
 // Access gate — once a password is set, every /api route requires a valid
 // bearer token. Auth + asset routes stay open (asset URLs load via <img>/
-// downloads that can't carry an Authorization header), and the gate is
-// inactive until a password is set so the owner can't lock themselves out.
+// downloads that can't carry an Authorization header). The gate is inactive
+// only when NO password is configured — set the ACCESS_PASSWORD secret to make
+// it active the instant the worker boots (no "open until a password is set"
+// window); otherwise it activates once a password is set via the dashboard.
 api.use('*', async (c, next) => {
   if (c.req.method === 'OPTIONS') return next()
   const path = c.req.path // full path, e.g. /api/auth/login

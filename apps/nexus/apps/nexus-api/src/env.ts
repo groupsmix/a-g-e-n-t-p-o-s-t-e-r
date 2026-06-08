@@ -61,6 +61,14 @@ export interface Env {
   // URL for the Nexus AI service endpoint (configurable, defaults to https://nexus-ai/task)
   NEXUS_AI_URL?: string
 
+  // Optional access-gate password provided as a worker secret. When set, the
+  // dashboard/API gate is active IMMEDIATELY on a fresh deploy — there is no
+  // "open until a password is written to KV" window (the previous gap). This
+  // is the authoritative password when present; rotate it via
+  // `wrangler secret put ACCESS_PASSWORD`. Leave unset to use the KV-based
+  // bootstrap flow (set a password from the dashboard on first run).
+  ACCESS_PASSWORD?: string
+
   // Static admin token for /api/money-machine/* (paid LLM + image + publish).
   // Required regardless of the dashboard access-gate state — these endpoints
   // burn money, so they must never be reachable without explicit auth.

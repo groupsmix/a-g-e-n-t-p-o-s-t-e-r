@@ -1,0 +1,27 @@
+{
+  "//": "Known, PRE-EXISTING schema drift (T2). These tables/columns exist in the",
+  "//2": "production D1 — they were added by out-of-band ALTERs (see migration",
+  "//3": "011a's note: 'deliverable_url was applied in a previous out-of-band",
+  "//4": "deploy') — but the committed migrations never create them, so a FRESH",
+  "//5": "database built only from /migrations would lack them. The CI drift check",
+  "//6": "tolerates exactly these identifiers so it can still FAIL on any NEW drift.",
+  "//7": "To shrink this list, add the missing columns/tables in a migration and",
+  "//8": "remove them here. Do NOT add new entries to silence a real bug.",
+  "tolerated_missing": [
+    { "name": "deliverable_url", "table": "products", "note": "out-of-band ALTER; see 011a" },
+    { "name": "deliverable_format", "table": "products", "note": "out-of-band ALTER; see 011a" },
+    { "name": "deliverable_content", "table": "products", "note": "out-of-band ALTER" },
+    { "name": "brief_json", "table": "products", "note": "out-of-band ALTER (012 references it as a comment)" },
+    { "name": "marketing_pack", "table": "products", "note": "out-of-band ALTER (marketing stage)" },
+    { "name": "quality_gate_json", "table": "workflow_runs", "note": "out-of-band ALTER" },
+    { "name": "updated_at", "table": "workflow_runs", "note": "out-of-band ALTER (created_at exists; updated_at does not)" },
+    { "name": "failed_step", "table": "workflow_runs", "note": "out-of-band ALTER (used by digest)" },
+    { "name": "confidence_score", "table": "winner_patterns", "note": "out-of-band ALTER (table ships with `confidence`)" },
+    { "name": "total_revenue", "table": "winner_patterns", "note": "out-of-band ALTER" },
+    { "name": "times_sold", "table": "winner_patterns", "note": "out-of-band ALTER" },
+    { "name": "times_seen", "table": "winner_patterns", "note": "out-of-band ALTER" },
+    { "name": "last_seen_at", "table": "winner_patterns", "note": "out-of-band ALTER" },
+    { "name": "reference_id", "table": "prompt_templates", "note": "out-of-band ALTER (table ships with target_id/target_type)" },
+    { "name": "learning_patterns", "table": "(table)", "note": "out-of-band CREATE TABLE; only winner_patterns is in migrations" }
+  ]
+}
