@@ -7,6 +7,7 @@ import { getSetting, setSetting } from '../services/shared'
 import { safeJson } from '../services/shared'
 import { applyPatterns } from '../services/learning'
 import { decidePublishTier, DEFAULT_GATE } from '../services/publish-gate'
+import { isNearDuplicate, isGeneric, fetchLiveNiches } from '../services/niche-dedup'
 
 // ============================================================
 // Autopilot "money engine" — when ON, the CEO loops on its own:
@@ -107,6 +108,24 @@ autopilotRoutes.get('/status', async (c) => {
 
   const aiProvider = await getAiProviderSource(c.env)
 
+  // BUG-P1-6: until we have real conversion data, projecting tens of
+  // thousands of dollars in revenue is fantasy and erodes trust in the
+  // dashboard. Gate the projection behind a real-sales threshold — when
+  // recorded sales < threshold, return `est_revenue_locked: true` and a
+  // null projection so the UI can show a placeholder instead of inventing
+  // a number. Sales come from `gumroad_sales` (mirrored by the revenue
+  // route on Gumroad sync); the table may not exist yet in which case
+  // we conservatively treat sales as 0.
+  const EST_REVENUE_MIN_SALES = 10
+  const salesRow = await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM gumroad_sales`)
+    .first<{ n: number }>()
+    .catch(() => ({ n: 0 }))
+  const realSales = Number(salesRow?.n ?? 0)
+  const estRevenueLocked = realSales < EST_REVENUE_MIN_SALES
+  const estRevenue = estRevenueLocked
+    ? null
+    : { low: Math.round(estLow), high: Math.round(estHigh), currency: 'USD' }
+
   return c.json({
     enabled,
     per_run: perRun,
@@ -116,7 +135,12 @@ autopilotRoutes.get('/status', async (c) => {
     reject_below: rejectBelow,
     publish_at: publishAt,
     products_built: builtRow?.n ?? 0,
-    est_revenue: { low: Math.round(estLow), high: Math.round(estHigh), currency: 'USD' },
+    est_revenue: estRevenue,
+    est_revenue_locked: estRevenueLocked,
+    est_revenue_locked_reason: estRevenueLocked
+      ? `Projection hidden until ${EST_REVENUE_MIN_SALES} recorded sales (currently ${realSales}). Tie this to real conversion data, not estimates.`
+      : null,
+    real_sales: realSales,
     winners,
     recent: recent.results ?? [],
     // Surfaces "who is actually generating my content" so the dashboard can
@@ -200,41 +224,18 @@ async function callAIJson(env: Env, prompt: string, taskType = 'research_market'
   } catch { return null }
 }
 
-// Normalize a niche for comparison: lowercase, strip punctuation, drop filler.
-const FILLER = new Set(['the', 'a', 'an', 'for', 'and', 'of', 'to', 'in', 'with', 'your', 'my', 'digital', 'product', 'products', 'premium'])
-function nicheTokens(s: string): Set<string> {
-  return new Set(
-    s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w && !FILLER.has(w)),
-  )
-}
-// Treat two niches as duplicates when their significant words overlap heavily.
-function isNearDuplicate(candidate: string, existing: string[]): boolean {
-  const a = nicheTokens(candidate)
-  if (a.size === 0) return true // empty / all-filler → reject
-  for (const e of existing) {
-    const b = nicheTokens(e)
-    if (b.size === 0) continue
-    let inter = 0
-    for (const w of a) if (b.has(w)) inter++
-    const union = new Set([...a, ...b]).size
-    if (inter / union >= 0.6) return true
-  }
-  return false
-}
-// Reject lazy/generic niches like "<domain> essentials".
-function isGeneric(s: string): boolean {
-  return /\b(essentials|stuff|things|bundle|misc|general|various)\b/i.test(s) || nicheTokens(s).size < 2
-}
+// Niche dedup + generic detection moved to `services/niche-dedup.ts` so
+// schedules / manager / agent / trend-promote / workflow all share the
+// same check. See that module for the canonical implementation.
 
 // Research a niche (prefer a fresh trend alert, else ask the AI) and return
 // {domainSlug, categorySlug, niche}. De-duplicates against niches already
 // built so autopilot stops rebuilding near-identical products.
 async function pickNiche(env: Env): Promise<{ domainSlug: string; categorySlug: string; niche: string } | null> {
-  // What's already been made — so we can avoid repeating it.
-  const existingRows = await env.DB.prepare(
-    `SELECT niche FROM products WHERE niche IS NOT NULL AND niche != '' ORDER BY created_at DESC LIMIT 60`,
-  ).all<{ niche: string }>().catch(() => ({ results: [] as { niche: string }[] }))
-  const existing = (existingRows.results ?? []).map((r) => r.niche)
+  // Live / active niches we must not duplicate. Excludes rejected +
+  // graveyard'd rows so a discarded run doesn't permanently block its
+  // niche, but covers everything from draft → published.
+  const existing = await fetchLiveNiches(env)
 
   // Prefer an unused trend alert in an active domain (these are already specific).
   const alert = await env.DB.prepare(
@@ -246,7 +247,11 @@ async function pickNiche(env: Env): Promise<{ domainSlug: string; categorySlug: 
 
   if (alert) {
     const niche = alert.suggested_niche || alert.trend_keyword
-    if (niche && !isNearDuplicate(niche, existing)) {
+    // Apply both checks to trend-derived niches too — these used to slip
+    // through because the AI-branch was the only one running isGeneric,
+    // so generic trend keywords ("essentials", "bundle") would dispatch
+    // anyway.
+    if (niche && !isGeneric(niche) && !isNearDuplicate(niche, existing)) {
       await env.DB.prepare(`UPDATE trend_alerts SET status = 'used' WHERE id = ?`).bind(alert.alert_id).run().catch(() => void 0)
       return finishPick(env, alert.domain_slug, niche)
     }

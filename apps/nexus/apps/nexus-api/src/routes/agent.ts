@@ -6,6 +6,7 @@ import { publishToPlatform } from '../services/publishers'
 import { browse } from '../services/browser'
 import { callAISimple } from '../services/shared'
 import { safeJson } from '../services/shared'
+import { checkNiche } from '../services/niche-dedup'
 
 // ============================================================
 // CEO Agent — a conversational, tool-using manager with full control.
@@ -132,6 +133,12 @@ async function createOneProduct(env: Env, ctx: ExecutionContext, p: any, validSl
   const label = p.product_name || p.niche || 'product'
   if (!domain_slug || !category_slug || !validSlugs.has(`${domain_slug}/${category_slug}`)) {
     return { tool: 'create_product', args: p, ok: false, summary: `Could not create "${label}" — no matching domain/category slug. Pick from the catalog.` }
+  }
+  // Shared niche dedup: refuse to start a build for a duplicate / generic
+  // niche so the agent loop stops piling up "essentials" rows.
+  const guard = await checkNiche(env, p.niche || p.product_name)
+  if (!guard.ok) {
+    return { tool: 'create_product', args: p, ok: false, summary: `Skipped "${label}": ${guard.reason}` }
   }
   try {
     const domain = await env.DB.prepare('SELECT id FROM domains WHERE slug = ? AND is_active = 1').bind(domain_slug).first<any>()

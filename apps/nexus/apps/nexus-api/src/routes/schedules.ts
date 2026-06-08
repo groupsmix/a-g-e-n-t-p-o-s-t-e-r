@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 import { ProductWorkflow } from '../services/workflow-engine'
 import { callAISimple } from '../services/shared'
+import { checkNiche } from '../services/niche-dedup'
 
 // ============================================================
 // Scheduler — define a recurring AI task once ("every day write a blog
@@ -197,6 +198,22 @@ export async function runSchedule(env: Env, ctx: ScheduleExecCtx, row: ScheduleR
   const deliveryId = crypto.randomUUID()
 
   if (row.task_type === 'product') {
+    // Niche dedup guard — refuse to spin up a duplicate / generic product
+    // build from a scheduled task. The scheduler used to fire blindly,
+    // which is one of the paths that produced repeated "Retro Gaming" /
+    // "essentials" rows.
+    const topicNiche = row.topic || row.name
+    const guard = await checkNiche(env, topicNiche)
+    if (!guard.ok) {
+      const title = `Skipped scheduled build: ${topicNiche}`
+      await env.DB.prepare(
+        `INSERT INTO deliveries (id, schedule_id, title, body, kind, webhook_status, created_at)
+         VALUES (?, ?, ?, ?, 'product', 'skipped', ?)`,
+      ).bind(deliveryId, row.id, title, guard.reason, now).run()
+      await env.DB.prepare('UPDATE schedules SET last_run_at = ? WHERE id = ?').bind(now, row.id).run()
+      return { id: deliveryId, title, kind: 'product' }
+    }
+
     // Dispatch the full agent team to build a product for this topic.
     const productId = crypto.randomUUID()
     const runId = crypto.randomUUID()

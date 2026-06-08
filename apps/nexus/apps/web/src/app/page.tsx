@@ -7,18 +7,30 @@ import {
   ArrowRight, Bot, ArrowUpRight, Activity, BarChart3, Zap, Clock,
   AlertCircle,
 } from 'lucide-react'
-import { api, type AutopilotStatus, type RevenueResponse, type Digest, type LearningStats } from '@/lib/api'
-import type { Product } from '@nexus/types'
+import { api, API_BASE, type AutopilotStatus, type RevenueResponse, type Digest, type LearningStats } from '@/lib/api'
 import { PageBody } from '@/components/shell/AppShell'
 import { SetupBanner } from '@/components/shared/SetupBanner'
 
 interface Counts { total: number; pending: number; approved: number; published: number }
+
+// Mirror of /api/pipeline/summary — the canonical pipeline counter the
+// dashboard, /money-workflow, and /review all read from. BUG-P1-4: keep
+// this in lockstep with the inline type in app/money-workflow/page.tsx.
+interface PipelineSummary {
+  stages: {
+    building: { running: number; built_today: number }
+    review:   { pending: number; pending_raw?: number; approved: number; rejected: number }
+    publish:  { ready: number; published: number; failed: number }
+  }
+  total_products: number
+}
 
 export default function HomePage() {
   const [revenue, setRevenue] = useState<RevenueResponse | null>(null)
   const [auto, setAuto] = useState<AutopilotStatus | null>(null)
   const [spend, setSpend] = useState<{ today: number; cap: number } | null>(null)
   const [counts, setCounts] = useState<Counts | null>(null)
+  const [summary, setSummary] = useState<PipelineSummary | null>(null)
   const [digest, setDigest] = useState<Digest | null>(null)
   const [learning, setLearning] = useState<LearningStats | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -29,14 +41,22 @@ export default function HomePage() {
     api.getSpend().then(setSpend).catch(() => setSpend(null))
     api.getDigestToday().then(setDigest).catch(() => setDigest(null))
     api.getLearningStats().then(setLearning).catch(() => setLearning(null))
-    api.getProducts({ limit: 200 })
-      .then((r) => {
-        const p: Product[] = r.products || []
+    // BUG-P1-4: counts now come from /api/pipeline/summary so dashboard,
+    // /money-workflow, and /review all read the SAME DB query. The old
+    // path (getProducts({limit:200}) + client-side filter) was giving the
+    // dashboard a different "pending review" number than the review queue
+    // header because pending_review row usability was filtered client-side
+    // only inside /review/page.tsx.
+    fetch(`${API_BASE}/api/pipeline/summary`, { cache: 'no-store' })
+      .then((r) => r.ok ? (r.json() as Promise<PipelineSummary>) : null)
+      .then((s) => {
+        if (!s) return
+        setSummary(s)
         setCounts({
-          total: p.length,
-          pending: p.filter((x) => x.status === 'pending_review').length,
-          approved: p.filter((x) => x.status === 'approved').length,
-          published: p.filter((x) => x.status === 'published').length,
+          total: s.total_products ?? 0,
+          pending: s.stages.review.pending ?? 0,
+          approved: s.stages.review.approved ?? 0,
+          published: s.stages.publish.published ?? 0,
         })
       })
       .catch((err) => setError(err.message))
@@ -137,6 +157,18 @@ export default function HomePage() {
             </Link>
           </div>
           <div className="divide-y divide-border">
+            {/* BUG-P1-4: "Building Now" was missing from the dashboard,
+                so users would see "13 active" here and "23 building now"
+                on /money-workflow and think they disagreed. They were
+                measuring different things — pipeline.summary's
+                `running` count is the canonical "in-flight" number. */}
+            <PipelineRow
+              label="Building Now"
+              count={summary?.stages.building.running ?? 0}
+              icon={<Activity className="h-4 w-4 text-amber-500" />}
+              href="/money-workflow"
+              highlight={(summary?.stages.building.running ?? 0) > 0}
+            />
             <PipelineRow
               label="Pending Review"
               count={pendingReview}

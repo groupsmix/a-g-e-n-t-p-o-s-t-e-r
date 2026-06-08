@@ -672,11 +672,28 @@ export const api = {
       id: string; title: string; metric: string; target: number;
       period: string; tags?: string[]; enabled?: number | boolean;
     }>; note?: string }>('/api/autonome/goals'),
+  // BUG-P1-5: the runs route returns `{id, generated_at, result: AutonomeRunResult}`,
+  // not the old `{goal_id, started_at, status, ...}` shape. The page-level Run type
+  // mirrors this; keep the api layer aligned so TS guards both ends.
   getAutonomeRuns: () =>
-    apiFetch<{ source: 'live' | 'unconfigured'; runs: Array<{
-      id: string; goal_id: string; started_at: string; status: string;
-      tasks_enqueued?: number; notes?: string;
-    }>; note?: string }>('/api/autonome/runs'),
+    apiFetch<{
+      source?: 'live' | 'unconfigured'
+      runs: Array<{
+        id: string | number
+        generated_at: string
+        result: {
+          generated_at: string
+          goals_evaluated: number
+          off_track: number
+          actions_planned: number
+          tasks_enqueued: number
+          notifications_sent: number
+          enqueue_errors: number
+          actions: Array<{ goal_id?: string; status?: string; note?: string }>
+        }
+      }>
+      note?: string
+    }>('/api/autonome/runs'),
   runAutonomeTick: () =>
     apiFetch<{ ok: boolean; runs?: number; error?: string }>('/api/autonome/run', { method: 'POST' }),
 

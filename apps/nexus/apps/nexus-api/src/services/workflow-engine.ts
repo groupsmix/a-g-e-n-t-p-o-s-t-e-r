@@ -68,6 +68,17 @@ const HUMAN_VOICE = `WRITE LIKE A SHARP HUMAN EXPERT, NOT AN AI:
 // The 15 canonical steps (NEXUS-ARCHITECTURE-V4 §9)
 // ------------------------------------------------------------
 
+// Matches unsubstituted prompt-template tokens like `[Action]`, `[X]`,
+// `[INSERT TOPIC]`. Triggered by the leaked title in the user report:
+// "Transform Your Career with Proven [Action] Plans and Templates".
+// Any title that still contains a bracketed ALL-CAPS-ish placeholder is
+// unusable and must be dropped.
+const PLACEHOLDER_TOKEN_RE = /\[[A-Z][A-Z0-9 _-]{0,40}\]/
+
+export function hasPlaceholderToken(s: string): boolean {
+  return PLACEHOLDER_TOKEN_RE.test(s)
+}
+
 const STEPS: StepDef[] = [
   {
     name: 'research_market',
@@ -148,7 +159,14 @@ Requirements: open with a concrete hook tied to one real pain (no "in today's...
 Return ONLY JSON {titles:[string] (exactly 3)}.`,
     apply: (ctx, raw) => {
       const j = safeJson(raw)
-      ctx.data.title_variants = Array.isArray(j?.titles) ? j.titles : []
+      const raws = Array.isArray(j?.titles) ? j.titles : []
+      // Drop titles still carrying prompt-template placeholders (`[Action]`,
+      // `[X]`, `[INSERT TOPIC]`). A leaked placeholder makes the product
+      // look broken to the buyer and is the kind of thing that lit up the
+      // dashboard with "Transform Your Career with Proven [Action] Plans".
+      ctx.data.title_variants = raws.filter(
+        (t: unknown) => typeof t === 'string' && t.trim() !== '' && !hasPlaceholderToken(t),
+      )
     },
   },
   {
@@ -431,26 +449,50 @@ export class ProductWorkflow {
       // quality gate already scores the run; combine it with title + score
       // sanity checks. If the run is failed (BUG-208 detection above), reject
       // the product too — a failed run can't have produced anything reviewable.
-      const titleStr = String(
-        ctx.data.title_variants?.[0] ?? ctx.data.seo?.meta_title ?? '',
-      ).trim()
+      //
+      // BUG-P1-1: when the run produces no usable title at all we now
+      // *graveyard* the product (sets graveyard_at + a structured reason).
+      // The default /products list filters graveyard_at IS NULL, and the
+      // janitor in services/sweep.ts physically deletes these rows after
+      // an hour. The result is that "Untitled / niche — / score 0" rows
+      // never appear in the UI in the first place, and don't accumulate
+      // in the DB long-term either.
+      const cleanTitleVariants = (Array.isArray(ctx.data.title_variants)
+        ? ctx.data.title_variants
+        : []
+      ).filter((t: unknown): t is string => typeof t === 'string' && t.trim() !== '' && !hasPlaceholderToken(t))
+      const cleanSeoTitle = typeof ctx.data.seo?.meta_title === 'string' && !hasPlaceholderToken(ctx.data.seo.meta_title)
+        ? ctx.data.seo.meta_title
+        : null
+      const titleClean = (cleanTitleVariants[0] || cleanSeoTitle || '').trim()
       const overallScore = Number(ctx.data.ceo?.overall_score ?? 0) || 0
       const qualityFailed = postBuildResult.pass === false
       const runFailed = terminalStatus === 'failed'
-      const productUnusable = runFailed || qualityFailed || !titleStr || overallScore <= 0
+      const noUsableTitle = !titleClean
+      const productUnusable = runFailed || qualityFailed || noUsableTitle || overallScore <= 0
 
       const nextStatus = productUnusable
         ? 'rejected'
         : (ceoRequired ? 'pending_review' : 'approved')
 
-      await this.env.DB.prepare(
-        `UPDATE products SET status=?, ai_score=?, updated_at=? WHERE id=?`
-      ).bind(
-        nextStatus,
-        overallScore,
-        now(),
-        productId,
-      ).run()
+      if (productUnusable) {
+        const reason = noUsableTitle
+          ? 'no usable title (naming step failed or produced placeholders)'
+          : runFailed
+            ? 'workflow run failed'
+            : qualityFailed
+              ? 'post-build quality gate failed'
+              : 'score 0 / not reviewable'
+        await this.env.DB.prepare(
+          `UPDATE products
+              SET status=?, ai_score=?, graveyard_at=?, graveyard_reason=?, updated_at=?
+            WHERE id=?`
+        ).bind(nextStatus, overallScore, now(), reason, now(), productId).run()
+      } else {
+        await this.env.DB.prepare(
+          `UPDATE products SET status=?, ai_score=?, updated_at=? WHERE id=?`
+        ).bind(nextStatus, overallScore, now(), productId).run()
+      }
 
       // The real deliverable (downloadable PDF) is generated in a separate
       // worker invocation — fire-and-forget so it doesn't extend this run's
@@ -582,10 +624,18 @@ export class ProductWorkflow {
     const now = new Date().toISOString()
     const productId = ctx.productId
 
-    const title =
-      (Array.isArray(ctx.data.title_variants) && ctx.data.title_variants[0]) ||
-      ctx.data.seo?.meta_title ||
-      null
+    // Pick the first variant that survived the placeholder filter; fall
+    // back to the SEO meta_title only if it's also clean. Returning null
+    // here lets the downstream "productUnusable" path graveyard the row
+    // (BUG-P1-1) instead of writing a "[Action]"-leaking title to /products.
+    const cleanVariants = (Array.isArray(ctx.data.title_variants)
+      ? ctx.data.title_variants
+      : []
+    ).filter((t: unknown): t is string => typeof t === 'string' && t.trim() !== '' && !hasPlaceholderToken(t))
+    const seoTitle = typeof ctx.data.seo?.meta_title === 'string' && !hasPlaceholderToken(ctx.data.seo.meta_title)
+      ? ctx.data.seo.meta_title
+      : null
+    const title = cleanVariants[0] || seoTitle || null
 
     const description: string = ctx.data.content || ctx.data.seo?.meta_description || ''
     const tagsCsv = Array.isArray(ctx.data.tags) ? ctx.data.tags.join(',') : null

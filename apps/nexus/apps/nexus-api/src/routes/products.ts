@@ -200,6 +200,26 @@ productRoutes.get('/', async (c) => {
     } else {
       query += ` AND p.graveyard_at IS NULL`
     }
+
+    // BUG-P1-4: dashboard ("6 pending review") and /review header ("3
+    // pending") disagreed because /review was filtering client-side for
+    // usable rows (real name + score ≥ 1) while the dashboard was
+    // counting raw rows from /products. Apply the same filter
+    // server-side when status=pending_review so every count (dashboard,
+    // review header, pipeline.summary) reads the same number from one
+    // query — the DB is now the source of truth.
+    if (filters.status === 'pending_review') {
+      query += `
+        AND p.name IS NOT NULL
+        AND TRIM(p.name) != ''
+        AND LOWER(TRIM(p.name)) NOT IN (
+          'untitled','untitled product','untitled draft',
+          '(unnamed)','(unnamed product)','unnamed','draft',
+          'new product','tbd','n/a','-','—'
+        )
+        AND COALESCE(p.ai_score, 0) >= 1
+      `
+    }
     
     query += ` ORDER BY p.created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`
     bindings.push(filters.limit, filters.offset)

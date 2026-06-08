@@ -326,7 +326,13 @@ export interface AutopilotStatus {
   auto_publish: boolean
   min_score: number
   products_built: number
-  est_revenue: { low: number; high: number; currency: string }
+  // BUG-P1-6: projection is null until real recorded sales hit the
+  // threshold (see autopilot route). The UI must hide the stat instead
+  // of inventing a fantasy revenue range.
+  est_revenue: { low: number; high: number; currency: string } | null
+  est_revenue_locked?: boolean
+  est_revenue_locked_reason?: string | null
+  real_sales?: number
   winners: AutopilotWinner[]
   recent: AutopilotLogEntry[]
   // Whether any LLM provider key is reachable by the Worker. The Worker

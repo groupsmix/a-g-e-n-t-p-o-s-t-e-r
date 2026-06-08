@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
+import { checkNiche } from '../services/niche-dedup'
 
 export const trendRoutes = new Hono<{ Bindings: Env }>()
 
@@ -70,7 +71,15 @@ trendRoutes.post('/:id/start', async (c) => {
     if (!trend) {
       return c.json({ error: 'Trend not found' }, 404)
     }
-    
+
+    // Niche dedup guard: a trend can land on the same keyword as a live
+    // product, or be too generic ("essentials" / "bundle") to be worth
+    // building. Refuse before we write the row.
+    const guard = await checkNiche(c.env, trend.trend_keyword)
+    if (!guard.ok) {
+      return c.json({ error: 'Trend skipped', reason: guard.reason }, 409)
+    }
+
     // Create a new product based on the trend
     const productId = crypto.randomUUID()
     const now = new Date().toISOString()
