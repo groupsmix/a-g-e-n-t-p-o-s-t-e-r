@@ -21,8 +21,60 @@ import {
   runRevenueOnce,
 } from '@posteragent/agent-revenue'
 import { getSecret } from '../services/publishers'
+import { listProducts } from '../services/gumroad'
 
 export const revenueRoutes = new Hono<{ Bindings: Env }>()
+
+// GET /api/revenue — high-level summary the dashboard's Revenue page
+// expects. The web client calls `apiFetch('/api/revenue')` (no sub-path)
+// and renders { configured, message?, error?, total_sales, total_revenue,
+// product_count, best_seller, products[] }. When no Gumroad token is
+// configured we return `configured:false` with a helpful message so the
+// page can render its "Connect Gumroad" CTA instead of an error.
+revenueRoutes.get('/', async (c) => {
+  const token = await getSecret(c.env, 'GUMROAD_ACCESS_TOKEN').catch(() => null)
+  if (!token) {
+    return c.json({
+      configured: false,
+      message: 'Add a Gumroad access token in Settings to track real sales.',
+    })
+  }
+
+  const result = await listProducts(c.env)
+  if (!result.ok) {
+    return c.json({
+      configured: true,
+      error: result.error ?? 'Failed to reach Gumroad',
+    })
+  }
+
+  const products = (result.products ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    sales: Number(p.sales_count ?? 0),
+    revenue: Number(p.sales_usd_cents ?? 0) / 100,
+    url: p.short_url ?? null,
+    published: Boolean(p.published),
+  }))
+
+  const totalSales = products.reduce((sum, p) => sum + p.sales, 0)
+  const totalRevenue = products.reduce((sum, p) => sum + p.revenue, 0)
+  const best = products.reduce<{ name: string; revenue: number } | null>((acc, p) => {
+    if (!acc || p.revenue > acc.revenue) return { name: p.name, revenue: p.revenue }
+    return acc
+  }, null)
+  const currency = result.products?.[0]?.currency ?? 'USD'
+
+  return c.json({
+    configured: true,
+    currency,
+    total_sales: totalSales,
+    total_revenue: totalRevenue,
+    product_count: products.length,
+    best_seller: best && best.revenue > 0 ? best.name : null,
+    products,
+  })
+})
 
 function windowFor(period: string, now: Date): { start: Date; end: Date } {
   const end = now

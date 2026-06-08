@@ -19,13 +19,18 @@ interface ChatTurn extends ManagerMessage {
   action_results?: ActionResult[]
 }
 
-const SUGGESTIONS = [
-  'What sold best this week?',
-  'Check my Gumroad sales',
-  'Create a product about productivity',
-  'Analyze the "wedding planning" niche',
-  'Run marketing for my top product',
-  'Create a POD design for motivational quotes',
+// Suggestions can either ask the CEO agent (string prompt) or jump straight
+// to a page that does the thing without an LLM round trip. The original
+// "Check my Gumroad sales" prompt sent the agent down a dead end where it
+// asked for credentials with no way to provide them (BUG-205). Sales lives
+// at /revenue — so we link there instead of asking the model to explain.
+const SUGGESTIONS: { label: string; prompt?: string; href?: string }[] = [
+  { label: 'What sold best this week?', prompt: 'What sold best this week?' },
+  { label: 'Check my Gumroad sales', href: '/revenue' },
+  { label: 'Create a product about productivity', prompt: 'Create a product about productivity' },
+  { label: 'Analyze the "wedding planning" niche', prompt: 'Analyze the "wedding planning" niche' },
+  { label: 'Run marketing for my top product', prompt: 'Run marketing for my top product' },
+  { label: 'Create a POD design for motivational quotes', prompt: 'Create a POD design for motivational quotes' },
 ]
 
 const RISK_PATTERNS: { pattern: RegExp; warning: string }[] = [
@@ -351,15 +356,26 @@ export default function CeoManagerPage() {
         {/* Suggestion pills */}
         {turns.length <= 1 && (
           <div className="px-6 pb-2 flex flex-wrap gap-2">
-            {SUGGESTIONS.map((s) => (
-              <button
-                key={s}
-                onClick={() => send(s)}
-                className="rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
-              >
-                {s}
-              </button>
-            ))}
+            {SUGGESTIONS.map((s) => {
+              const className =
+                'rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors'
+              if (s.href) {
+                return (
+                  <Link key={s.label} href={s.href} className={className}>
+                    {s.label}
+                  </Link>
+                )
+              }
+              return (
+                <button
+                  key={s.label}
+                  onClick={() => s.prompt && send(s.prompt)}
+                  className={className}
+                >
+                  {s.label}
+                </button>
+              )
+            })}
           </div>
         )}
 

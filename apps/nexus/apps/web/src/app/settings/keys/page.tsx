@@ -1,8 +1,36 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { KeyRound, Check, ExternalLink, Gauge } from 'lucide-react'
+import { KeyRound, Check, ExternalLink, Gauge, AlertTriangle } from 'lucide-react'
 import { api, type ApiKeyInfo } from '@/lib/api'
+
+// Light per-provider format hints (BUG-212). Not a hard block — just warns
+// the user if the key clearly doesn't match the provider's published format,
+// because typing gibberish into a 12-field form is easy and the only
+// previous feedback was "engine is using them now" even on garbage.
+//
+// Note: this is intentionally permissive. We only flag obvious mismatches
+// (wrong prefix or too short) — there's no auth-endpoint round trip here.
+const KEY_PREFIXES: Record<string, { prefix: RegExp; example: string }> = {
+  GROQ_API_KEY: { prefix: /^gsk_/, example: 'gsk_…' },
+  OPENAI_API_KEY: { prefix: /^sk-/, example: 'sk-…' },
+  ANTHROPIC_API_KEY: { prefix: /^sk-ant-/, example: 'sk-ant-…' },
+  DEEPSEEK_API_KEY: { prefix: /^sk-/, example: 'sk-…' },
+  PERPLEXITY_API_KEY: { prefix: /^pplx-/, example: 'pplx-…' },
+  MISTRAL_API_KEY: { prefix: /^[A-Za-z0-9]{20,}$/, example: '20+ alphanumeric chars' },
+  GOOGLE_API_KEY: { prefix: /^AIza/, example: 'AIza…' },
+  FAL_KEY: { prefix: /^[a-f0-9-]{30,}:[a-f0-9]+$/i, example: 'uuid:hex' },
+}
+
+const MAX_DAILY_CAP_USD = 1000
+
+function keyLooksWrong(secretKey: string, value: string): string | null {
+  if (!value) return null
+  const rule = KEY_PREFIXES[secretKey]
+  if (!rule) return null
+  if (rule.prefix.test(value)) return null
+  return `Expected format: ${rule.example}`
+}
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
 
@@ -37,9 +65,20 @@ export default function ApiKeysPage() {
   }
   useEffect(load, [])
 
+  const capError = (() => {
+    if (capDraft === '') return null
+    const n = Number(capDraft)
+    if (!Number.isFinite(n)) return 'Not a number'
+    if (n < 0) return 'Cap can\u2019t be negative'
+    if (n > MAX_DAILY_CAP_USD) return `Cap above $${MAX_DAILY_CAP_USD} looks like a typo`
+    return null
+  })()
+
   const saveCap = async () => {
     const n = Number(capDraft)
-    if (!Number.isFinite(n) || n < 0) return
+    // BUG-211: previously this silently no-op'd on negative values but the
+    // "Set cap" button was still enabled — the user thought it saved.
+    if (!Number.isFinite(n) || n < 0 || n > MAX_DAILY_CAP_USD) return
     await api.setCap(n)
     setCapDraft('')
     api.getSpend().then(setSpend).catch(() => {})
@@ -103,20 +142,26 @@ export default function ApiKeysPage() {
               </div>
               <div className="flex items-center gap-2">
                 <input
-                  type="number" min={0} step={1}
-                  placeholder={spend && spend.cap > 0 ? String(spend.cap) : 'Daily cap in $ (0 = unlimited)'}
+                  type="number" min={0} max={MAX_DAILY_CAP_USD} step={1}
+                  placeholder={spend && spend.cap > 0 ? String(spend.cap) : `Daily cap in $ (0 = unlimited, max ${MAX_DAILY_CAP_USD})`}
                   value={capDraft}
                   onChange={(e) => setCapDraft(e.target.value)}
-                  className="input w-56 text-sm"
+                  className={`input w-56 text-sm ${capError ? 'border-destructive' : ''}`}
+                  aria-invalid={capError ? 'true' : 'false'}
                 />
                 <button
                   onClick={saveCap}
-                  disabled={capDraft === ''}
+                  disabled={capDraft === '' || capError !== null}
                   className="rounded-lg border border-border px-3 py-2 text-sm font-medium disabled:opacity-50 hover:bg-muted transition-colors"
                 >
                   Set cap
                 </button>
               </div>
+              {capError && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" /> {capError}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
                 When the cap is hit, paid models pause for the day and the free engines take over.
               </p>
@@ -162,8 +207,19 @@ export default function ApiKeysPage() {
                         placeholder={k.configured ? (k.masked ?? '••••') : `Paste ${k.key}…`}
                         value={drafts[k.key] ?? ''}
                         onChange={(e) => setDrafts((d) => ({ ...d, [k.key]: e.target.value }))}
-                        className="input w-full font-mono text-sm"
+                        className={`input w-full font-mono text-sm ${
+                          keyLooksWrong(k.key, drafts[k.key] ?? '') ? 'border-amber-500/60' : ''
+                        }`}
                       />
+                      {(() => {
+                        const warn = keyLooksWrong(k.key, drafts[k.key] ?? '')
+                        if (!warn) return null
+                        return (
+                          <p className="text-[11px] text-amber-500 flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" /> {warn}
+                          </p>
+                        )
+                      })()}
                       <div className="flex items-center justify-between">
                         <span className="font-mono text-[11px] text-muted-foreground">{k.key}</span>
                         {k.help?.startsWith('http') ? (

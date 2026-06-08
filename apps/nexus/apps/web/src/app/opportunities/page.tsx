@@ -253,9 +253,11 @@ export default function OpportunitiesPage() {
         setSummary(sumData)
       })
       .catch((err: unknown) => {
+        // Single source of truth: render the inline error block below.
+        // Previously we also fired toast.error which left the user staring
+        // at "Failed to load opportunities" twice (BUG-202).
         const msg = err instanceof Error ? err.message : 'Failed to load opportunities'
         setLoadError(msg)
-        toast.error('Failed to load opportunities')
       })
       .finally(() => setLoading(false))
   }, [filterStatus, filterFormat])

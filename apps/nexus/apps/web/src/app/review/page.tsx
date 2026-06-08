@@ -16,7 +16,18 @@ export default function ReviewQueuePage() {
 
   useEffect(() => {
     api.getProducts({ status: 'pending_review' })
-      .then((r) => setProducts(r.products || []))
+      .then((r) => {
+        // Defense-in-depth filter (BUG-206): workflow runs that complete with
+        // no usable output (no title + ai_score === 0) should never land in
+        // the human review queue. The workflow engine now rejects these
+        // upstream, but old rows or future regressions get hidden here too.
+        const usable = (r.products || []).filter((p) => {
+          const hasTitle = typeof p.name === 'string' && p.name.trim().length > 0
+          const score = typeof p.ai_score === 'number' ? p.ai_score : 0
+          return hasTitle && score > 0
+        })
+        setProducts(usable)
+      })
       .finally(() => setLoading(false))
   }, [])
 
