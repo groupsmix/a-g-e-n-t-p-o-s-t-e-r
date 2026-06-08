@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 import type { StartWorkflowInput, WorkflowStatus } from '../types'
 import { ProductWorkflow } from '../services/workflow-engine'
+import { checkNiche } from '../services/niche-dedup'
 
 export const workflowRoutes = new Hono<{ Bindings: Env }>()
 
@@ -31,7 +32,21 @@ workflowRoutes.post('/start', async (c) => {
     if (!category) {
       return c.json({ error: 'Category not found' }, 404)
     }
-    
+
+    // Niche dedup guard: if the caller supplied a niche, refuse to start
+    // a duplicate / too-generic build. Generic POST /workflow/start used
+    // to bypass dedup entirely.
+    const incomingNiche =
+      (body.user_input && typeof body.user_input === 'object'
+        ? (body.user_input as Record<string, unknown>).niche
+        : null) as string | null | undefined
+    if (incomingNiche) {
+      const guard = await checkNiche(c.env, incomingNiche)
+      if (!guard.ok) {
+        return c.json({ error: 'Workflow skipped', reason: guard.reason }, 409)
+      }
+    }
+
     // Create product
     const productId = crypto.randomUUID()
     const now = new Date().toISOString()

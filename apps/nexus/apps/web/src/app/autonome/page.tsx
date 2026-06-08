@@ -14,13 +14,25 @@ type Goal = {
   tags?: string[]
   enabled?: number | boolean
 }
+// BUG-P1-5: the page used to expect `started_at` but the API returns
+// `generated_at` (matches the AutonomeRunResult type from the
+// `agent-autonome` package). That mismatch lit up "Invalid Date" all
+// over the Recent Runs list. Mirror the actual response shape here.
+type RunResult = {
+  generated_at: string
+  goals_evaluated: number
+  off_track: number
+  actions_planned: number
+  tasks_enqueued: number
+  notifications_sent: number
+  enqueue_errors: number
+  actions: Array<{ goal_id?: string; status?: string; note?: string }>
+}
+
 type Run = {
-  id: string
-  goal_id: string
-  started_at: string
-  status: string
-  tasks_enqueued?: number
-  notes?: string
+  id: string | number
+  generated_at: string
+  result: RunResult
 }
 
 export default function AutonomePage() {
@@ -110,19 +122,34 @@ export default function AutonomePage() {
             <Empty>No runs yet. Hit &ldquo;Run tick&rdquo; to kick the loop manually.</Empty>
           ) : (
             <div className="divide-y divide-border">
-              {runs.map((r) => (
-                <div key={r.id} className="flex items-center justify-between gap-4 px-5 py-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{r.goal_id}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(r.started_at).toLocaleString()} · {r.tasks_enqueued ?? 0} task{r.tasks_enqueued === 1 ? '' : 's'} enqueued
+              {runs.map((r) => {
+                // Defensive date parse: the API returns generated_at,
+                // but a malformed row would otherwise hand "Invalid Date"
+                // back to toLocaleString. Show "—" when we can't parse.
+                const ts = r.generated_at ? new Date(r.generated_at) : null
+                const tsLabel = ts && !isNaN(ts.getTime()) ? ts.toLocaleString() : '—'
+                const enq = r.result?.tasks_enqueued ?? 0
+                const errs = r.result?.enqueue_errors ?? 0
+                const status = errs > 0 ? 'errors' : enq > 0 ? 'ok' : 'idle'
+                // Pick the first action's goal id (or fall back to a
+                // generic "tick" label) so we have *something* informative
+                // to show alongside the timestamp.
+                const goalLabel = r.result?.actions?.[0]?.goal_id || 'autonome tick'
+                return (
+                  <div key={String(r.id)} className="flex items-center justify-between gap-4 px-5 py-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{goalLabel}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {tsLabel} · {enq} task{enq === 1 ? '' : 's'} enqueued
+                        {errs > 0 ? ` · ${errs} error${errs === 1 ? '' : 's'}` : ''}
+                      </div>
                     </div>
+                    <span className={`rounded px-1.5 py-0.5 text-xs ${status === 'ok' ? 'bg-emerald-500/15 text-emerald-500' : status === 'errors' ? 'bg-destructive/15 text-destructive' : 'bg-muted text-muted-foreground'}`}>
+                      {status}
+                    </span>
                   </div>
-                  <span className={`rounded px-1.5 py-0.5 text-xs ${r.status === 'ok' || r.status === 'success' ? 'bg-emerald-500/15 text-emerald-500' : r.status === 'error' || r.status === 'failed' ? 'bg-destructive/15 text-destructive' : 'bg-muted text-muted-foreground'}`}>
-                    {r.status}
-                  </span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </Section>

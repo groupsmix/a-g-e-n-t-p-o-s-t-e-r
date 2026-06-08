@@ -4,6 +4,7 @@ import type { ActionResult } from '@nexus/types'
 import { ProductWorkflow } from '../services/workflow-engine'
 import { callAISimple, safeJson } from '../services/shared'
 import { executeAction, type LiveAction, type LiveActionType } from '../services/action-executor'
+import { checkNiche } from '../services/niche-dedup'
 
 export const managerRoutes = new Hono<{ Bindings: Env }>()
 
@@ -123,6 +124,15 @@ If no products should be created, return "products": [].`
 
     if (!domain_slug || !category_slug || !validSlugs.has(`${domain_slug}/${category_slug}`)) {
       actions.push({ ...base, status: 'failed', detail: 'No matching domain/category — create one under Domains first.' })
+      continue
+    }
+
+    // Niche dedup guard — refuse to spin up a duplicate / generic build
+    // from a manager-planned action. Same shared check the autopilot
+    // loop uses.
+    const guard = await checkNiche(c.env, p.niche || p.product_name)
+    if (!guard.ok) {
+      actions.push({ ...base, status: 'failed', detail: guard.reason })
       continue
     }
 

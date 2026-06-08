@@ -7,6 +7,15 @@ import type { Env } from '../env'
 // "RUNNING forever" rows the user was seeing.
 const STALE_CUTOFF_MS = 30 * 60 * 1000
 
+// Graveyard janitor cutoff. The engine moves an unusable run's product
+// row into the graveyard (sets `graveyard_at` + a `graveyard_reason`).
+// After this much time we physically delete the row so the DB doesn't
+// accumulate "Untitled / score 0" garbage forever. The FKs on
+// `workflow_runs.product_id` and `workflow_steps.run_id` cascade, so
+// the run history goes with it — acceptable for these failure modes,
+// since the run itself produced nothing useful to investigate.
+const GRAVEYARD_CUTOFF_MS = 60 * 60 * 1000 // 1 hour, per user spec
+
 // Self-healing: a worker can be evicted mid-build (long background runs),
 // leaving a run/step/product stuck on 'running' forever. Mark anything still
 // running past the cutoff as failed so the loop and the health view recover
@@ -55,5 +64,56 @@ export async function sweepStaleRuns(env: Env): Promise<void> {
     }
   } catch (err) {
     console.error('[sweep] stale-run sweep failed:', err)
+  }
+
+  // Graveyard janitor: physically delete unusable product rows that have
+  // been sitting in the graveyard longer than the cutoff. This covers the
+  // BUG-P1-1 "Untitled / niche — / score 0" rows the engine now graveyards
+  // at the end of a no-title run, plus a legacy backfill catch for any
+  // pre-existing nameless rows from before this fix shipped.
+  await sweepGraveyard(env)
+}
+
+// Exported for tests. Performs two passes:
+//   1. Forward path: delete anything explicitly graveyarded older than the
+//      cutoff. The engine + sweepStaleRuns are the only writers of
+//      graveyard_at, so we trust their reasons.
+//   2. Legacy backfill: catch products with no usable title that predate
+//      the engine fix (no graveyard_at set). Anything older than the
+//      cutoff, with name NULL / blank / 'Untitled', and not actively
+//      building, is also unusable and gets removed.
+export async function sweepGraveyard(env: Env): Promise<void> {
+  const cutoff = new Date(Date.now() - GRAVEYARD_CUTOFF_MS).toISOString()
+  try {
+    // Pass 1 — explicit graveyard rows.
+    const gv = await env.DB.prepare(
+      `DELETE FROM products
+        WHERE graveyard_at IS NOT NULL
+          AND graveyard_at < ?`,
+    ).bind(cutoff).run()
+    const gvN = (gv.meta as { changes?: number } | undefined)?.changes ?? 0
+
+    // Pass 2 — legacy nameless rows (predate graveyard_at being set).
+    // We deliberately scope this to non-running rows so an in-flight build
+    // that simply hasn't named itself yet isn't yanked out from under the
+    // engine. The status filter also excludes anything a human owns
+    // (approved / published).
+    const legacy = await env.DB.prepare(
+      `DELETE FROM products
+        WHERE graveyard_at IS NULL
+          AND created_at < ?
+          AND status IN ('draft','rejected')
+          AND (
+            name IS NULL OR TRIM(name) = ''
+            OR LOWER(TRIM(name)) IN ('untitled','untitled product','(unnamed)','unnamed','draft','new product')
+          )`,
+    ).bind(cutoff).run()
+    const legacyN = (legacy.meta as { changes?: number } | undefined)?.changes ?? 0
+
+    if (gvN > 0 || legacyN > 0) {
+      console.log(`[sweep] graveyard deleted: ${gvN} flagged + ${legacyN} legacy nameless`)
+    }
+  } catch (err) {
+    console.error('[sweep] graveyard janitor failed:', err)
   }
 }

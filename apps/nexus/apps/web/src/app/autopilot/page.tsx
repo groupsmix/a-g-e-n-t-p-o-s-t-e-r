@@ -161,8 +161,23 @@ export default function AutopilotPage() {
             {/* Stats */}
             <div className="grid gap-4 sm:grid-cols-3">
               <Stat icon={<Package className="h-5 w-5" />} label="Products built by autopilot" value={String(status.products_built)} />
-              <Stat icon={<DollarSign className="h-5 w-5" />} label="Estimated revenue (90-day)"
-                value={`$${status.est_revenue.low.toLocaleString()}–$${status.est_revenue.high.toLocaleString()}`} />
+              {/* BUG-P1-6: hide the fantasy projection until we have real
+                  recorded sales (≥10). The API returns est_revenue=null
+                  + est_revenue_locked=true under that threshold. */}
+              {status.est_revenue_locked || !status.est_revenue ? (
+                <Stat
+                  icon={<DollarSign className="h-5 w-5" />}
+                  label="Estimated revenue (90-day)"
+                  value="—"
+                  hint={status.est_revenue_locked_reason ?? 'Available after 10 recorded sales.'}
+                />
+              ) : (
+                <Stat
+                  icon={<DollarSign className="h-5 w-5" />}
+                  label="Estimated revenue (90-day)"
+                  value={`$${status.est_revenue.low.toLocaleString()}–$${status.est_revenue.high.toLocaleString()}`}
+                />
+              )}
               <Stat icon={<TrendingUp className="h-5 w-5" />} label="Top winners tracked" value={String(status.winners.length)} />
             </div>
 
@@ -227,11 +242,12 @@ function ToggleRow({ label, hint, on, busy, onClick }: { label: string; hint: st
   )
 }
 
-function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function Stat({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-xl border border-border bg-card/50 p-4">
       <div className="flex items-center gap-2 text-muted-foreground">{icon}<span className="text-xs">{label}</span></div>
       <div className="mt-2 text-2xl font-bold tracking-tight">{value}</div>
+      {hint ? <div className="mt-1 text-[11px] leading-snug text-muted-foreground">{hint}</div> : null}
     </div>
   )
 }

@@ -42,9 +42,12 @@ pipelineRoutes.get('/summary', async (c) => {
       db.prepare(`SELECT status, COUNT(*) as n FROM opportunities GROUP BY status`),
     ),
 
-    // Stage 3 + 4 + 5: Product pipeline
+    // Stage 3 + 4 + 5: Product pipeline. Exclude graveyard rows from every
+    // count so the "Untitled / score 0" janitor's stragglers don't inflate
+    // any stage. BUG-P1-4: this is the canonical source the dashboard,
+    // money-workflow, and the review page now all read from.
     safeAll<{ status: string; n: number }>(
-      db.prepare(`SELECT status, COUNT(*) as n FROM products GROUP BY status`),
+      db.prepare(`SELECT status, COUNT(*) as n FROM products WHERE graveyard_at IS NULL GROUP BY status`),
     ),
 
     // Stage 3: Recent builds (last 24 h)
@@ -89,6 +92,28 @@ pipelineRoutes.get('/summary', async (c) => {
     getSetting(c.env, 'kill_switch_active').catch(() => 'false'),
   ])
 
+  // BUG-P1-4: the "pending review" number on the dashboard, the /review
+  // header, and this endpoint must all agree. Apply the same usable-row
+  // filter (real name + score ≥ 1) the products listing now uses, and
+  // expose ONE canonical number. The raw count is kept around as
+  // `pending_raw` for diagnostics.
+  const reviewablePending = await safeFirst<{ n: number }>(
+    db.prepare(`
+      SELECT COUNT(*) AS n FROM products
+        WHERE graveyard_at IS NULL
+          AND status = 'pending_review'
+          AND name IS NOT NULL
+          AND TRIM(name) != ''
+          AND LOWER(TRIM(name)) NOT IN (
+            'untitled','untitled product','untitled draft',
+            '(unnamed)','(unnamed product)','unnamed','draft',
+            'new product','tbd','n/a','-','—'
+          )
+          AND COALESCE(ai_score, 0) >= 1
+    `),
+    { n: 0 },
+  )
+
   // Product counts by status
   const pc = Object.fromEntries(productCounts.map((r) => [r.status, r.n]))
   const trendsByStatus = Object.fromEntries(trendCounts.map((r) => [r.status, r.n]))
@@ -120,9 +145,14 @@ pipelineRoutes.get('/summary', async (c) => {
         built_today: recentBuilds?.n ?? 0,
       },
       review: {
-        pending:   pc['pending_review'] ?? 0,
-        approved:  pc['approved']       ?? 0,
-        rejected:  pc['rejected']       ?? 0,
+        // `pending` is the canonical "needs human eyes" count — filtered
+        // to usable rows so it matches the /review queue exactly.
+        pending:     reviewablePending?.n ?? 0,
+        // `pending_raw` is the unfiltered status='pending_review' count,
+        // surfaced for diagnostics / parity with the raw status table.
+        pending_raw: pc['pending_review'] ?? 0,
+        approved:    pc['approved']       ?? 0,
+        rejected:    pc['rejected']       ?? 0,
       },
       publish: {
         ready:     pc['approved']   ?? 0,
