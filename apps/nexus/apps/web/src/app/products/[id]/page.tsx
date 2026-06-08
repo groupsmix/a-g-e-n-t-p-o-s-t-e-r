@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { api, assetUrl } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import type { ProductDetail } from '@nexus/types'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -76,8 +77,22 @@ export default function ProductDetailPage() {
       setProduct((p) =>
         p ? { ...p, gumroad_product_id: res.gumroad_product_id, gumroad_url: res.gumroad_url } : p,
       )
+      toast.success('Published to Gumroad')
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to publish to Gumroad')
+      // BUG-204: an alert() box gets auto-dismissed by some browser modes
+      // (Playwright in particular) and felt like the click did nothing.
+      // Use the in-app toast and, if the failure looks like a missing token,
+      // point the user at the Settings page.
+      const message = err instanceof Error ? err.message : 'Failed to publish to Gumroad'
+      const looksLikeMissingToken =
+        /GUMROAD_ACCESS_TOKEN/i.test(message) ||
+        /not configured/i.test(message) ||
+        /unauthor/i.test(message)
+      if (looksLikeMissingToken) {
+        toast.error('Connect Gumroad in Settings → Keys first')
+      } else {
+        toast.error(message)
+      }
     } finally {
       setGumroadBusy(false)
     }
