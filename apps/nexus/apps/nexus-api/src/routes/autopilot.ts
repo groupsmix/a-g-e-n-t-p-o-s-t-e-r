@@ -19,6 +19,44 @@ export const autopilotRoutes = new Hono<{ Bindings: Env }>()
 
 interface AutopilotExecCtx { waitUntil(p: Promise<unknown>): void }
 
+// ── LLM key gate ──────────────────────────────────────────────────────────
+//
+// Every AI-driven step in the pipeline (research → write → quality_*) needs
+// an LLM provider. Before this gate existed, the autopilot would happily
+// loop on a worker with no keys configured anywhere: each step silently
+// no-op'd, every run ended marked `completed` with $0.00 cost, and the
+// dashboard filled up with "Untitled" / generic-titled products at score
+// 26/100. Now we refuse to start a cycle (or toggle the engine ON) unless
+// at least one AI provider is reachable from either the encrypted KV vault
+// OR a worker secret on the env.
+//
+// Keep this list in sync with KEY_SPECS in routes/keys.ts (group === 'AI').
+const AI_PROVIDER_ENV_VARS = [
+  'GROQ_API_KEY',
+  'OPENAI_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'GOOGLE_API_KEY',
+  'PERPLEXITY_API_KEY',
+  'DEEPSEEK_API_KEY',
+  'MISTRAL_API_KEY',
+] as const
+
+async function getAiProviderSource(
+  env: Env,
+): Promise<{ key: string; source: 'kv' | 'worker_secret' } | null> {
+  for (const key of AI_PROVIDER_ENV_VARS) {
+    try {
+      const stored = await env.CONFIG.get(`secret:${key}`)
+      if (stored) return { key, source: 'kv' }
+    } catch { /* KV miss is non-fatal */ }
+  }
+  for (const key of AI_PROVIDER_ENV_VARS) {
+    const v = (env as unknown as Record<string, unknown>)[key]
+    if (typeof v === 'string' && v.length > 0) return { key, source: 'worker_secret' }
+  }
+  return null
+}
+
 async function log(env: Env, action: string, fields: { product_id?: string; niche?: string; domain_slug?: string; note?: string }) {
   await env.DB.prepare(
     `INSERT INTO autopilot_log (id, action, product_id, niche, domain_slug, note, created_at)
@@ -67,6 +105,8 @@ autopilotRoutes.get('/status', async (c) => {
     `SELECT action, product_id, niche, domain_slug, note, created_at FROM autopilot_log ORDER BY created_at DESC LIMIT 20`,
   ).all()
 
+  const aiProvider = await getAiProviderSource(c.env)
+
   return c.json({
     enabled,
     per_run: perRun,
@@ -79,12 +119,33 @@ autopilotRoutes.get('/status', async (c) => {
     est_revenue: { low: Math.round(estLow), high: Math.round(estHigh), currency: 'USD' },
     winners,
     recent: recent.results ?? [],
+    // Surfaces "who is actually generating my content" so the dashboard can
+    // stop reporting `engine running` next to "no keys configured".
+    ai_keys_configured: aiProvider !== null,
+    ai_provider_source: aiProvider,
   })
 })
 
 // --- Toggle on/off + set throughput ------------------------------------
 autopilotRoutes.post('/toggle', async (c) => {
   const b = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  // Refuse to flip the engine ON when no LLM provider is reachable. Without
+  // this, the autopilot loops forever producing $0 "completed" runs with
+  // generic titles because every AI step silently no-ops.
+  if (b.enabled === true) {
+    const aiProvider = await getAiProviderSource(c.env)
+    if (!aiProvider) {
+      return c.json(
+        {
+          ok: false,
+          error: 'no_ai_key',
+          message:
+            'No LLM provider is configured. Add at least one AI key in Settings → Keys (Groq is free) before turning on the engine.',
+        },
+        400,
+      )
+    }
+  }
   if (typeof b.enabled === 'boolean') await setSetting(c.env, 'autopilot_enabled', b.enabled ? 'true' : 'false')
   if (typeof b.auto_approve === 'boolean') await setSetting(c.env, 'autopilot_auto_approve', b.auto_approve ? 'true' : 'false')
   if (typeof b.auto_publish === 'boolean') await setSetting(c.env, 'autopilot_auto_publish', b.auto_publish ? 'true' : 'false')
@@ -106,6 +167,18 @@ autopilotRoutes.post('/toggle', async (c) => {
 
 // --- Run one cycle now (test without waiting for cron) -----------------
 autopilotRoutes.post('/run', async (c) => {
+  const aiProvider = await getAiProviderSource(c.env)
+  if (!aiProvider) {
+    return c.json(
+      {
+        ok: false,
+        error: 'no_ai_key',
+        message:
+          'No LLM provider is configured. Add at least one AI key in Settings → Keys before running a cycle.',
+      },
+      400,
+    )
+  }
   const built = await runCycle(c.env, c.executionCtx, 1)
   return c.json({ ok: true, built })
 })
@@ -340,6 +413,16 @@ export async function runCycle(env: Env, ctx: AutopilotExecCtx, count: number): 
 // Called by the daily cron — only runs when autopilot is ON.
 export async function runAutopilot(env: Env, ctx: AutopilotExecCtx): Promise<void> {
   if ((await getSetting(env, 'autopilot_enabled')) !== 'true') return
+  // Belt-and-suspenders: even though we refuse to flip the engine ON without
+  // a key, a user could rotate / delete every key after enabling the loop.
+  // Skip the cron tick rather than burn cycles producing "Untitled" runs.
+  const aiProvider = await getAiProviderSource(env)
+  if (!aiProvider) {
+    await log(env, 'skip', {
+      note: 'autopilot tick skipped: no LLM provider configured (add a key in Settings → Keys)',
+    })
+    return
+  }
   const perRun = Number((await getSetting(env, 'autopilot_per_run')) || '1') || 1
   await runCycle(env, ctx, perRun)
 }

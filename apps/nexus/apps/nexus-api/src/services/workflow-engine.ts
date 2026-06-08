@@ -373,10 +373,16 @@ export class ProductWorkflow {
       // Audit step outcomes before declaring the run terminal. A run where
       // every non-skipped step failed should not be reported as `completed`
       // — that's the BUG-208 case (history shows `COMPLETED 0/15 (15 failed)`).
-      // Status policy:
-      //   - any successful step  → 'completed'
-      //   - no successes, ≥1 failure → 'failed'
-      //   - no successes, no failures (all skipped) → 'completed' (no-op run)
+      //
+      // Updated policy (adds `partial`):
+      //   - successes > 0 AND failures > 0 → 'partial'   (mixed outcome — UI must surface failed steps)
+      //   - successes > 0 AND failures = 0 → 'completed'
+      //   - successes = 0 AND failures > 0 → 'failed'
+      //   - successes = 0 AND failures = 0 → 'completed' (pure no-op, all skipped)
+      //
+      // The old code collapsed `partial` into `completed`, which is why runs
+      // labeled COMPLETED were showing 13/15 or 14/15 steps in the History
+      // view — you couldn't tell a healthy run from a half-broken one.
       const stepStats = await this.env.DB
         .prepare(
           `SELECT
@@ -390,15 +396,21 @@ export class ProductWorkflow {
 
       const completedSteps = Number(stepStats?.completed ?? 0)
       const failedSteps = Number(stepStats?.failed ?? 0)
-      const terminalStatus = completedSteps > 0
-        ? 'completed'
-        : failedSteps > 0
-          ? 'failed'
-          : 'completed' // pure no-op (all skipped)
+      const terminalStatus =
+        completedSteps > 0 && failedSteps > 0
+          ? 'partial'
+          : completedSteps > 0
+            ? 'completed'
+            : failedSteps > 0
+              ? 'failed'
+              : 'completed' // pure no-op (all skipped)
 
-      const terminalError = terminalStatus === 'failed'
-        ? `all ${failedSteps} step(s) failed — see workflow_steps for details`
-        : null
+      const terminalError =
+        terminalStatus === 'failed'
+          ? `all ${failedSteps} step(s) failed — see workflow_steps for details`
+          : terminalStatus === 'partial'
+            ? `${failedSteps} of ${completedSteps + failedSteps} step(s) failed — see workflow_steps for details`
+            : null
 
       await this.env.DB.prepare(
         `UPDATE workflow_runs

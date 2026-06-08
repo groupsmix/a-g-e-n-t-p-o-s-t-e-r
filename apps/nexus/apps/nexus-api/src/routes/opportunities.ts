@@ -92,6 +92,39 @@ opportunityRoutes.get('/', async (c) => {
 
 // ── Get single opportunity ───────────────────────────────────
 
+// ── Dashboard summary ────────────────────────────────────────
+//
+// IMPORTANT: this MUST be registered BEFORE the `/:id` route below.
+// Hono matches routes in registration order, and `/:id` would otherwise
+// swallow `/summary` (with id="summary"), making `getOpportunityWithVentures`
+// return `null` and the dashboard's Opportunity Radar render a 404
+// "Not found" even though the endpoint exists. See:
+//   apps/web/src/lib/api.ts → getOpportunitySummary()
+//   apps/web/src/app/opportunities/page.tsx
+opportunityRoutes.get('/summary', kvCache(60), async (c) => {
+  const topOpps = await c.env.DB.prepare(
+    'SELECT * FROM opportunities WHERE status IN (?, ?) AND total_score >= 70 ORDER BY total_score DESC LIMIT 5'
+  ).bind('new', 'watchlist').all<OpportunityRow>()
+
+  const counts = await c.env.DB.prepare(`
+    SELECT
+      status,
+      COUNT(*) as count,
+      suggested_format,
+      AVG(total_score) as avg_score
+    FROM opportunities
+    GROUP BY status, suggested_format
+  `).all<{ status: string; count: number; suggested_format: string; avg_score: number }>()
+
+  const total = await c.env.DB.prepare('SELECT COUNT(*) as total FROM opportunities').first<{ total: number }>()
+
+  return c.json({
+    top_opportunities: (topOpps.results ?? []).map(formatOpportunity),
+    breakdown: counts.results ?? [],
+    total: total?.total ?? 0,
+  })
+})
+
 opportunityRoutes.get('/:id', async (c) => {
   const { id } = c.req.param()
   // Use new service that returns opportunity with ventures array
@@ -341,32 +374,6 @@ opportunityRoutes.post('/niche-factory', rateLimit(5), async (c) => {
   } catch (err) {
     return c.json({ error: 'Niche factory failed', details: String(err) }, 500)
   }
-})
-
-// ── Dashboard summary ────────────────────────────────────────
-
-opportunityRoutes.get('/summary', kvCache(60), async (c) => {
-  const topOpps = await c.env.DB.prepare(
-    'SELECT * FROM opportunities WHERE status IN (?, ?) AND total_score >= 70 ORDER BY total_score DESC LIMIT 5'
-  ).bind('new', 'watchlist').all<OpportunityRow>()
-
-  const counts = await c.env.DB.prepare(`
-    SELECT
-      status,
-      COUNT(*) as count,
-      suggested_format,
-      AVG(total_score) as avg_score
-    FROM opportunities
-    GROUP BY status, suggested_format
-  `).all<{ status: string; count: number; suggested_format: string; avg_score: number }>()
-
-  const total = await c.env.DB.prepare('SELECT COUNT(*) as total FROM opportunities').first<{ total: number }>()
-
-  return c.json({
-    top_opportunities: (topOpps.results ?? []).map(formatOpportunity),
-    breakdown: counts.results ?? [],
-    total: total?.total ?? 0,
-  })
 })
 
 // ── Helpers ──────────────────────────────────────────────────
