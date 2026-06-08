@@ -17,8 +17,8 @@ export const browserAgentRoutes = new Hono<{ Bindings: Env }>()
 
 browserAgentRoutes.post('/run', async (c) => {
   const body = await c.req
-    .json<{ goal?: string; startUrl?: string; maxSteps?: number }>()
-    .catch(() => ({} as { goal?: string; startUrl?: string; maxSteps?: number }))
+    .json<{ goal?: string; startUrl?: string; maxSteps?: number; liveMode?: boolean }>()
+    .catch(() => ({} as { goal?: string; startUrl?: string; maxSteps?: number; liveMode?: boolean }))
 
   const goal = (body.goal || '').trim()
   if (!goal) return c.json({ ok: false, error: 'goal is required' }, 400)
@@ -28,6 +28,9 @@ browserAgentRoutes.post('/run', async (c) => {
     typeof body.maxSteps === 'number' && body.maxSteps > 0 && body.maxSteps <= 30
       ? Math.floor(body.maxSteps)
       : undefined
+  // Default to live frame streaming on. Clients can opt out (e.g. for slow
+  // connections or to save Browser Rendering ops) by sending liveMode: false.
+  const liveMode = body.liveMode !== false
 
   const enc = new TextEncoder()
   const env = c.env
@@ -46,7 +49,7 @@ browserAgentRoutes.post('/run', async (c) => {
       send({ type: 'started', step: 0, goal, message: 'Connected.' })
 
       try {
-        for await (const event of runAgent(env, goal, startUrl, maxSteps)) {
+        for await (const event of runAgent(env, goal, startUrl, maxSteps, liveMode)) {
           send(event)
         }
       } catch (err) {

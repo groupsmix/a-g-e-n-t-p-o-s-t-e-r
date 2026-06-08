@@ -114,6 +114,7 @@ export type AgentEventType =
   | 'observation'
   | 'thinking'
   | 'action'
+  | 'frame'
   | 'done'
   | 'error'
 
@@ -127,6 +128,8 @@ export interface AgentEvent {
   pageUrl?: string
   elements?: AgentElement[]
   screenshotUrl?: string
+  // Inline JPEG data URL for live `frame` events streamed while an action runs.
+  screenshotDataUrl?: string
   message?: string
   answer?: string
   error?: string

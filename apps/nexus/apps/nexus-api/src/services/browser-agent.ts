@@ -22,6 +22,7 @@ export type AgentEventType =
   | 'observation'
   | 'thinking'
   | 'action'
+  | 'frame'
   | 'done'
   | 'error'
 
@@ -35,6 +36,10 @@ export interface AgentEvent {
   pageUrl?: string
   elements?: AgentElement[]
   screenshotUrl?: string
+  // Inline JPEG data URL for live `frame` events streamed while an action runs.
+  // Kept inline (not persisted to R2) so the dashboard renders a near-live
+  // video feel without burning storage on every frame.
+  screenshotDataUrl?: string
   message?: string
   answer?: string
   error?: string
@@ -54,12 +59,17 @@ type AnyPage = Awaited<ReturnType<Awaited<ReturnType<typeof puppeteer.launch>>['
 
 const DEFAULT_MAX_STEPS = 15
 const MAX_ELEMENTS = 40
+// How often to capture a live frame while an action runs. 600ms gives ~1.5fps
+// which feels live without overwhelming the SSE channel or the Browser
+// Rendering session (each screenshot is a billable Browser op).
+const FRAME_INTERVAL_MS = 600
 
 export async function* runAgent(
   env: Env,
   goal: string,
   startUrl?: string,
   maxSteps = DEFAULT_MAX_STEPS,
+  liveMode = true,
 ): AsyncGenerator<AgentEvent> {
   if (!env.BROWSER) {
     yield {
@@ -133,13 +143,45 @@ export async function* runAgent(
         return
       }
 
-      // ACT
-      let actErr: string | undefined
-      try {
-        await executeOne(page, decision.action)
-      } catch (err) {
-        actErr = errorMessage(err)
+      // ACT — execute the action while streaming live JPEG frames so the
+      // dashboard sees the browser working in near-real-time. Frames are tiny
+      // inline data URLs (no R2 roundtrip per frame).
+      type ActSettled = { ok: true } | { ok: false; err: string }
+      const actPromise: Promise<ActSettled> = executeOne(page, decision.action)
+        .then(() => ({ ok: true as const }))
+        .catch((err) => ({ ok: false as const, err: errorMessage(err) }))
+
+      let actResult: ActSettled | null = null
+      // Hard cap on frames per action so a hung navigate can't blow the
+      // SSE channel or the Browser Rendering quota.
+      const MAX_FRAMES_PER_ACTION = 60
+      let frameCount = 0
+      while (!actResult) {
+        const winner = await Promise.race([
+          actPromise.then((r) => ({ kind: 'done' as const, r })),
+          new Promise<{ kind: 'tick' }>((resolve) =>
+            setTimeout(() => resolve({ kind: 'tick' }), FRAME_INTERVAL_MS),
+          ),
+        ])
+        if (winner.kind === 'done') {
+          actResult = winner.r
+          break
+        }
+        if (liveMode && frameCount < MAX_FRAMES_PER_ACTION) {
+          frameCount++
+          const dataUrl = await captureFrame(page).catch(() => null)
+          if (dataUrl) {
+            yield { type: 'frame', step, screenshotDataUrl: dataUrl }
+          }
+        }
       }
+      // One final frame after the action settles so the user sees the result
+      // before the next observe→think cycle starts.
+      if (liveMode) {
+        const finalFrame = await captureFrame(page).catch(() => null)
+        if (finalFrame) yield { type: 'frame', step, screenshotDataUrl: finalFrame }
+      }
+      const actErr = actResult.ok ? undefined : actResult.err
 
       history.push({
         thought: decision.thought,
@@ -280,6 +322,23 @@ async function captureScreenshot(env: Env, page: AnyPage): Promise<string | null
     const key = `agent-screenshots/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`
     await env.ASSETS.put(key, buf, { httpMetadata: { contentType: 'image/png' } })
     return key
+  } catch {
+    return null
+  }
+}
+
+// Lightweight frame for live streaming. JPEG at ~quality 60 keeps each frame
+// around 30-60KB. Returned as a data URL so the SSE consumer can stick it
+// straight into an <img src>.
+async function captureFrame(page: AnyPage): Promise<string | null> {
+  try {
+    const buf = (await page.screenshot({ type: 'jpeg', quality: 60, fullPage: false })) as Uint8Array
+    // Base64 encode without pulling in Node's Buffer (Workers don't have it
+    // unless we ask for nodejs_compat — we do, but staying portable).
+    let binary = ''
+    for (let i = 0; i < buf.length; i++) binary += String.fromCharCode(buf[i])
+    const b64 = btoa(binary)
+    return `data:image/jpeg;base64,${b64}`
   } catch {
     return null
   }
