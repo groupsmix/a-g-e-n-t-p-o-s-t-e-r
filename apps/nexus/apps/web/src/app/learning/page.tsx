@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Brain, TrendingUp, ShoppingBag, BarChart3, RefreshCw,
-  Loader2, Zap, DollarSign, Hash, Tag, Target,
+  Loader2, Zap, DollarSign, Hash, Tag, Target, AlertTriangle,
 } from 'lucide-react'
 import { api, type LearningStats, type LearningPatternRow } from '@/lib/api'
 import { toast } from '@/lib/toast'
@@ -24,11 +24,13 @@ export default function LearningPage() {
   const [stats, setStats] = useState<LearningStats | null>(null)
   const [patterns, setPatterns] = useState<LearningPatternRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
+    setLoadError(null)
     Promise.all([
       api.getLearningStats(),
       api.getLearningPatterns(),
@@ -37,7 +39,15 @@ export default function LearningPage() {
         setStats(s)
         setPatterns(p.patterns)
       })
-      .catch(() => toast.error('Failed to load learning data'))
+      .catch((err: unknown) => {
+        // Inline error with a Retry button (BUG-203). The previous toast-only
+        // approach left the user with a naked "Failed to load learning data"
+        // banner and no way to recover except a full page reload.
+        const msg = err instanceof Error ? err.message : 'Failed to load learning data'
+        setLoadError(msg)
+        setStats(null)
+        setPatterns([])
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -98,7 +108,26 @@ export default function LearningPage() {
           </div>
         )}
 
-        {!loading && stats && (
+        {!loading && loadError && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
+            <AlertTriangle className="mx-auto h-8 w-8 text-destructive opacity-70" />
+            <p className="mt-3 text-sm font-medium text-destructive">Couldn&apos;t load learning data</p>
+            <p className="mt-1 text-xs text-muted-foreground break-all">{loadError}</p>
+            <p className="mt-3 text-xs text-muted-foreground">
+              The Winner Learning Loop needs at least one synced Gumroad sale before it can show patterns.
+              Connect Gumroad in <a className="text-primary hover:underline" href="/settings/keys">Settings → Keys</a>{' '}
+              and run <span className="font-mono">Sync Now</span> above.
+            </p>
+            <button
+              onClick={() => load()}
+              className="mt-4 inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-sidebar-accent transition-colors"
+            >
+              <RefreshCw className="h-3 w-3" /> Retry
+            </button>
+          </div>
+        )}
+
+        {!loading && !loadError && stats && (
           <>
             {/* Stat Cards */}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
