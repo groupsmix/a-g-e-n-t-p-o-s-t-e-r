@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Send } from 'lucide-react'
 import { api } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import type { PublishItem } from '@/lib/api'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 
@@ -19,15 +20,30 @@ export default function PublishPage() {
   }, [])
 
   async function publish(id: string) {
+    const item = items.find((it) => it.id === id)
+    const platform = item?.platform_name || 'platform'
+    const label = item?.product_name || item?.title || 'item'
     setBusy((b) => ({ ...b, [id]: true }))
     setErrors((e) => { const next = { ...e }; delete next[id]; return next })
     try {
       await api.publishItem(id)
+      // BUG-204: success path was silent — the row just vanished and the
+      // user couldn't tell if anything actually happened (especially on
+      // Gumroad, where the publish is async server-side).
+      toast.success(`Published "${label}" to ${platform}`)
       setItems((list) => list.filter((it) => it.id !== id))
     } catch (err) {
       // Real publish failed (e.g. missing platform credentials) — keep the item
       // and show why, instead of pretending it succeeded.
-      setErrors((e) => ({ ...e, [id]: err instanceof Error ? err.message : 'Publish failed' }))
+      const msg = err instanceof Error ? err.message : 'Publish failed'
+      setErrors((e) => ({ ...e, [id]: msg }))
+      const looksLikeMissingToken =
+        /token|unauthor|not configured|missing key|GUMROAD/i.test(msg)
+      toast.error(
+        looksLikeMissingToken
+          ? `Connect ${platform} in Settings → Keys first`
+          : `Couldn't publish to ${platform}: ${msg}`,
+      )
       setBusy((b) => ({ ...b, [id]: false }))
     }
   }

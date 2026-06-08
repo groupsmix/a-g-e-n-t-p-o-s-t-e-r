@@ -99,13 +99,18 @@ export default function HomePage() {
           label="Products"
           value={String(counts?.total ?? 0)}
           icon={<Package className="h-4 w-4" />}
-          // BUG-214: the old "X live" subtext implied total == live, which
-          // didn't match the pipeline tile (Pending + Approved + Published).
-          // Show the active count (everything still in flight or live) so the
-          // numbers reconcile: total = active + rejected/drafts.
+          // BUG-214: the totals didn't reconcile — users saw 38 total but
+          // only Pending + Approved + Published = 14 in the pipeline tile,
+          // with no explanation of the other 24. Show the full breakdown
+          // so total = active + other adds up at a glance.
           sub={(() => {
+            const total = counts?.total ?? 0
             const active = (counts?.pending ?? 0) + (counts?.approved ?? 0) + (counts?.published ?? 0)
-            return `${active} active · ${counts?.published ?? 0} live`
+            const other = Math.max(0, total - active)
+            const live = counts?.published ?? 0
+            const parts = [`${live} live`, `${active} active`]
+            if (other > 0) parts.push(`${other} archived/rejected`)
+            return parts.join(' · ')
           })()}
           href="/products"
         />

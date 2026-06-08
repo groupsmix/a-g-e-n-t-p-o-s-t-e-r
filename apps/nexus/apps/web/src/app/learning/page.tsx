@@ -127,6 +127,29 @@ export default function LearningPage() {
           </div>
         )}
 
+        {/* BUG-203: when the API responds OK but with empty/null stats
+            (e.g. a fresh instance with no Gumroad sales synced yet), the
+            page used to render a blank screen with no recovery path. Show
+            the same friendly explainer + retry block we use for hard
+            errors so the user always has somewhere to go. */}
+        {!loading && !loadError && !stats && (
+          <div className="rounded-xl border border-border bg-card p-6 text-center">
+            <Brain className="mx-auto h-8 w-8 text-muted-foreground opacity-70" />
+            <p className="mt-3 text-sm font-medium">No learning data yet</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The Winner Learning Loop needs at least one synced Gumroad sale.
+              Connect Gumroad in <a className="text-primary hover:underline" href="/settings/keys">Settings → Keys</a>{' '}
+              and run <span className="font-mono">Sync Now</span> above.
+            </p>
+            <button
+              onClick={() => load()}
+              className="mt-4 inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-sidebar-accent transition-colors"
+            >
+              <RefreshCw className="h-3 w-3" /> Retry
+            </button>
+          </div>
+        )}
+
         {!loading && !loadError && stats && (
           <>
             {/* Stat Cards */}
