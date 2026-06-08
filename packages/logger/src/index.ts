@@ -17,10 +17,12 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 
 // ─── Runtime detection ───────────────────────────────────────────────────────
 
-const isWorkers =
-  typeof navigator !== 'undefined' &&
-  // @ts-expect-error — navigator.userAgent is set to this string in CF Workers
-  navigator.userAgent === 'Cloudflare-Workers'
+// Cloudflare Workers exposes `navigator.userAgent === 'Cloudflare-Workers'`.
+// We read it via globalThis so the file compiles under a Node-only lib config.
+const _navUA: string | undefined = (
+  globalThis as { navigator?: { userAgent?: string } }
+).navigator?.userAgent
+const isWorkers = _navUA === 'Cloudflare-Workers'
 
 const nodeEnv =
   typeof process !== 'undefined' && process.env ? process.env['NODE_ENV'] : undefined
