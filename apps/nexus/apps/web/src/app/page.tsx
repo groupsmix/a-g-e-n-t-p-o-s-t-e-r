@@ -99,17 +99,22 @@ export default function HomePage() {
           label="Products"
           value={String(counts?.total ?? 0)}
           icon={<Package className="h-4 w-4" />}
-          // BUG-214: the totals didn't reconcile — users saw 38 total but
-          // only Pending + Approved + Published = 14 in the pipeline tile,
-          // with no explanation of the other 24. Show the full breakdown
-          // so total = active + other adds up at a glance.
+          // BUG-214 (follow-up): the previous recut used "X live · Y active"
+          // but `active` already contains `live`, so the parts visually
+          // overlapped — readers couldn't add them to the total. Show
+          // disjoint buckets that sum to total: pending + approved + live
+          // (= active) + other (= archived/rejected/drafts).
           sub={(() => {
             const total = counts?.total ?? 0
-            const active = (counts?.pending ?? 0) + (counts?.approved ?? 0) + (counts?.published ?? 0)
-            const other = Math.max(0, total - active)
+            const pending = counts?.pending ?? 0
+            const approved = counts?.approved ?? 0
             const live = counts?.published ?? 0
-            const parts = [`${live} live`, `${active} active`]
-            if (other > 0) parts.push(`${other} archived/rejected`)
+            const other = Math.max(0, total - pending - approved - live)
+            const parts: string[] = []
+            if (pending > 0) parts.push(`${pending} pending`)
+            if (approved > 0) parts.push(`${approved} approved`)
+            parts.push(`${live} live`)
+            if (other > 0) parts.push(`${other} other`)
             return parts.join(' · ')
           })()}
           href="/products"

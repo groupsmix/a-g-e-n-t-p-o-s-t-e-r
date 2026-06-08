@@ -158,10 +158,34 @@ export default function ApiKeysPage() {
               </div>
               <div className="flex items-center gap-2">
                 <input
-                  type="number" min={0} max={MAX_DAILY_CAP_USD} step={1}
+                  // BUG-211 root cause: `type="number" min={0}` does NOT
+                  // block `-` keystrokes in any major browser — it only
+                  // sets the `:invalid` pseudo-class, which we weren't
+                  // using to gate the button. Repro: paste `-50` into
+                  // the field, button reads enabled until the IIFE
+                  // recomputes. We now intercept the keystroke and the
+                  // paste path and strip leading `-` / `+` so a
+                  // negative value is impossible at the source. The
+                  // `saveCap` handler still re-validates as a backstop.
+                  type="text"
+                  inputMode="decimal"
                   placeholder={spend && spend.cap > 0 ? String(spend.cap) : `Daily cap in $ (0 = unlimited, max ${MAX_DAILY_CAP_USD})`}
                   value={capDraft}
-                  onChange={(e) => setCapDraft(e.target.value)}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    // Allow digits + a single decimal point only.
+                    const cleaned = raw.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')
+                    setCapDraft(cleaned)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
+                      e.preventDefault()
+                    }
+                    if (e.key === 'Enter' && capDraft !== '' && capError === null) {
+                      e.preventDefault()
+                      saveCap()
+                    }
+                  }}
                   className={`input w-56 text-sm ${capError ? 'border-destructive' : ''}`}
                   aria-invalid={capError ? 'true' : 'false'}
                 />

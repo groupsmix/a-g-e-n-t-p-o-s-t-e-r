@@ -28,9 +28,13 @@ export default function PublishPage() {
     try {
       await api.publishItem(id)
       // BUG-204: success path was silent — the row just vanished and the
-      // user couldn't tell if anything actually happened (especially on
-      // Gumroad, where the publish is async server-side).
-      toast.success(`Published "${label}" to ${platform}`)
+      // user couldn't tell if anything actually happened. Phrase it as
+      // "queued" rather than "published" because the actual publish
+      // (e.g. Gumroad) is async server-side: a successful response means
+      // the work has been accepted, not that the listing is live yet.
+      // Surface the public URL once it appears on the row in the
+      // dashboard's Recent activity stream.
+      toast.success(`Queued "${label}" for publish to ${platform}`)
       setItems((list) => list.filter((it) => it.id !== id))
     } catch (err) {
       // Real publish failed (e.g. missing platform credentials) — keep the item
