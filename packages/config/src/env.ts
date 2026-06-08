@@ -1,55 +1,40 @@
 import { z } from "zod";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Env schema — this package is consumed ONLY by the legacy @repo/* apps
-// (apps/factory, apps/runner). The live NEXUS stack under apps/nexus/ never
-// imports this. Production architecture is Cloudflare D1 + Pages + Workers, so
-// Supabase / Vercel / Redis are no longer required to boot. Every key is
-// declared optional below; individual consumers must `.parse()` a narrower
-// schema if they actually need a given key.
-//
-// Rationale: keeping these as `.min(1)` made `pnpm check-env` (a `dependsOn`
-// of `pnpm dev`) exit 1 on a clean clone before the dev even saw the
-// dashboard, which contradicts the Cloudflare-only design noted in
-// docs/FIXES-2026-06-05.md.
-// ─────────────────────────────────────────────────────────────────────────────
 const envSchema = z.object({
-  ANTHROPIC_API_KEY: z.string().min(1).optional(),
-  OPENAI_API_KEY: z.string().min(1).optional(),
-  COSMIC_BUCKET_SLUG: z.string().min(1).optional(),
-  COSMIC_READ_KEY: z.string().min(1).optional(),
-  COSMIC_WRITE_KEY: z.string().min(1).optional(),
-  ELEVENLABS_API_KEY: z.string().min(1).optional(),
+  ANTHROPIC_API_KEY: z.string().min(1),
+  OPENAI_API_KEY: z.string().min(1),
+  COSMIC_BUCKET_SLUG: z.string().min(1),
+  COSMIC_READ_KEY: z.string().min(1),
+  COSMIC_WRITE_KEY: z.string().min(1),
+  ELEVENLABS_API_KEY: z.string().min(1),
   ELEVENLABS_VOICE_ID: z.string().default("21m00Tcm4TlvDq8ikWAM"),
-  REPLICATE_API_TOKEN: z.string().min(1).optional(),
+  REPLICATE_API_TOKEN: z.string().min(1),
   FAL_API_KEY: z.string().optional(),
-  TIKTOK_ACCESS_TOKEN: z.string().min(1).optional(),
-  TIKTOK_CLIENT_KEY: z.string().min(1).optional(),
-  TIKTOK_CLIENT_SECRET: z.string().min(1).optional(),
-  INSTAGRAM_ACCESS_TOKEN: z.string().min(1).optional(),
-  INSTAGRAM_BUSINESS_ACCOUNT_ID: z.string().min(1).optional(),
-  FACEBOOK_PAGE_ID: z.string().min(1).optional(),
-  YOUTUBE_CLIENT_ID: z.string().min(1).optional(),
-  YOUTUBE_CLIENT_SECRET: z.string().min(1).optional(),
-  YOUTUBE_REFRESH_TOKEN: z.string().min(1).optional(),
-  TWITTER_API_KEY: z.string().min(1).optional(),
-  TWITTER_API_SECRET: z.string().min(1).optional(),
-  TWITTER_ACCESS_TOKEN: z.string().min(1).optional(),
-  TWITTER_ACCESS_SECRET: z.string().min(1).optional(),
+  TIKTOK_ACCESS_TOKEN: z.string().min(1),
+  TIKTOK_CLIENT_KEY: z.string().min(1),
+  TIKTOK_CLIENT_SECRET: z.string().min(1),
+  INSTAGRAM_ACCESS_TOKEN: z.string().min(1),
+  INSTAGRAM_BUSINESS_ACCOUNT_ID: z.string().min(1),
+  FACEBOOK_PAGE_ID: z.string().min(1),
+  YOUTUBE_CLIENT_ID: z.string().min(1),
+  YOUTUBE_CLIENT_SECRET: z.string().min(1),
+  YOUTUBE_REFRESH_TOKEN: z.string().min(1),
+  TWITTER_API_KEY: z.string().min(1),
+  TWITTER_API_SECRET: z.string().min(1),
+  TWITTER_ACCESS_TOKEN: z.string().min(1),
+  TWITTER_ACCESS_SECRET: z.string().min(1),
   PINTEREST_ACCESS_TOKEN: z.string().optional(),
   LINKEDIN_ACCESS_TOKEN: z.string().optional(),
-  AMAZON_ASSOCIATE_TAG: z.string().min(1).optional(),
-  AMAZON_ACCESS_KEY: z.string().min(1).optional(),
-  AMAZON_SECRET_KEY: z.string().min(1).optional(),
+  AMAZON_ASSOCIATE_TAG: z.string().min(1),
+  AMAZON_ACCESS_KEY: z.string().min(1),
+  AMAZON_SECRET_KEY: z.string().min(1),
   GUMROAD_ACCESS_TOKEN: z.string().optional(),
   GOOGLE_ANALYTICS_ID: z.string().optional(),
-  // Vercel / Supabase / Redis are remnants of the pre-Cloudflare design.
-  // Kept optional so legacy code still type-checks; not required to boot.
-  VERCEL_TOKEN: z.string().min(1).optional(),
-  VERCEL_ORG_ID: z.string().min(1).optional(),
-  SUPABASE_URL: z.string().url().optional(),
-  SUPABASE_ANON_KEY: z.string().min(1).optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  VERCEL_TOKEN: z.string().min(1),
+  VERCEL_ORG_ID: z.string().min(1),
+  SUPABASE_URL: z.string().url(),
+  SUPABASE_ANON_KEY: z.string().min(1),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   REDIS_URL: z.string().url().optional(),
 
   /** Postgres connection for Mastra storage (Supabase → Project Settings → Database) */
@@ -73,6 +58,23 @@ export function validateEnv(): Env {
     process.exit(1);
   }
   return result.data;
+}
+
+/**
+ * Non-fatal variant of validateEnv: returns success/failure as a result
+ * instead of calling process.exit(1). Used by scripts/check-env.ts so a
+ * clean clone of the repo (e.g. someone who only wants to work on the
+ * Cloudflare stack in apps/nexus/) can boot without the legacy @repo/*
+ * secrets configured.
+ */
+export function tryValidateEnv():
+  | { ok: true; env: Env }
+  | { ok: false; fieldErrors: Record<string, string[] | undefined> } {
+  const result = envSchema.safeParse(process.env);
+  if (!result.success) {
+    return { ok: false, fieldErrors: result.error.flatten().fieldErrors };
+  }
+  return { ok: true, env: result.data };
 }
 
 /** Validated env — loaded on first access (safe for `tsc` without a `.env`). */
