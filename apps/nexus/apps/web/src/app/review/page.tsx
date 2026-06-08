@@ -28,7 +28,10 @@ export default function ReviewQueuePage() {
           'new product', 'tbd', 'n/a', '-', '—',
         ])
         const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-        const MIN_SCORE = 1.0
+        // BUG-206 (follow-up): the prior threshold of >=1.0 would have
+        // suppressed legitimately-scored 0.5 products. The actual "zombie"
+        // we're hiding is a literal 0.0 (= "model couldn't score this"),
+        // so allow anything strictly above zero through.
         const usable = (r.products || []).filter((p) => {
           const name = typeof p.name === 'string' ? p.name.trim() : ''
           const hasRealTitle =
@@ -36,7 +39,7 @@ export default function ReviewQueuePage() {
             !PLACEHOLDER_NAMES.has(name.toLowerCase()) &&
             !UUID_RE.test(name)
           const score = typeof p.ai_score === 'number' ? p.ai_score : 0
-          return hasRealTitle && score >= MIN_SCORE
+          return hasRealTitle && score > 0
         })
         setProducts(usable)
       })

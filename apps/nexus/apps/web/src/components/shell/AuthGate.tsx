@@ -80,6 +80,17 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       setAuthedCookie(true)
       setPassword('')
       setPhase('authed')
+      // Honor the `?next=` param the middleware adds when it bounces an
+      // anonymous deep-link to `/`. Without this the user lands on the
+      // dashboard regardless of where they were trying to go. Validate
+      // the path so an attacker can't redirect to an external origin
+      // by stuffing `?next=https://evil.example.com` in a phishing link.
+      if (typeof window !== 'undefined') {
+        const next = new URLSearchParams(window.location.search).get('next')
+        if (next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\')) {
+          window.location.replace(next)
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
