@@ -7,10 +7,27 @@
  * - Structured format: { ts, level, module, taskId, message, meta }
  * - TASK_ID propagation through async chains via AsyncLocalStorage
  * - Wraps Mastra agent calls (start / tool-call / result / error)
+ *
+ * Runtime support: Node.js (full features) and Cloudflare Workers
+ * (transport disabled — workers can't spawn worker threads).
  */
 
 import pino, { type Logger as PinoLogger } from 'pino'
 import { AsyncLocalStorage } from 'node:async_hooks'
+
+// ─── Runtime detection ───────────────────────────────────────────────────────
+
+// Cloudflare Workers exposes `navigator.userAgent === 'Cloudflare-Workers'`.
+// We read it via globalThis so the file compiles under a Node-only lib config.
+const _navUA: string | undefined = (
+  globalThis as { navigator?: { userAgent?: string } }
+).navigator?.userAgent
+const isWorkers = _navUA === 'Cloudflare-Workers'
+
+const nodeEnv =
+  typeof process !== 'undefined' && process.env ? process.env['NODE_ENV'] : undefined
+
+const isDev = !isWorkers && nodeEnv !== 'production'
 
 // ─── Task ID context ─────────────────────────────────────────────────────────
 
@@ -33,7 +50,40 @@ export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
 
 // ─── Logger factory ──────────────────────────────────────────────────────────
 
-const isDev = process.env['NODE_ENV'] !== 'production'
+/**
+ * Pick a pino destination suitable for the current runtime.
+ *
+ * - Workers: undefined → pino's default stream (writes JSON the runtime
+ *   captures). `pino.transport()` spawns worker threads and is unsupported;
+ *   `pino.destination(1)` needs a real fd that isn't available either.
+ * - Dev (Node only): pino-pretty via pino.transport.
+ * - Prod (Node): pino.destination(1).
+ */
+function chooseDestination(): unknown {
+  if (isWorkers) return undefined
+  if (isDev && typeof (pino as unknown as { transport?: unknown }).transport === 'function') {
+    try {
+      return pino.transport({
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'HH:MM:ss',
+          ignore: 'pid,hostname',
+        },
+      })
+    } catch {
+      // fall through to destination(1)
+    }
+  }
+  if (typeof pino.destination === 'function') {
+    try {
+      return pino.destination(1)
+    } catch {
+      return undefined
+    }
+  }
+  return undefined
+}
 
 /**
  * Create a structured logger scoped to a module.
@@ -49,30 +99,24 @@ export function createLogger(
   module: string,
   opts?: { level?: LogLevel; base?: Record<string, unknown> },
 ): AppLogger {
-  const base = pino(
-    {
-      level: opts?.level ?? (isDev ? 'debug' : 'info'),
-      base: { module, pid: process.pid, ...opts?.base },
-      timestamp: pino.stdTimeFunctions.isoTime,
-      // Rename pino's default 'time' key to 'ts' to match our schema
-      formatters: {
-        log(obj) {
-          const taskId = getCurrentTaskId()
-          return taskId ? { ...obj, taskId } : obj
-        },
+  const pinoOpts = {
+    level: opts?.level ?? (isDev ? 'debug' : 'info'),
+    base: {
+      module,
+      ...(typeof process !== 'undefined' && process.pid ? { pid: process.pid } : {}),
+      ...opts?.base,
+    },
+    timestamp: pino.stdTimeFunctions.isoTime,
+    formatters: {
+      log(obj: Record<string, unknown>) {
+        const taskId = getCurrentTaskId()
+        return taskId ? { ...obj, taskId } : obj
       },
     },
-    isDev
-      ? pino.transport({
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            translateTime: 'HH:MM:ss',
-            ignore: 'pid,hostname',
-          },
-        })
-      : pino.destination(1),
-  )
+  }
+
+  const dest = chooseDestination()
+  const base = dest ? pino(pinoOpts, dest as never) : pino(pinoOpts)
 
   return new AppLogger(base, module)
 }
