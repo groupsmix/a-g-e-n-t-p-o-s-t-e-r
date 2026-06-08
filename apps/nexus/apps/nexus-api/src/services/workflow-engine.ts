@@ -370,9 +370,42 @@ export class ProductWorkflow {
         `UPDATE workflow_runs SET quality_gate_json = ? WHERE id = ?`
       ).bind(JSON.stringify(ctx.data.quality_gate), runId).run().catch(() => void 0)
 
+      // Audit step outcomes before declaring the run terminal. A run where
+      // every non-skipped step failed should not be reported as `completed`
+      // — that's the BUG-208 case (history shows `COMPLETED 0/15 (15 failed)`).
+      // Status policy:
+      //   - any successful step  → 'completed'
+      //   - no successes, ≥1 failure → 'failed'
+      //   - no successes, no failures (all skipped) → 'completed' (no-op run)
+      const stepStats = await this.env.DB
+        .prepare(
+          `SELECT
+             SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed,
+             SUM(CASE WHEN status='failed'    THEN 1 ELSE 0 END) AS failed
+           FROM workflow_steps WHERE run_id=?`
+        )
+        .bind(runId)
+        .first<{ completed: number | null; failed: number | null }>()
+        .catch(() => null)
+
+      const completedSteps = Number(stepStats?.completed ?? 0)
+      const failedSteps = Number(stepStats?.failed ?? 0)
+      const terminalStatus = completedSteps > 0
+        ? 'completed'
+        : failedSteps > 0
+          ? 'failed'
+          : 'completed' // pure no-op (all skipped)
+
+      const terminalError = terminalStatus === 'failed'
+        ? `all ${failedSteps} step(s) failed — see workflow_steps for details`
+        : null
+
       await this.env.DB.prepare(
-        `UPDATE workflow_runs SET status='completed', completed_at=?, current_step=NULL WHERE id=?`
-      ).bind(now(), runId).run()
+        `UPDATE workflow_runs
+            SET status=?, completed_at=?, current_step=NULL,
+                error = COALESCE(error, ?)
+          WHERE id=?`
+      ).bind(terminalStatus, now(), terminalError, runId).run()
 
       // Gate on CEO review toggle (stored as key/value)
       const ceoSetting = await this.env.DB
@@ -380,13 +413,29 @@ export class ProductWorkflow {
         .first<{ value: string }>()
         .catch(() => null)
       const ceoRequired = ceoSetting?.value !== 'false'
-      const nextStatus = ceoRequired ? 'pending_review' : 'approved'
+
+      // Reject runs that produced unusable output instead of dumping them in
+      // the human review queue as "Untitled / 0.0" (BUG-206). The post-build
+      // quality gate already scores the run; combine it with title + score
+      // sanity checks. If the run is failed (BUG-208 detection above), reject
+      // the product too — a failed run can't have produced anything reviewable.
+      const titleStr = String(
+        ctx.data.title_variants?.[0] ?? ctx.data.seo?.meta_title ?? '',
+      ).trim()
+      const overallScore = Number(ctx.data.ceo?.overall_score ?? 0) || 0
+      const qualityFailed = postBuildResult.pass === false
+      const runFailed = terminalStatus === 'failed'
+      const productUnusable = runFailed || qualityFailed || !titleStr || overallScore <= 0
+
+      const nextStatus = productUnusable
+        ? 'rejected'
+        : (ceoRequired ? 'pending_review' : 'approved')
 
       await this.env.DB.prepare(
         `UPDATE products SET status=?, ai_score=?, updated_at=? WHERE id=?`
       ).bind(
         nextStatus,
-        Number(ctx.data.ceo?.overall_score ?? 0) || 0,
+        overallScore,
         now(),
         productId,
       ).run()
