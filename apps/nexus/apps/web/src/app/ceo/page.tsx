@@ -9,6 +9,7 @@ import {
   Settings as SettingsIcon, LayoutGrid, Palette, Download, Layers, CalendarClock, Trash2,
 } from 'lucide-react'
 import { api, API_BASE, type ManagerMessage, type AgentStep, type ProductScoreResponse, type ActionResult, type ActionStep as ActionStepType } from '@/lib/api'
+import { PageHeader } from '@/components/shell/AppShell'
 import { ScoreBadge } from '@/components/shared/ScoreBadge'
 import { Markdown } from '@/components/Markdown'
 import { VoiceInput } from '@/components/VoiceInput'
@@ -248,20 +249,22 @@ export default function CeoManagerPage() {
   }
 
   return (
-    <div className="flex h-screen">
-      {/* Chat pane */}
-      <div className={`flex flex-col transition-all duration-300 ${browserOpen ? 'w-1/2 border-r border-border' : 'w-full'}`}>
-        {/* Minimal header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-3">
-          <div className="flex items-center gap-2.5">
-            <div className="h-7 w-7 rounded-full bg-primary/15 flex items-center justify-center">
-              <Bot className="h-3.5 w-3.5 text-primary" />
-            </div>
-            <span className="text-sm font-semibold">AI Assistant</span>
-          </div>
-        </div>
-
-        {/* Messages */}
+    // Standard app shell header on top (consistent with every other page),
+    // then the chat/browser split fills the remaining height. Previously this
+    // page rendered its own minimal header and dropped the shared one.
+    <div className="flex flex-col h-screen">
+      <PageHeader
+        title={
+          <span className="flex items-center gap-2">
+            <Bot className="h-5 w-5" /> AI Assistant
+          </span>
+        }
+        subtitle="Ask the engine to check sales, build products, browse the web, analyze niches, and run campaigns."
+      />
+      <div className="flex flex-1 min-h-0">
+        {/* Chat pane */}
+        <div className={`flex flex-col min-h-0 transition-all duration-300 ${browserOpen ? 'w-1/2 border-r border-border' : 'w-full'}`}>
+          {/* Messages */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {turns.map((t, i) => (
             <div key={i} className={t.role === 'user' ? 'flex justify-end' : 'flex items-start gap-3'}>
@@ -440,12 +443,13 @@ export default function CeoManagerPage() {
         </div>
       </div>
 
-      {/* Browser pane */}
-      {browserOpen && (
-        <div className="w-1/2 flex flex-col">
-          <LiveBrowserPanel className="flex-1" />
-        </div>
-      )}
+        {/* Browser pane */}
+        {browserOpen && (
+          <div className="w-1/2 flex flex-col min-h-0">
+            <LiveBrowserPanel className="flex-1" />
+          </div>
+        )}
+      </div>
     </div>
   )
 }

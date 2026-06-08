@@ -224,16 +224,34 @@ function TodayView({ digest: d }: { digest: Digest }) {
         </div>
       )}
 
-      {/* Best performer */}
-      {(d.best_seller || d.top_product) && (
-        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 shadow-card">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-emerald-500 mb-2">
-            <Trophy className="h-4 w-4" /> Top Performer
-          </h3>
-          {d.best_seller && <p className="text-sm">Best seller: <span className="font-semibold">{d.best_seller}</span></p>}
-          {d.top_product && <p className="text-sm text-muted-foreground">Latest completed: {d.top_product}</p>}
-        </div>
-      )}
+      {/* Top performer — only a genuine "performer" when there are actual
+          sales. With zero sales we previously still rendered a trophy around
+          the most recent product (often a *rejected* one), which is
+          misleading. Show an honest "no data yet" state instead. */}
+      {(() => {
+        const hasSales = d.sales_configured && (d.total_sales ?? 0) > 0 && !!d.best_seller
+        if (hasSales) {
+          return (
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 shadow-card">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-emerald-500 mb-2">
+                <Trophy className="h-4 w-4" /> Top Performer
+              </h3>
+              <p className="text-sm">Best seller: <span className="font-semibold">{d.best_seller}</span></p>
+              {d.top_product && <p className="text-sm text-muted-foreground">Latest completed: {d.top_product}</p>}
+            </div>
+          )
+        }
+        return (
+          <div className="rounded-2xl border border-border bg-card/40 p-5 shadow-card">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground mb-2">
+              <Trophy className="h-4 w-4" /> Top Performer
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              No sales data yet{d.top_product ? <> — latest completed product is <span className="text-foreground">{d.top_product}</span>.</> : '.'}
+            </p>
+          </div>
+        )
+      })()}
 
       {/* Issues section */}
       {d.errors.length > 0 && (

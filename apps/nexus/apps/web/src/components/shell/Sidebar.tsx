@@ -154,17 +154,36 @@ function applyTheme(t: ThemeMode) {
 
 export type LayoutMode = 'compact' | 'expanded' | 'minimal'
 
+function applyLayout(l: LayoutMode) {
+  if (typeof document === 'undefined') return
+  document.documentElement.setAttribute('data-layout', l)
+}
+
 function useLayout() {
-  const [layout, setLayoutState] = useState<LayoutMode>('expanded')
+  const [layout, setLayoutState] = useState<LayoutMode>(() => {
+    if (typeof window === 'undefined') return 'expanded'
+    const stored = localStorage.getItem('nexus_layout')
+    if (stored && ['compact', 'expanded', 'minimal'].includes(stored)) return stored as LayoutMode
+    return 'expanded'
+  })
   useEffect(() => {
+    // Reflect the current value to the DOM immediately so the CSS density
+    // rules take effect (previously the value was stored but never applied,
+    // so the toggle had no visible effect).
+    applyLayout(layout)
     api.getUserPreference('dashboard_layout').then((res) => {
       if (res?.value && ['compact', 'expanded', 'minimal'].includes(res.value)) {
         setLayoutState(res.value as LayoutMode)
+        applyLayout(res.value as LayoutMode)
+        localStorage.setItem('nexus_layout', res.value)
       }
     }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const setLayout = (l: LayoutMode) => {
     setLayoutState(l)
+    applyLayout(l)
+    localStorage.setItem('nexus_layout', l)
     api.setUserPreference('dashboard_layout', l).catch(() => {})
   }
   return { layout, setLayout }
@@ -199,13 +218,34 @@ function NavList({ onNavigate, sections }: { onNavigate?: () => void; sections: 
     to === '/' ? pathname === '/' :
     to === '/settings' ? pathname === '/settings' :
     pathname === to || (to !== '/' && to !== '/settings' && pathname.startsWith(to))
+  // Persist open/closed state across navigation. Previously this state was
+  // local and re-initialized on every mount, so collapsing a group reset as
+  // soon as you navigated. We seed from localStorage and fall back to the
+  // "open if it contains the active route" default for groups we haven't seen.
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    let stored: Record<string, boolean> = {}
+    if (typeof window !== 'undefined') {
+      try {
+        stored = JSON.parse(localStorage.getItem('nexus_sidebar_open') || '{}') || {}
+      } catch { stored = {} }
+    }
     const initial: Record<string, boolean> = {}
     for (const sec of sections) {
-      initial[sec.title] = !sec.collapsible || sec.items.some((i) => isActive(i.to))
+      initial[sec.title] =
+        sec.title in stored
+          ? stored[sec.title]
+          : !sec.collapsible || sec.items.some((i) => isActive(i.to))
     }
     return initial
   })
+
+  // Persist whenever the user toggles a group.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      localStorage.setItem('nexus_sidebar_open', JSON.stringify(openSections))
+    } catch { /* ignore quota / serialization errors */ }
+  }, [openSections])
 
   const renderItem = (item: Item) => {
     const Icon = item.icon

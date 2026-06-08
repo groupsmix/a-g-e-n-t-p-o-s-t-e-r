@@ -71,10 +71,18 @@ export default function ProductsPage() {
     }
   }
 
-  const filtered = search
+  // Match across every field the Product row actually carries: name, niche,
+  // and status. Previously it only matched name + niche, so a search whose
+  // term sat in the status (e.g. "rejected") looked broken. Whitespace-
+  // tolerant and case-insensitive so a stray space doesn't zero the list.
+  const q = search.trim().toLowerCase()
+  const filtered = q
     ? products.filter((p) =>
-        (p.name || '').toLowerCase().includes(search.toLowerCase()) ||
-        (p.niche || '').toLowerCase().includes(search.toLowerCase())
+        [p.name, p.niche, p.status]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(q),
       )
     : products
 

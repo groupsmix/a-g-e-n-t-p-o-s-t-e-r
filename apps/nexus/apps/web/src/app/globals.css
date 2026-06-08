@@ -41,6 +41,60 @@
     --background: 235 25% 9%;
     --foreground: 220 20% 95%;
   }
+
+  /* Light theme. Until this existed, toggling "light" added a `.light`
+     class with no CSS behind it, so the page looked identical (BUG: theme
+     toggle has no visible effect). These are light-mode counterparts to the
+     dark-first palette above. */
+  .light {
+    --background: 220 30% 98%;
+    --foreground: 235 25% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 235 25% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 235 25% 12%;
+    --primary: 268 75% 55%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 268 75% 65%;
+    --secondary: 220 20% 92%;
+    --secondary-foreground: 235 25% 12%;
+    --muted: 220 20% 94%;
+    --muted-foreground: 235 12% 40%;
+    --accent: 268 40% 90%;
+    --accent-foreground: 235 25% 12%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 55% 38%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 45%;
+    --warning-foreground: 0 0% 100%;
+    --border: 220 16% 86%;
+    --input: 220 16% 86%;
+    --ring: 268 75% 55%;
+
+    --sidebar: 220 28% 96%;
+    --sidebar-foreground: 235 25% 12%;
+    --sidebar-border: 220 16% 88%;
+    --sidebar-accent: 268 40% 88%;
+  }
+
+  /* Layout density modes. Stored as a preference and applied to <html> via
+     data-layout. Previously the value was saved but never reflected in the
+     DOM, so "compact"/"minimal" had no visible effect. We scale the base
+     font and tighten common paddings via CSS variables. */
+  :root { --layout-pad-scale: 1; }
+  html[data-layout='compact'] {
+    font-size: 14px;
+    --layout-pad-scale: 0.75;
+  }
+  html[data-layout='minimal'] {
+    font-size: 13px;
+    --layout-pad-scale: 0.55;
+  }
+  html[data-layout='expanded'] {
+    font-size: 16px;
+    --layout-pad-scale: 1;
+  }
 }
 
 @layer base {

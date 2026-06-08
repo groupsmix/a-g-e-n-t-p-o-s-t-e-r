@@ -78,7 +78,19 @@ export default function BudgetPage() {
         )}
 
         <div className="grid gap-3 sm:grid-cols-3">
-          <Stat label={`Total spend (${period})`} value={summary ? `$${(summary.total_usd ?? 0).toFixed(2)}` : (loading ? '…' : '$0.00')} />
+          <Stat
+            label={`Total spend (${period})`}
+            value={(() => {
+              if (!summary) return loading ? '…' : '$0.00'
+              const spend = summary.total_usd ?? 0
+              const runs = summary.total_runs ?? 0
+              // $0.00 with actual runs means the engine ran on free-tier models
+              // (e.g. Groq) and cost nothing — say so rather than showing a
+              // misleading "$0.00" that reads like "not tracked".
+              if (spend === 0 && runs > 0) return 'Free tier'
+              return `$${spend.toFixed(2)}`
+            })()}
+          />
           <Stat label="Total runs" value={summary ? String(summary.total_runs ?? 0) : (loading ? '…' : '0')} />
           <Stat label="Active caps" value={loading ? '…' : String(caps.filter((c) => c.enabled).length)} />
         </div>

@@ -148,7 +148,9 @@ export default function ReviewPage() {
         }
       />
       <PageBody>
-        <div className="grid lg:grid-cols-[1fr_340px] gap-6">
+        {/* pb-28 on the grid keeps both columns (including the Pricing card in
+            the right column) clear of the sticky action bar that follows. */}
+        <div className="grid lg:grid-cols-[1fr_340px] gap-6 pb-28">
           <div className="space-y-5">
             {p.image_url && (
               <Section title="Hero image">

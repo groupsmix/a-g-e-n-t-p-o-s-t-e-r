@@ -583,6 +583,16 @@ Respond with ONLY one JSON object (a tool call or a final {"reply"}).`
           const r = await c.env.DB.prepare('SELECT id, name, status, ai_score, revenue_estimate, created_at FROM products WHERE status = \'published\' ORDER BY created_at DESC LIMIT 500').all<Record<string, unknown>>()
           rows = r.results ?? []
         }
+        // Short-circuit on an empty table: don't write a zero-row export to
+        // R2 (it's a wasted action and the resulting file is useless). When
+        // the owner asks "what sold best this week?" and nothing has sold,
+        // the honest answer is "no data yet", not a 2-byte JSON download.
+        if (rows.length === 0) {
+          const summary = `No ${dataType} data yet — nothing to export.`
+          steps.push({ tool, args, ok: true, summary })
+          scratch.push(`export_data → 0 ${dataType} rows; skipped export (${summary})`)
+          continue
+        }
         let content: string
         if (format === 'csv' && rows.length) {
           const headers = Object.keys(rows[0])
