@@ -99,7 +99,14 @@ export default function HomePage() {
           label="Products"
           value={String(counts?.total ?? 0)}
           icon={<Package className="h-4 w-4" />}
-          sub={`${counts?.published ?? 0} live`}
+          // BUG-214: the old "X live" subtext implied total == live, which
+          // didn't match the pipeline tile (Pending + Approved + Published).
+          // Show the active count (everything still in flight or live) so the
+          // numbers reconcile: total = active + rejected/drafts.
+          sub={(() => {
+            const active = (counts?.pending ?? 0) + (counts?.approved ?? 0) + (counts?.published ?? 0)
+            return `${active} active · ${counts?.published ?? 0} live`
+          })()}
           href="/products"
         />
         <MetricCard
@@ -231,6 +238,14 @@ export default function HomePage() {
             <DigestStat label="Schedules" value={`${digest.schedules_succeeded}/${digest.schedules_ran}`} />
             <DigestStat label="Errors" value={digest.errors.length} alert={digest.errors.length > 0} />
           </div>
+          {/* BUG-215: distinguish "schedule ran with no work" from "schedule ran
+              and built N things" so an all-zero digest doesn't look like a
+              successful day. */}
+          {digest.schedules_ran > 0 && digest.built_24h === 0 && digest.published === 0 && digest.errors.length === 0 && (
+            <div className="border-t border-border px-5 py-2 text-xs text-muted-foreground">
+              Schedule ran with no work to queue — turn on more niches in <Link href="/autopilot" className="text-primary hover:underline">Autopilot</Link> if you expected output.
+            </div>
+          )}
         </div>
       )}
 
