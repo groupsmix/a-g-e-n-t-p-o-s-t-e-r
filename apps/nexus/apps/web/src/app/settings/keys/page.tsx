@@ -152,7 +152,7 @@ export default function ApiKeysPage() {
             <LoadingSpinner />
           </div>
         ) : (
-          <div className="max-w-2xl space-y-6">
+          <div className="max-w-2xl space-y-6 pb-24">
             {/* Active AI provider banner — the runtime's own answer to
                 "which key is generating my content right now?". When this
                 is null, autopilot will refuse to start cycles. */}

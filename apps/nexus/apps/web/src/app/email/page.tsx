@@ -214,9 +214,15 @@ export default function EmailPage() {
                 <Send className="h-4 w-4" /> Campaigns
               </h2>
               {(campaigns ?? []).length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No campaigns yet. Create one to get started.
-                </p>
+                <div className="text-sm text-muted-foreground">
+                  <p>No campaigns yet. Create one to get started.</p>
+                  <button
+                    onClick={() => setShowCreate(true)}
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" /> Create your first campaign
+                  </button>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {(campaigns ?? []).map((c) => (
