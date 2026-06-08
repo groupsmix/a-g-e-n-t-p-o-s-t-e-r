@@ -11,7 +11,8 @@
     "generate": "turbo generate",
     "publish:all": "turbo publish:all",
     "factory:run": "turbo factory:run",
-    "check-env": "tsx scripts/check-env.ts"
+    "check-env": "tsx scripts/check-env.ts",
+    "postinstall": "[ -d apps/nexus ] && cd apps/nexus && pnpm install --prefer-offline || true"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

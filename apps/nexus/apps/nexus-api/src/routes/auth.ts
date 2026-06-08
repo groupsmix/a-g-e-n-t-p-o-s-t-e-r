@@ -104,9 +104,23 @@ authRoutes.post('/login', async (c) => {
   return c.json({ token })
 })
 
+// Constant-time string compare used by the bootstrap gate. Kept local to this
+// file so the auth router has no cross-module dependency on money-machine.
+function timingSafeEqualStr(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
+
 // Set (first time) or change the password.
-// - First time: no auth needed (bootstrap).
-// - Change: must present the current password.
+// - First time: requires the MONEY_MACHINE_TOKEN bearer (bootstrap gate) so
+//   that an internet scanner who reaches the worker before the owner can't
+//   set a password and lock the owner out. The token is already a required
+//   server secret for /api/money-machine, so reusing it costs nothing.
+//   If MONEY_MACHINE_TOKEN is unset, bootstrap is allowed without auth and
+//   logs a warning — keeps the legacy local-dev workflow alive.
+// - Change: must present the current password (no token needed).
 authRoutes.post('/setup', async (c) => {
   const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown'
   if (!(await checkRateLimit(c.env, ip))) {
@@ -121,7 +135,26 @@ authRoutes.post('/setup', async (c) => {
   }
 
   const existing = await getAccessHash(c.env)
-  if (existing) {
+  if (!existing) {
+    // ── Bootstrap path ────────────────────────────────────────────────────
+    // First-time setup must present the static MONEY_MACHINE_TOKEN, when
+    // configured. This closes the race where a scanner hits /setup before
+    // the owner does. Without this check, the *.workers.dev URL is wide
+    // open to a password-takeover until the owner's first visit.
+    const bootstrapToken = c.env.MONEY_MACHINE_TOKEN
+    if (bootstrapToken) {
+      const auth = c.req.header('Authorization') || ''
+      const presented = auth.startsWith('Bearer ') ? auth.slice(7) : ''
+      if (!presented || !timingSafeEqualStr(presented, bootstrapToken)) {
+        return c.json(
+          { error: 'Bootstrap requires MONEY_MACHINE_TOKEN bearer auth' },
+          401,
+        )
+      }
+    }
+    // else: legacy local-dev path — no token configured, anyone on this
+    // worker can claim the password. Acceptable for `wrangler dev`.
+  } else {
     if (!current || (await hashPassword(current)) !== existing) {
       return c.json({ error: 'Current password is incorrect' }, 401)
     }

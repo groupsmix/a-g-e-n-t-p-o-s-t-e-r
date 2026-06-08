@@ -1,40 +1,55 @@
 import { z } from "zod";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Env schema — this package is consumed ONLY by the legacy @repo/* apps
+// (apps/factory, apps/runner). The live NEXUS stack under apps/nexus/ never
+// imports this. Production architecture is Cloudflare D1 + Pages + Workers, so
+// Supabase / Vercel / Redis are no longer required to boot. Every key is
+// declared optional below; individual consumers must `.parse()` a narrower
+// schema if they actually need a given key.
+//
+// Rationale: keeping these as `.min(1)` made `pnpm check-env` (a `dependsOn`
+// of `pnpm dev`) exit 1 on a clean clone before the dev even saw the
+// dashboard, which contradicts the Cloudflare-only design noted in
+// docs/FIXES-2026-06-05.md.
+// ─────────────────────────────────────────────────────────────────────────────
 const envSchema = z.object({
-  ANTHROPIC_API_KEY: z.string().min(1),
-  OPENAI_API_KEY: z.string().min(1),
-  COSMIC_BUCKET_SLUG: z.string().min(1),
-  COSMIC_READ_KEY: z.string().min(1),
-  COSMIC_WRITE_KEY: z.string().min(1),
-  ELEVENLABS_API_KEY: z.string().min(1),
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  OPENAI_API_KEY: z.string().min(1).optional(),
+  COSMIC_BUCKET_SLUG: z.string().min(1).optional(),
+  COSMIC_READ_KEY: z.string().min(1).optional(),
+  COSMIC_WRITE_KEY: z.string().min(1).optional(),
+  ELEVENLABS_API_KEY: z.string().min(1).optional(),
   ELEVENLABS_VOICE_ID: z.string().default("21m00Tcm4TlvDq8ikWAM"),
-  REPLICATE_API_TOKEN: z.string().min(1),
+  REPLICATE_API_TOKEN: z.string().min(1).optional(),
   FAL_API_KEY: z.string().optional(),
-  TIKTOK_ACCESS_TOKEN: z.string().min(1),
-  TIKTOK_CLIENT_KEY: z.string().min(1),
-  TIKTOK_CLIENT_SECRET: z.string().min(1),
-  INSTAGRAM_ACCESS_TOKEN: z.string().min(1),
-  INSTAGRAM_BUSINESS_ACCOUNT_ID: z.string().min(1),
-  FACEBOOK_PAGE_ID: z.string().min(1),
-  YOUTUBE_CLIENT_ID: z.string().min(1),
-  YOUTUBE_CLIENT_SECRET: z.string().min(1),
-  YOUTUBE_REFRESH_TOKEN: z.string().min(1),
-  TWITTER_API_KEY: z.string().min(1),
-  TWITTER_API_SECRET: z.string().min(1),
-  TWITTER_ACCESS_TOKEN: z.string().min(1),
-  TWITTER_ACCESS_SECRET: z.string().min(1),
+  TIKTOK_ACCESS_TOKEN: z.string().min(1).optional(),
+  TIKTOK_CLIENT_KEY: z.string().min(1).optional(),
+  TIKTOK_CLIENT_SECRET: z.string().min(1).optional(),
+  INSTAGRAM_ACCESS_TOKEN: z.string().min(1).optional(),
+  INSTAGRAM_BUSINESS_ACCOUNT_ID: z.string().min(1).optional(),
+  FACEBOOK_PAGE_ID: z.string().min(1).optional(),
+  YOUTUBE_CLIENT_ID: z.string().min(1).optional(),
+  YOUTUBE_CLIENT_SECRET: z.string().min(1).optional(),
+  YOUTUBE_REFRESH_TOKEN: z.string().min(1).optional(),
+  TWITTER_API_KEY: z.string().min(1).optional(),
+  TWITTER_API_SECRET: z.string().min(1).optional(),
+  TWITTER_ACCESS_TOKEN: z.string().min(1).optional(),
+  TWITTER_ACCESS_SECRET: z.string().min(1).optional(),
   PINTEREST_ACCESS_TOKEN: z.string().optional(),
   LINKEDIN_ACCESS_TOKEN: z.string().optional(),
-  AMAZON_ASSOCIATE_TAG: z.string().min(1),
-  AMAZON_ACCESS_KEY: z.string().min(1),
-  AMAZON_SECRET_KEY: z.string().min(1),
+  AMAZON_ASSOCIATE_TAG: z.string().min(1).optional(),
+  AMAZON_ACCESS_KEY: z.string().min(1).optional(),
+  AMAZON_SECRET_KEY: z.string().min(1).optional(),
   GUMROAD_ACCESS_TOKEN: z.string().optional(),
   GOOGLE_ANALYTICS_ID: z.string().optional(),
-  VERCEL_TOKEN: z.string().min(1),
-  VERCEL_ORG_ID: z.string().min(1),
-  SUPABASE_URL: z.string().url(),
-  SUPABASE_ANON_KEY: z.string().min(1),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  // Vercel / Supabase / Redis are remnants of the pre-Cloudflare design.
+  // Kept optional so legacy code still type-checks; not required to boot.
+  VERCEL_TOKEN: z.string().min(1).optional(),
+  VERCEL_ORG_ID: z.string().min(1).optional(),
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_ANON_KEY: z.string().min(1).optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
   REDIS_URL: z.string().url().optional(),
 
   /** Postgres connection for Mastra storage (Supabase → Project Settings → Database) */

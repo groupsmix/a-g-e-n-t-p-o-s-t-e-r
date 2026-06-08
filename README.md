@@ -2,15 +2,47 @@
 
 Personal AI content machine: NEXUS orchestration, site factory, Mastra agents, Remotion video, multi-platform publishing.
 
+## Two stacks, on purpose
+
+This repo has two coexisting stacks. They share `packages/*` and run from
+different entry points. Do **not** delete one assuming it's dead.
+
+| Stack | Package scope | Driven by | What it does |
+|-------|---------------|-----------|--------------|
+| Legacy / @repo | `@repo/*` packages, `apps/factory`, `apps/runner`, `apps/dashboard` | GitHub Actions cron + a Next.js dashboard on port 3030 | Daily content runs, site generation, stats pull, Supabase-backed |
+| NEXUS / @posteragent | `apps/nexus/*`, `@posteragent/*` packages | Cloudflare Workers + Pages (D1 / KV / R2) | New orchestrator, money-machine, brain layer, web UI |
+
+Until the legacy stack is formally retired (cron migrated, dashboard
+rewritten on top of NEXUS), both ship together. CI proves it:
+
+```
+.github/workflows/daily-run.yml      → @repo/runner
+.github/workflows/generate-site.yml  → @repo/runner
+.github/workflows/stats-pull.yml     → @repo/runner
+.github/workflows/deploy.yml         → @posteragent/dashboard
+```
+
 ## Layout
 
 | Path | Purpose |
 |------|---------|
-| `apps/nexus/` | NEXUS monorepo — API + AI worker (Cloudflare Workers) + web UI (Cloudflare Pages) |
-| `apps/factory/` | CosmicJS site generator (TASK 6.x) |
-| `packages/*` | Shared agents, tools, workflows, publishers, generators, CMS, config |
+| `apps/nexus/` | NEXUS monorepo — API + AI worker (Cloudflare Workers) + web UI (Cloudflare Pages). **Own pnpm workspace** — see install note below. |
+| `apps/dashboard/` | Next.js 14 dashboard (port 3030) — `@posteragent/dashboard` |
+| `apps/factory/` | CosmicJS site generator (TASK 6.x) — `@repo/factory` |
+| `apps/runner/` | Cron entrypoints for legacy pipeline — `@repo/runner` |
+| `packages/*` | Mixed: `@repo/*` (legacy) and `@posteragent/*` (NEXUS) |
 | `ref/` | Cloned reference repos (do not import directly in production code) |
 | `docs/AGENT_TASKS.md` | Full build plan — one task per agent session |
+
+## Nested workspace install
+
+`apps/nexus/` is its own pnpm workspace. The root `postinstall` script runs
+`pnpm install` inside `apps/nexus/` automatically, but if you ever see
+`Cannot find module 'react'` from `apps/nexus/apps/web`, run it manually:
+
+```bash
+cd apps/nexus && pnpm install
+```
 
 ## Reference repos (`ref/`)
 
