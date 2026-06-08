@@ -65,19 +65,34 @@ export interface CosmicBucket {
 
 const bucketClients = new Map<string, CosmicBucket>();
 
-function createClient(bucketSlug: string): CosmicBucket {
+/**
+ * Pull a required Cosmic key out of env, throwing a clear error if it's
+ * missing. The env schema marks these keys optional (the live Cloudflare
+ * stack doesn't need them), so we re-assert the requirement here at the
+ * boundary where they're actually used.
+ */
+function requireCosmicKey(key: 'COSMIC_BUCKET_SLUG' | 'COSMIC_READ_KEY' | 'COSMIC_WRITE_KEY'): string {
   const env = getEnv();
+  const value = env[key];
+  if (!value) {
+    throw new Error(
+      `[@repo/cms] ${key} is required to use the Cosmic client. Set it in your .env or skip the Cosmic-backed paths.`,
+    );
+  }
+  return value;
+}
+
+function createClient(bucketSlug: string): CosmicBucket {
   return createBucketClient({
     bucketSlug,
-    readKey: env.COSMIC_READ_KEY,
-    writeKey: env.COSMIC_WRITE_KEY,
+    readKey: requireCosmicKey('COSMIC_READ_KEY'),
+    writeKey: requireCosmicKey('COSMIC_WRITE_KEY'),
   }) as unknown as CosmicBucket;
 }
 
 /** Default bucket from env (posteragent main CMS). */
 export function getCosmic(): CosmicBucket {
-  const env = getEnv();
-  return getCosmicForBucket(env.COSMIC_BUCKET_SLUG);
+  return getCosmicForBucket(requireCosmicKey('COSMIC_BUCKET_SLUG'));
 }
 
 /** Per-site Cosmic bucket (same workspace keys, different slug). */
