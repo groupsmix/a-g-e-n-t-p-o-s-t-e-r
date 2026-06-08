@@ -6,6 +6,22 @@ import { api, getToken, setToken } from '@/lib/api'
 
 type Phase = 'checking' | 'open' | 'login' | 'authed'
 
+// Mirror the auth state to a cookie so the Next.js middleware (BUG-216)
+// can gate routes at the edge. The cookie is just a UI flag — the real
+// session is the Bearer token in localStorage validated by the API.
+const AUTHED_COOKIE = 'nexus_authed'
+function setAuthedCookie(authed: boolean) {
+  if (typeof document === 'undefined') return
+  if (authed) {
+    // 24h cookie. SameSite=Lax so a fresh tab counts, Secure so we never
+    // ship it on plain HTTP. Path=/ so middleware sees it everywhere.
+    const secure = typeof location !== 'undefined' && location.protocol === 'https:' ? '; Secure' : ''
+    document.cookie = `${AUTHED_COOKIE}=1; path=/; max-age=86400; SameSite=Lax${secure}`
+  } else {
+    document.cookie = `${AUTHED_COOKIE}=; path=/; max-age=0; SameSite=Lax`
+  }
+}
+
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const [phase, setPhase] = useState<Phase>('checking')
   const [password, setPassword] = useState('')
@@ -15,18 +31,28 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const check = useCallback(async () => {
     try {
       const { protected: isProtected } = await api.getAuthStatus()
-      if (!isProtected) return setPhase('open')
+      if (!isProtected) {
+        // Open instance — drop the gate cookie so middleware doesn't bounce.
+        setAuthedCookie(true)
+        return setPhase('open')
+      }
       // Protected — validate the stored token by hitting a guarded endpoint.
-      if (!getToken()) return setPhase('login')
+      if (!getToken()) {
+        setAuthedCookie(false)
+        return setPhase('login')
+      }
       try {
         await api.getSpend()
+        setAuthedCookie(true)
         setPhase('authed')
       } catch {
         setToken(null)
+        setAuthedCookie(false)
         setPhase('login')
       }
     } catch {
       // API unreachable — don't hard-block the app shell.
+      setAuthedCookie(true)
       setPhase('open')
     }
   }, [])
@@ -45,6 +71,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     try {
       const { token } = await api.login(password)
       setToken(token)
+      setAuthedCookie(true)
       setPassword('')
       setPhase('authed')
     } catch (err) {
