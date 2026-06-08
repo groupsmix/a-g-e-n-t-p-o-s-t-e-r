@@ -18,13 +18,25 @@ export default function ReviewQueuePage() {
     api.getProducts({ status: 'pending_review' })
       .then((r) => {
         // Defense-in-depth filter (BUG-206): workflow runs that complete with
-        // no usable output (no title + ai_score === 0) should never land in
-        // the human review queue. The workflow engine now rejects these
-        // upstream, but old rows or future regressions get hidden here too.
+        // no usable output should never land in the human review queue. The
+        // workflow engine should reject these upstream; this hides any that
+        // slipped through. Treat a "name" that's empty, a UUID, or a known
+        // placeholder ("Untitled", "(unnamed)", etc.) as no-title.
+        const PLACEHOLDER_NAMES = new Set([
+          'untitled', 'untitled product', 'untitled draft',
+          '(unnamed)', '(unnamed product)', 'unnamed', 'draft',
+          'new product', 'tbd', 'n/a', '-', '—',
+        ])
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        const MIN_SCORE = 1.0
         const usable = (r.products || []).filter((p) => {
-          const hasTitle = typeof p.name === 'string' && p.name.trim().length > 0
+          const name = typeof p.name === 'string' ? p.name.trim() : ''
+          const hasRealTitle =
+            name.length > 0 &&
+            !PLACEHOLDER_NAMES.has(name.toLowerCase()) &&
+            !UUID_RE.test(name)
           const score = typeof p.ai_score === 'number' ? p.ai_score : 0
-          return hasTitle && score > 0
+          return hasRealTitle && score >= MIN_SCORE
         })
         setProducts(usable)
       })

@@ -9,14 +9,53 @@ import { PageHeader, PageBody } from '@/components/shell/AppShell'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
 
-// Format a cost in USD: $0.00 for normal values, $0.0000 for sub-cent
-// (cheap models can run for fractions of a cent — round-to-2 would show
-// every step as $0.00 which hides the cost signal entirely).
+// Format a cost in USD.
+// - Real zero            -> $0.00
+// - Effectively zero     -> "<$0.0001" (was rendering as "$0.000" / "$0.0000",
+//                          which reads as a misformat — BUG-208).
+// - Sub-cent             -> 4 decimals, e.g. $0.0073
+// - Otherwise            -> 2 decimals, e.g. $1.42
 function formatCost(value: number | null | undefined): string {
   const n = Number(value ?? 0)
-  if (n === 0) return '$0.00'
+  if (!Number.isFinite(n) || n === 0) return '$0.00'
+  if (n > 0 && n < 0.0001) return '<$0.0001'
   if (n < 0.01) return `$${n.toFixed(4)}`
   return `$${n.toFixed(2)}`
+}
+
+// Workflow runs sometimes arrive with a name that's actually the workflow
+// UUID, the product UUID, or a known placeholder. Treat these as untitled
+// so the History table never shows raw UUIDs as titles (BUG-207).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const PLACEHOLDER_TITLES = new Set([
+  'untitled', 'untitled product', '(unnamed)', '(unnamed product)',
+  'unnamed', 'draft', 'new product', 'tbd', 'n/a', '-', '—',
+])
+function isRealTitle(name: unknown): name is string {
+  if (typeof name !== 'string') return false
+  const trimmed = name.trim()
+  if (trimmed.length === 0) return false
+  if (UUID_RE.test(trimmed)) return false
+  if (PLACEHOLDER_TITLES.has(trimmed.toLowerCase())) return false
+  return true
+}
+
+// Reconcile the run's reported status with its step counts. The API has
+// historically returned status="completed" for runs where every step
+// failed (BUG-213) — that's misleading. If we have step data, trust it
+// over the bare status label.
+function reconcileStatus(
+  status: string,
+  stepsCompleted: number,
+  stepsFailed: number,
+  stepCount: number,
+): string {
+  if (stepCount > 0 && stepsFailed > 0 && stepsCompleted === 0) return 'failed'
+  if (stepCount > 0 && stepsCompleted < stepCount && stepsFailed > 0 && status === 'completed') {
+    // Partial work but the run is marked done — surface the failure.
+    return 'failed'
+  }
+  return status
 }
 
 function StatusPill({ status, failedStep }: { status: string; failedStep?: string | null }) {
@@ -79,12 +118,19 @@ export default function HistoryPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {runs.map((r) => (
+                {runs.map((r) => {
+                  const completed = Number(r.steps_completed ?? 0)
+                  const failed = Number(r.steps_failed ?? 0)
+                  const total = Number(r.step_count ?? 0)
+                  const effectiveStatus = reconcileStatus(r.status, completed, failed, total)
+                  return (
                   <tr key={r.id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-3 font-medium">
-                      {r.product_name || <span className="text-muted-foreground italic">(unnamed product)</span>}
+                      {isRealTitle(r.product_name)
+                        ? r.product_name
+                        : <span className="text-muted-foreground italic">(unnamed product)</span>}
                     </td>
-                    <td className="px-4 py-3"><StatusPill status={r.status} failedStep={r.failed_step} /></td>
+                    <td className="px-4 py-3"><StatusPill status={effectiveStatus} failedStep={r.failed_step} /></td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       {Number(r.steps_completed ?? 0)}/{Number(r.step_count ?? 0)}
                       {Number(r.steps_failed ?? 0) > 0 && (
@@ -106,7 +152,8 @@ export default function HistoryPage() {
                       </Link>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

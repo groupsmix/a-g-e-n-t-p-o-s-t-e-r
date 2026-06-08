@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Lock, Loader2, Workflow } from 'lucide-react'
 import { api, getToken, setToken } from '@/lib/api'
 
-type Phase = 'checking' | 'open' | 'login' | 'authed'
+type Phase = 'checking' | 'open' | 'login' | 'authed' | 'unreachable'
 
 // Mirror the auth state to a cookie so the Next.js middleware (BUG-216)
 // can gate routes at the edge. The cookie is just a UI flag — the real
@@ -51,9 +51,15 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         setPhase('login')
       }
     } catch {
-      // API unreachable — don't hard-block the app shell.
-      setAuthedCookie(true)
-      setPhase('open')
+      // BUG-216: previously this branch set the gate cookie to "1" so the
+      // middleware would let the user through whenever the API was
+      // unreachable. That meant a fresh browser hitting /products with
+      // the API down (or just slow) bypassed the gate completely.
+      // Now we leave the cookie cleared and surface a dedicated
+      // "service offline" state. The middleware will still bounce
+      // anonymous deep-links to the login screen.
+      setAuthedCookie(false)
+      setPhase('unreachable')
     }
   }, [])
 
@@ -85,6 +91,31 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+    )
+  }
+
+  if (phase === 'unreachable') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="w-full max-w-sm rounded-2xl border border-border bg-gradient-card p-8 text-center shadow-glow">
+          <div className="mb-3 flex justify-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
+              <Workflow className="h-6 w-6 text-muted-foreground" />
+            </div>
+          </div>
+          <h1 className="text-lg font-bold">NEXUS is offline</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            We can&apos;t reach the API. The app stays locked until it&apos;s back —
+            so nothing leaks through.
+          </p>
+          <button
+            onClick={() => { setPhase('checking'); check() }}
+            className="mt-5 inline-flex items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-sidebar-accent transition-colors"
+          >
+            Try again
+          </button>
+        </div>
       </div>
     )
   }

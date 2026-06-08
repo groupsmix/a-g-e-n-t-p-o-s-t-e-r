@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { KeyRound, Check, ExternalLink, Gauge, AlertTriangle } from 'lucide-react'
 import { api, type ApiKeyInfo } from '@/lib/api'
+import { toast } from '@/lib/toast'
 
 // Light per-provider format hints (BUG-212). Not a hard block — just warns
 // the user if the key clearly doesn't match the provider's published format,
@@ -76,12 +77,27 @@ export default function ApiKeysPage() {
 
   const saveCap = async () => {
     const n = Number(capDraft)
-    // BUG-211: previously this silently no-op'd on negative values but the
-    // "Set cap" button was still enabled — the user thought it saved.
-    if (!Number.isFinite(n) || n < 0 || n > MAX_DAILY_CAP_USD) return
-    await api.setCap(n)
-    setCapDraft('')
-    api.getSpend().then(setSpend).catch(() => {})
+    // BUG-211: the button must be disabled for any invalid value, and the
+    // submit handler must double-check (defense in depth — some browsers
+    // ignore `disabled` for keyboard Enter, and stale `capError` from a
+    // race can let an invalid value through). We also surface a toast so
+    // the rejection isn't silent.
+    if (capDraft === '' || !Number.isFinite(n) || n < 0 || n > MAX_DAILY_CAP_USD) {
+      toast.error(
+        n < 0
+          ? `Cap can't be negative — got ${capDraft}`
+          : `Cap must be between 0 and ${MAX_DAILY_CAP_USD}`,
+      )
+      return
+    }
+    try {
+      await api.setCap(n)
+      toast.success(n === 0 ? 'Daily cap removed (unlimited)' : `Daily cap set to $${n}`)
+      setCapDraft('')
+      api.getSpend().then(setSpend).catch(() => {})
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to set cap')
+    }
   }
 
   const toggleProvider = async (secretKey: string) => {

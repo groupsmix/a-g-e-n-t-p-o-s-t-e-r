@@ -483,8 +483,16 @@ export default function OpportunitiesPage() {
         {loadError ? (
             <div className="text-center py-12">
               <AlertTriangle className="h-10 w-10 mx-auto mb-3 text-destructive opacity-70" />
-              <p className="text-sm font-medium text-destructive">Failed to load opportunities</p>
-              <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
+              <p className="text-sm font-medium text-destructive">Couldn&apos;t load opportunities</p>
+              {/* BUG-202: only show the detail line when it adds info beyond
+                  the headline. Previously, when the API rejected with the
+                  string "Failed to load opportunities", the heading + detail
+                  rendered the same sentence twice. */}
+              {loadError &&
+                loadError.toLowerCase() !== "couldn't load opportunities" &&
+                loadError.toLowerCase() !== 'failed to load opportunities' && (
+                <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
+              )}
               <button
                 onClick={() => load()}
                 className="mt-4 inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-sidebar-accent transition-colors"
