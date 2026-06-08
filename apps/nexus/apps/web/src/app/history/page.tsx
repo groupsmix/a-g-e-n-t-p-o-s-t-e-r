@@ -9,6 +9,16 @@ import { PageHeader, PageBody } from '@/components/shell/AppShell'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner'
 
+// Format a cost in USD: $0.00 for normal values, $0.0000 for sub-cent
+// (cheap models can run for fractions of a cent — round-to-2 would show
+// every step as $0.00 which hides the cost signal entirely).
+function formatCost(value: number | null | undefined): string {
+  const n = Number(value ?? 0)
+  if (n === 0) return '$0.00'
+  if (n < 0.01) return `$${n.toFixed(4)}`
+  return `$${n.toFixed(2)}`
+}
+
 function StatusPill({ status, failedStep }: { status: string; failedStep?: string | null }) {
   const cls =
     status === 'completed' ? 'bg-emerald-500/10 text-emerald-500' :
@@ -71,7 +81,9 @@ export default function HistoryPage() {
               <tbody className="divide-y divide-border">
                 {runs.map((r) => (
                   <tr key={r.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3 font-medium">{r.product_name || r.product_id}</td>
+                    <td className="px-4 py-3 font-medium">
+                      {r.product_name || <span className="text-muted-foreground italic">(unnamed product)</span>}
+                    </td>
                     <td className="px-4 py-3"><StatusPill status={r.status} failedStep={r.failed_step} /></td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       {Number(r.steps_completed ?? 0)}/{Number(r.step_count ?? 0)}
@@ -83,7 +95,7 @@ export default function HistoryPage() {
                       {Number(r.run_tokens ?? 0).toLocaleString()}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-xs">
-                      ${Number(r.run_cost_usd ?? 0).toFixed(3)}
+                      {formatCost(r.run_cost_usd)}
                     </td>
                     <td className="px-4 py-3 text-right text-xs text-muted-foreground">
                       {r.started_at ? new Date(r.started_at).toLocaleString() : '—'}
