@@ -155,10 +155,11 @@ export default function ProductsPage() {
                           View
                         </Link>
                         {/* Retry is offered for any product the pipeline
-                            couldn't finish — stuck-in-running (wedged worker),
-                            rejected, or failed. The Worker stops any open
-                            run and queues a fresh one. */}
-                        {(p.status === 'running' || p.status === 'rejected' || p.status === 'failed') && (
+                            couldn't finish: stuck-in-running (wedged worker)
+                            or rejected (the sweep flips stale runners to
+                            rejected). The Worker stops any open run and
+                            queues a fresh one. */}
+                        {(p.status === 'running' || p.status === 'rejected') && (
                           <button
                             onClick={() => handleRetry(p)}
                             disabled={retryingId === p.id}
