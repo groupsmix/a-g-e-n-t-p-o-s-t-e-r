@@ -949,3 +949,27 @@ export interface PublishProductResult {
   error?: string
 }
 
+// Consolidated dashboard counts from GET /api/stats — the single source for
+// every count widget so the numbers agree across surfaces.
+export interface Stats {
+  products: {
+    total: number
+    draft: number
+    running: number
+    pending_review: number
+    approved: number
+    published: number
+    rejected: number
+    failed: number
+    built_today: number
+  }
+  review: { pending: number; approved: number; rejected: number }
+  publish: { published: number; failed: number }
+  sales: { total_sales: number; total_revenue: number }
+  autopilot: { enabled: boolean; built_total: number }
+  learning: { patterns: number }
+  content: { blog_posts: number; subscribers: number; email_campaigns: number; competitors: number }
+  spend_today_usd: number
+  kill_switch_active: boolean
+}
+

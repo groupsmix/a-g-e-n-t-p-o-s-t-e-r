@@ -49,6 +49,7 @@ import { observabilityRoutes } from './routes/observability'
 import { freelanceRoutes } from './routes/freelance'
 import { opportunityRoutes } from './routes/opportunities'
 import { pipelineRoutes } from './routes/pipeline'
+import { statsRoutes } from './routes/stats'
 import { queueRoutes } from './routes/queue'
 import { portfolioRoutes } from './routes/portfolio'
 import { ventureRoutes } from './routes/ventures'
@@ -245,6 +246,7 @@ api.route('/observability', observabilityRoutes)
 api.route('/freelance', freelanceRoutes)
 api.route('/opportunities', opportunityRoutes)
 api.route('/pipeline', pipelineRoutes)
+api.route('/stats', statsRoutes)
 api.route('/queue', queueRoutes)
 api.route('/portfolio', portfolioRoutes)
 api.route('/ventures', ventureRoutes)
