@@ -44,6 +44,7 @@ import { hyperbeamRoutes } from './routes/hyperbeam'
 import { abTestingRoutes } from './routes/ab-testing'
 import { blogRoutes } from './routes/blog'
 import { emailRoutes } from './routes/email'
+import { leadRoutes } from './routes/leads'
 import { competitorRoutes } from './routes/competitors'
 import { observabilityRoutes } from './routes/observability'
 import { freelanceRoutes } from './routes/freelance'
@@ -243,6 +244,7 @@ api.route('/hyperbeam', hyperbeamRoutes)
 api.route('/ab-tests', abTestingRoutes)
 api.route('/blog', blogRoutes)
 api.route('/email', emailRoutes)
+api.route('/leads', leadRoutes)
 api.route('/competitors', competitorRoutes)
 api.route('/observability', observabilityRoutes)
 api.route('/freelance', freelanceRoutes)

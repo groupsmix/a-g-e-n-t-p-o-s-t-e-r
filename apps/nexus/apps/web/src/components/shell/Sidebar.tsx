@@ -59,6 +59,7 @@ const defaultSections: { title: string; items: Item[]; collapsible?: boolean }[]
       { to: '/ab-testing', label: 'A/B Testing', icon: FlaskConical },
       { to: '/blog', label: 'Blog Engine', icon: PenLine },
       { to: '/email', label: 'Email Lists', icon: Mail },
+      { to: '/leads', label: 'Leads', icon: Radar },
       { to: '/competitors', label: 'Competitors', icon: Eye },
       { to: '/opportunities', label: 'Opportunity Radar', icon: Radar },
       { to: '/queue',          label: 'Job Queue',         icon: Activity },
