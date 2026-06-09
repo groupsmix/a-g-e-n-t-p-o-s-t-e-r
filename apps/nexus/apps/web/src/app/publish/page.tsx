@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { Send } from 'lucide-react'
+import Link from 'next/link'
 import { api } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import type { PublishItem } from '@/lib/api'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
+import { EmptyState } from '@/components/shared/EmptyState'
 
 export default function PublishPage() {
   const [items, setItems] = useState<PublishItem[]>([])
@@ -58,9 +60,19 @@ export default function PublishPage() {
         {loading ? (
           <div className="text-sm text-muted-foreground">Loading…</div>
         ) : items.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-            Nothing queued. Approve products to populate this list.
-          </div>
+          <EmptyState
+            icon={<Send className="h-5 w-5" />}
+            title="Nothing queued to publish"
+            description="Approve products in review and they line up here, ready to go live on their platforms."
+            action={
+              <Link
+                href="/review"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                Review products
+              </Link>
+            }
+          />
         ) : (
           <ul className="space-y-3">
             {items.map((item) => (
