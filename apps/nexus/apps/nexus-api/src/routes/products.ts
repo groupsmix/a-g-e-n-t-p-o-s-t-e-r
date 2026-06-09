@@ -173,13 +173,15 @@ productRoutes.get('/', async (c) => {
     const MAX_LIMIT = 100
     const rawLimit = parseInt(c.req.query('limit') || String(DEFAULT_LIMIT))
     const rawOffset = parseInt(c.req.query('offset') || '0')
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : DEFAULT_LIMIT, 1), MAX_LIMIT)
+    const offset = Math.max(Number.isFinite(rawOffset) ? rawOffset : 0, 0)
     const filters: ProductFilters = {
       domain_id: c.req.query('domain_id'),
       category_id: c.req.query('category_id'),
       status: c.req.query('status'),
       graveyard: c.req.query('graveyard') === 'true',
-      limit: Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : DEFAULT_LIMIT, 1), MAX_LIMIT),
-      offset: Math.max(Number.isFinite(rawOffset) ? rawOffset : 0, 0),
+      limit,
+      offset,
     }
     // Optional free-text search on name/niche — keeps the existing
     // client-side AND-token filter, just executed server-side now so it
@@ -252,7 +254,7 @@ productRoutes.get('/', async (c) => {
       ORDER BY p.created_at DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `
-    const dataBindings: D1QueryValue[] = [...whereBindings, filters.limit, filters.offset]
+    const dataBindings: D1QueryValue[] = [...whereBindings, limit, offset]
 
     const countSql = `
       SELECT COUNT(*) AS total
@@ -269,13 +271,13 @@ productRoutes.get('/', async (c) => {
 
     const total = Number(totalRow?.total ?? 0)
     const products = page.results || []
-    const has_more = filters.offset + products.length < total
+    const has_more = offset + products.length < total
 
     return c.json({
       products,
       total,
-      limit: filters.limit,
-      offset: filters.offset,
+      limit,
+      offset,
       has_more,
     })
   } catch (err) {
