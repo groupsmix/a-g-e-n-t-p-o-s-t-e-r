@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { BarChart3, Eye, MousePointer, Heart } from 'lucide-react'
 import { api } from '@/lib/api'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
+import { EmptyState } from '@/components/shared/EmptyState'
 
 type Summary = {
   source: 'live' | 'unconfigured'
@@ -50,9 +52,25 @@ export default function AnalyticsPage() {
         <div className="rounded-xl border border-border bg-card">
           <div className="border-b border-border px-5 py-3 text-sm font-medium">By platform</div>
           {byPlatform.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-              {loading ? 'Loading…' : 'No platform data yet.'}
-            </div>
+            loading ? (
+              <div className="px-5 py-8 text-center text-sm text-muted-foreground">Loading…</div>
+            ) : (
+              <div className="px-5 py-4">
+                <EmptyState
+                  icon={<BarChart3 className="h-5 w-5" />}
+                  title="No platform data yet"
+                  description="Connect a platform and publish content to start seeing analytics here."
+                  action={
+                    <Link
+                      href="/platforms"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+                    >
+                      Connect platforms
+                    </Link>
+                  }
+                />
+              </div>
+            )
           ) : (
             <div className="divide-y divide-border">
               {byPlatform.map((p) => (

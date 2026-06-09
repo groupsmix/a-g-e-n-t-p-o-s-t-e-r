@@ -28,13 +28,15 @@ export default function ReviewQueuePage() {
           'new product', 'tbd', 'n/a', '-', '—',
         ])
         const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        const BRACKET_PLACEHOLDER_RE = /\[[a-z][a-z0-9 _-]{0,40}\]/i
         const MIN_SCORE = 1.0
         const usable = (r.products || []).filter((p) => {
           const name = typeof p.name === 'string' ? p.name.trim() : ''
           const hasRealTitle =
             name.length > 0 &&
             !PLACEHOLDER_NAMES.has(name.toLowerCase()) &&
-            !UUID_RE.test(name)
+            !UUID_RE.test(name) &&
+            !BRACKET_PLACEHOLDER_RE.test(name)
           const score = typeof p.ai_score === 'number' ? p.ai_score : 0
           return hasRealTitle && score >= MIN_SCORE
         })
@@ -65,7 +67,23 @@ export default function ReviewQueuePage() {
           <EmptyState
             icon={<Inbox className="h-5 w-5" />}
             title="Queue is clear"
-            description="All workflows have been reviewed. Check back after your next build."
+            description="All workflows have been reviewed. Build another product or browse existing products."
+            action={
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Link
+                  href="/create"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  Build a product
+                </Link>
+                <Link
+                  href="/products"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+                >
+                  Browse products
+                </Link>
+              </div>
+            }
           />
         ) : (
           <div className="space-y-3 max-w-3xl">

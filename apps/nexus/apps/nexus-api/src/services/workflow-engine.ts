@@ -71,9 +71,9 @@ const HUMAN_VOICE = `WRITE LIKE A SHARP HUMAN EXPERT, NOT AN AI:
 // Matches unsubstituted prompt-template tokens like `[Action]`, `[X]`,
 // `[INSERT TOPIC]`. Triggered by the leaked title in the user report:
 // "Transform Your Career with Proven [Action] Plans and Templates".
-// Any title that still contains a bracketed ALL-CAPS-ish placeholder is
+// Any title that still contains a bracketed template placeholder is
 // unusable and must be dropped.
-const PLACEHOLDER_TOKEN_RE = /\[[A-Z][A-Z0-9 _-]{0,40}\]/
+const PLACEHOLDER_TOKEN_RE = /\[[A-Z][A-Z0-9 _-]{0,40}\]/i
 
 export function hasPlaceholderToken(s: string): boolean {
   return PLACEHOLDER_TOKEN_RE.test(s)

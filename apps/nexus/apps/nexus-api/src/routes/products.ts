@@ -228,6 +228,11 @@ productRoutes.get('/', async (c) => {
           '(unnamed)','(unnamed product)','unnamed','draft',
           'new product','tbd','n/a','-','—'
         )
+        AND NOT (
+          INSTR(p.name, '[') > 0
+          AND INSTR(p.name, ']') > INSTR(p.name, '[')
+          AND LOWER(SUBSTR(p.name, INSTR(p.name, '[') + 1, 1)) BETWEEN 'a' AND 'z'
+        )
         AND COALESCE(p.ai_score, 0) >= 1
       `)
     }

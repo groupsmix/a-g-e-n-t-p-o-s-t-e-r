@@ -170,6 +170,11 @@ export async function sweepGraveyard(env: Env): Promise<void> {
           AND (
             name IS NULL OR TRIM(name) = ''
             OR LOWER(TRIM(name)) IN ('untitled','untitled product','(unnamed)','unnamed','draft','new product')
+            OR (
+              INSTR(name, '[') > 0
+              AND INSTR(name, ']') > INSTR(name, '[')
+              AND LOWER(SUBSTR(name, INSTR(name, '[') + 1, 1)) BETWEEN 'a' AND 'z'
+            )
           )`,
     ).bind(cutoff).run()
     const legacyN = (legacy.meta as { changes?: number } | undefined)?.changes ?? 0
