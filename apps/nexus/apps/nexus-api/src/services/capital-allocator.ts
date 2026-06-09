@@ -296,7 +296,7 @@ export async function runAllocatorForOpportunity(
   opportunityId: string
 ): Promise<void> {
   const ventures = await db
-    .prepare('SELECT id FROM ventures WHERE opportunity_id = ? AND status != "killed"')
+    .prepare("SELECT id FROM ventures WHERE opportunity_id = ? AND status != 'killed'")
     .bind(opportunityId)
     .all<{ id: string }>()
 
@@ -313,7 +313,7 @@ export async function runAllocatorForOpportunity(
 
 export async function runGlobalAllocator(db: D1Database): Promise<void> {
   const opportunities = await db
-    .prepare('SELECT id FROM opportunities WHERE status IN ("testing", "live")')
+    .prepare("SELECT id FROM opportunities WHERE status IN ('testing', 'live')")
     .all<{ id: string }>()
 
   for (const opportunity of opportunities.results ?? []) {
