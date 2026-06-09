@@ -6,6 +6,7 @@ import {
   AlertTriangle, CheckCircle2, XCircle, Activity,
   DollarSign, RefreshCw,
 } from 'lucide-react'
+import { formatCost } from '@/lib/utils'
 
 type ObsData = Awaited<ReturnType<typeof api.getObservability>>
 
@@ -91,7 +92,15 @@ export default function ObservabilityPage() {
         <Card
           icon={<DollarSign className="h-4 w-4 text-amber-400" />}
           label="AI Spend Today"
-          value={`$${s.ai_spend_today.toFixed(2)}${s.ai_spend_cap > 0 ? ` / $${s.ai_spend_cap}` : ''}`}
+          /* T15: "$0.00" with workflows actually running today reads as
+             "spend isn't tracked" — it isn't, the run was free. Use
+             formatCost so we render "Free tier" in that case and keep
+             the cap suffix for any non-zero spend. */
+          value={(() => {
+            const base = formatCost(s.ai_spend_today, s.recent_workflows)
+            if (base === 'Free tier') return base
+            return `${base}${s.ai_spend_cap > 0 ? ` / $${s.ai_spend_cap}` : ''}`
+          })()}
           alert={s.ai_cap_reached}
         />
       </div>

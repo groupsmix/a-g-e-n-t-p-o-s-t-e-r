@@ -10,6 +10,7 @@ import {
 import { api, API_BASE, type AutopilotStatus, type RevenueResponse, type Digest, type LearningStats, type Stats } from '@/lib/api'
 import { PageBody } from '@/components/shell/AppShell'
 import { SetupBanner } from '@/components/shared/SetupBanner'
+import { formatCost } from '@/lib/utils'
 
 interface Counts { total: number; pending: number; approved: number; published: number }
 
@@ -147,7 +148,10 @@ export default function HomePage() {
         />
         <MetricCard
           label="AI Spend"
-          value={`$${spendToday.toFixed(2)}`}
+          /* T15: when products have been built today on free models the
+             spend stays at $0 — show "Free tier" instead of "$0.00" so
+             operators don't read it as "spend tracking is broken". */
+          value={formatCost(spendToday, autopilotBuilt || productsTotal)}
           icon={<Zap className="h-4 w-4" />}
           sub={spend && spend.cap > 0 ? `of $${spend.cap.toFixed(2)} cap` : 'No cap set'}
           href="/settings/keys"
