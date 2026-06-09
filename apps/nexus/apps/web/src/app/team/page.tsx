@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { Users, Zap, ShieldCheck, Loader2 } from 'lucide-react'
+import Link from 'next/link'
 import { api, type TeamWave } from '@/lib/api'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
+import { EmptyState } from '@/components/shared/EmptyState'
 
 export default function TeamPage() {
   const [waves, setWaves] = useState<TeamWave[]>([])
@@ -32,7 +34,23 @@ export default function TeamPage() {
         )}
         {error && <div className="text-sm text-destructive">{error}</div>}
 
-        {!loading && !error && (
+        {!loading && !error && waves.length === 0 && (
+          <EmptyState
+            icon={<Users className="h-5 w-5" />}
+            title="No agent team configured yet"
+            description="Once your AI models are set up, the roles that run each stage of a workflow line up here."
+            action={
+              <Link
+                href="/manager/ai"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                Configure AI models
+              </Link>
+            }
+          />
+        )}
+
+        {!loading && !error && waves.length > 0 && (
           <div className="space-y-6">
             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1">

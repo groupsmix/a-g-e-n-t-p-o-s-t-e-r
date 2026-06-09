@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { Cpu } from 'lucide-react'
+import Link from 'next/link'
 import { api } from '@/lib/api'
 import type { AIModelDashboardStatus } from '@nexus/types'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
+import { EmptyState } from '@/components/shared/EmptyState'
 
 interface AIModelRow extends AIModelDashboardStatus {
   rank?: number
@@ -32,6 +34,20 @@ export default function ManagerAIPage() {
       <PageBody>
         {loading ? (
           <div className="text-sm text-muted-foreground">Loading…</div>
+        ) : models.length === 0 ? (
+          <EmptyState
+            icon={<Cpu className="h-5 w-5" />}
+            title="No AI models registered"
+            description="Add a provider API key and the model registry — tier, provider, cost and usage — populates here."
+            action={
+              <Link
+                href="/settings/keys"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                Add API keys
+              </Link>
+            }
+          />
         ) : (
           <div className="rounded-2xl border border-border bg-card overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">

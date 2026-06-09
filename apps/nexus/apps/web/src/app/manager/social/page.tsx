@@ -5,6 +5,7 @@ import { Megaphone, Plus, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { SocialChannel } from '@nexus/types'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
+import { EmptyState } from '@/components/shared/EmptyState'
 
 export default function ManagerSocialPage() {
   const [channels, setChannels] = useState<SocialChannel[]>([])
@@ -51,6 +52,20 @@ export default function ManagerSocialPage() {
       <PageBody>
         {loading ? (
           <div className="text-sm text-muted-foreground">Loading…</div>
+        ) : channels.length === 0 ? (
+          <EmptyState
+            icon={<Megaphone className="h-5 w-5" />}
+            title="No social channels yet"
+            description="Add a channel and the AI can start posting promotional content to it."
+            action={
+              <button
+                onClick={add}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <Plus className="h-4 w-4" /> Add your first channel
+              </button>
+            }
+          />
         ) : (
           <ul className="space-y-2">
             {channels.map((c) => (

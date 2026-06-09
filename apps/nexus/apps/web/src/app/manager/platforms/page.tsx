@@ -5,6 +5,7 @@ import { Globe2, Plus, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { Platform } from '@nexus/types'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
+import { EmptyState } from '@/components/shared/EmptyState'
 
 export default function ManagerPlatformsPage() {
   const [platforms, setPlatforms] = useState<Platform[]>([])
@@ -51,6 +52,20 @@ export default function ManagerPlatformsPage() {
       <PageBody>
         {loading ? (
           <div className="text-sm text-muted-foreground">Loading…</div>
+        ) : platforms.length === 0 ? (
+          <EmptyState
+            icon={<Globe2 className="h-5 w-5" />}
+            title="No platforms yet"
+            description="Add a marketplace and the AI can list your products there."
+            action={
+              <button
+                onClick={add}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <Plus className="h-4 w-4" /> Add your first platform
+              </button>
+            }
+          />
         ) : (
           <ul className="space-y-2">
             {platforms.map((p) => (

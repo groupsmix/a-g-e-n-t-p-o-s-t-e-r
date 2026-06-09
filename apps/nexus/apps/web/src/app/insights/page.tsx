@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Sparkles, Search, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
+import { EmptyState } from '@/components/shared/EmptyState'
 
 export default function InsightsPage() {
   const [queryId, setQueryId] = useState('')
@@ -62,6 +63,14 @@ export default function InsightsPage() {
             </button>
           </div>
         </div>
+
+        {!running && !result && !error && !unconfigured && (
+          <EmptyState
+            icon={<Sparkles className="h-5 w-5" />}
+            title="No query run yet"
+            description="Enter a saved query ID above (for example top_products_30d) and hit Run to fetch its rows."
+          />
+        )}
 
         {unconfigured && (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5 text-sm">

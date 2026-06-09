@@ -28,7 +28,8 @@ import { agentRoutes } from './routes/agent'
 import { teamRoutes } from './routes/team'
 import { scheduleRoutes, runDueSchedules } from './routes/schedules'
 import { autopilotRoutes, runAutopilot } from './routes/autopilot'
-import { authRoutes, getAccessHash, validateSessionToken } from './routes/auth'
+import { authRoutes } from './routes/auth'
+import { accessGate } from './middleware/access-gate'
 import { marketingRoutes, runMarketing } from './routes/marketing'
 import { browserRoutes } from './routes/browser'
 import { backfillDeliverables } from './services/deliverable'
@@ -135,75 +136,12 @@ app.get('/api/health', (c) => c.json(healthPayload()))
 // API version prefix
 const api = new Hono<{ Bindings: Env }>()
 
-// Access gate — once a password is set, every /api route requires a valid
-// bearer token. Auth + asset routes stay open (asset URLs load via <img>/
-// downloads that can't carry an Authorization header). The gate is inactive
-// only when NO password is configured — set the ACCESS_PASSWORD secret to make
-// it active the instant the worker boots (no "open until a password is set"
-// window); otherwise it activates once a password is set via the dashboard.
-api.use('*', async (c, next) => {
-  if (c.req.method === 'OPTIONS') return next()
-  const path = c.req.path // full path, e.g. /api/auth/login
-
-  // /api/email/subscribe is unauthenticated by design (public newsletter
-  // signup). AUDIT-PR20 #11: that makes it spammable into D1, so we
-  // apply a simple per-IP rate-limit before letting it through.
-  if (path === '/api/email/subscribe') {
-    const limited = await emailSubscribeRateLimit(c.env, c.req.raw)
-    if (limited) {
-      return c.json(
-        { error: 'rate_limited', message: 'Too many requests. Try again later.' },
-        429,
-      )
-    }
-    return next()
-  }
-
-  if (path.startsWith('/api/auth/') || path.startsWith('/api/assets/')) return next()
-  const hash = await getAccessHash(c.env)
-  if (!hash) return next() // not protected yet
-  const auth = c.req.header('Authorization') || ''
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
-  if (!token) return c.json({ error: 'Unauthorized', code: 'auth_required' }, 401)
-  const valid = await validateSessionToken(c.env, token)
-  if (!valid) return c.json({ error: 'Unauthorized', code: 'auth_required' }, 401)
-  return next()
-})
-
-/**
- * Per-IP rate limit for /api/email/subscribe.
- *
- * Backed by the CONFIG KV namespace (60-second windows, 5 requests per
- * IP per window). Returns `true` if the request should be rejected.
- *
- * Errors against KV are non-fatal — we let the request through rather
- * than block the public signup form because of an infra hiccup. The KV
- * miss / outage path is logged so we can spot it.
- */
-async function emailSubscribeRateLimit(env: Env, req: Request): Promise<boolean> {
-  const limit = 5
-  const windowSec = 60
-  const ip =
-    req.headers.get('cf-connecting-ip') ||
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    'unknown'
-  const bucket = Math.floor(Date.now() / 1000 / windowSec)
-  const key = `ratelimit:email-subscribe:${ip}:${bucket}`
-  try {
-    const current = await env.CONFIG.get(key)
-    const count = current ? parseInt(current, 10) || 0 : 0
-    if (count >= limit) return true
-    // KV writes settle eventually, but for short windows the read-after-
-    // write skew is well under the window length, so this is fine.
-    await env.CONFIG.put(key, String(count + 1), { expirationTtl: windowSec * 2 })
-    return false
-  } catch (err) {
-    logger.warn('email-subscribe rate-limit KV error', {
-      error: err instanceof Error ? err.message : String(err),
-    })
-    return false
-  }
-}
+// Access gate: the single choke-point in front of every /api route.
+// Extracted to ./middleware/access-gate (T17) so the "every route is gated"
+// invariant is unit-tested (see access-gate.test.ts) and cannot silently
+// drift the day someone mounts a router outside the gate. Behaviour is
+// unchanged from the previous inline middleware.
+api.use('*', accessGate())
 
 // Mount all route modules
 api.route('/auth', authRoutes)
