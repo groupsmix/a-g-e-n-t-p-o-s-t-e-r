@@ -7,7 +7,7 @@ import {
   ArrowRight, Bot, ArrowUpRight, Activity, BarChart3, Zap, Clock,
   AlertCircle,
 } from 'lucide-react'
-import { api, API_BASE, type AutopilotStatus, type RevenueResponse, type Digest, type LearningStats } from '@/lib/api'
+import { api, API_BASE, type AutopilotStatus, type RevenueResponse, type Digest, type LearningStats, type Stats } from '@/lib/api'
 import { PageBody } from '@/components/shell/AppShell'
 import { SetupBanner } from '@/components/shared/SetupBanner'
 
@@ -26,6 +26,11 @@ interface PipelineSummary {
 }
 
 export default function HomePage() {
+  // /api/stats is the single source for every count widget (T3). The other
+  // fetches remain only for non-count details (best seller, spend cap,
+  // autopilot toggle state, digest) and as graceful fallbacks if /api/stats
+  // is briefly unavailable.
+  const [stats, setStats] = useState<Stats | null>(null)
   const [revenue, setRevenue] = useState<RevenueResponse | null>(null)
   const [auto, setAuto] = useState<AutopilotStatus | null>(null)
   const [spend, setSpend] = useState<{ today: number; cap: number } | null>(null)
@@ -36,6 +41,7 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    api.getStats().then(setStats).catch(() => setStats(null))
     api.getRevenue().then(setRevenue).catch(() => setRevenue(null))
     api.getAutopilot().then(setAuto).catch(() => setAuto(null))
     api.getSpend().then(setSpend).catch(() => setSpend(null))
@@ -62,11 +68,18 @@ export default function HomePage() {
       .catch((err) => setError(err.message))
   }, [])
 
-  const totalRevenue = revenue?.total_revenue ?? learning?.total_revenue ?? 0
-  const totalSales = revenue?.total_sales ?? learning?.total_sales_synced ?? 0
-  const patternsFound = learning?.patterns_extracted ?? 0
-  const autopilotBuilt = auto?.products_built ?? 0
-  const pendingReview = counts?.pending ?? 0
+  // Count widgets read from /api/stats first; fall back to the per-feature
+  // endpoints if stats hasn't loaded yet (or is unavailable).
+  const totalRevenue = stats?.sales.total_revenue ?? revenue?.total_revenue ?? learning?.total_revenue ?? 0
+  const totalSales = stats?.sales.total_sales ?? revenue?.total_sales ?? learning?.total_sales_synced ?? 0
+  const patternsFound = stats?.learning.patterns ?? learning?.patterns_extracted ?? 0
+  const autopilotBuilt = stats?.autopilot.built_total ?? auto?.products_built ?? 0
+  const pendingReview = stats?.review.pending ?? counts?.pending ?? 0
+  const productsTotal = stats?.products.total ?? counts?.total ?? 0
+  const approvedCount = stats?.products.approved ?? counts?.approved ?? 0
+  const publishedCount = stats?.products.published ?? counts?.published ?? 0
+  const buildingNow = stats?.products.running ?? summary?.stages.building.running ?? 0
+  const spendToday = stats?.spend_today_usd ?? spend?.today ?? 0
 
   return (
     <PageBody className="max-w-6xl mx-auto space-y-6 py-8">
@@ -117,18 +130,16 @@ export default function HomePage() {
         />
         <MetricCard
           label="Products"
-          value={String(counts?.total ?? 0)}
+          value={String(productsTotal)}
           icon={<Package className="h-4 w-4" />}
           // BUG-214: the totals didn't reconcile — users saw 38 total but
           // only Pending + Approved + Published = 14 in the pipeline tile,
           // with no explanation of the other 24. Show the full breakdown
           // so total = active + other adds up at a glance.
           sub={(() => {
-            const total = counts?.total ?? 0
-            const active = (counts?.pending ?? 0) + (counts?.approved ?? 0) + (counts?.published ?? 0)
-            const other = Math.max(0, total - active)
-            const live = counts?.published ?? 0
-            const parts = [`${live} live`, `${active} active`]
+            const active = pendingReview + approvedCount + publishedCount
+            const other = Math.max(0, productsTotal - active)
+            const parts = [`${publishedCount} live`, `${active} active`]
             if (other > 0) parts.push(`${other} archived/rejected`)
             return parts.join(' · ')
           })()}
@@ -136,7 +147,7 @@ export default function HomePage() {
         />
         <MetricCard
           label="AI Spend"
-          value={`$${(spend?.today ?? 0).toFixed(2)}`}
+          value={`$${spendToday.toFixed(2)}`}
           icon={<Zap className="h-4 w-4" />}
           sub={spend && spend.cap > 0 ? `of $${spend.cap.toFixed(2)} cap` : 'No cap set'}
           href="/settings/keys"
@@ -164,10 +175,10 @@ export default function HomePage() {
                 `running` count is the canonical "in-flight" number. */}
             <PipelineRow
               label="Building Now"
-              count={summary?.stages.building.running ?? 0}
+              count={buildingNow}
               icon={<Activity className="h-4 w-4 text-amber-500" />}
               href="/money-workflow"
-              highlight={(summary?.stages.building.running ?? 0) > 0}
+              highlight={buildingNow > 0}
             />
             <PipelineRow
               label="Pending Review"
@@ -178,13 +189,13 @@ export default function HomePage() {
             />
             <PipelineRow
               label="Approved (ready to publish)"
-              count={counts?.approved ?? 0}
+              count={approvedCount}
               icon={<Package className="h-4 w-4" />}
               href="/products"
             />
             <PipelineRow
               label="Published & Live"
-              count={counts?.published ?? 0}
+              count={publishedCount}
               icon={<TrendingUp className="h-4 w-4 text-emerald-500" />}
               href="/products"
             />

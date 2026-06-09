@@ -29,7 +29,7 @@ import type {
   Subscriber, SubscribersResponse, EmailCampaign,
   MarketingLogEntry, MarketingStatus, RevenueProduct, RevenueResponse,
   DigestScheduleRun, DigestError, LearningPatternRow, LearningStats,
-  Digest, DigestRecord, HistoryRun, PublishItem,
+  Digest, DigestRecord, HistoryRun, PublishItem, Stats,
   GumroadProductInfo, GumroadSaleInfo, GumroadAnalyticsInfo,
   ProductScoreDetail, QualityGateResult, ProductScoreResponse,
   NicheScoreDetail, NicheScoreResponse,
@@ -313,6 +313,9 @@ export const api = {
 
   // Revenue (real Gumroad sales)
   getRevenue: () => apiFetch<RevenueResponse>('/api/revenue'),
+
+  // Single consolidated counts source for every dashboard widget.
+  getStats: () => apiFetch<Stats>('/api/stats'),
 
   // Daily digest / morning report
   getDigest: () => apiFetch<Digest>('/api/digest'),
