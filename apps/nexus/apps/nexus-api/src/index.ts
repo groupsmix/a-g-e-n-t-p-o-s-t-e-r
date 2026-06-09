@@ -301,10 +301,25 @@ app.notFound((c) => {
   }, 404)
 })
 
+// Cron expression for the dedicated run-timeout janitor lane (T13). MUST stay
+// byte-for-byte identical to the high-frequency entry in wrangler.toml —
+// Cloudflare passes the matched expression back as `controller.cron`, and we
+// branch on it so the every-5-min lane runs ONLY the stale-run sweep instead
+// of the whole daily batch (digest, trend radar, analytics, …).
+const STALE_SWEEP_CRON = '*/5 * * * *'
+
 // Export for Cloudflare Workers
 export default {
   fetch: app.fetch,
-  scheduled: async (_controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
+  scheduled: async (controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
+    // High-frequency lane: just the run-timeout janitor. On its own cron, a
+    // stuck RUNNING run/task is reaped within ~10 min (cutoff) instead of
+    // waiting up to 24h for the daily 07:00 batch — the bug T13 fixes.
+    if (controller.cron === STALE_SWEEP_CRON) {
+      ctx.waitUntil(sweepStaleRuns(env))
+      return
+    }
+
     logger.info('Scheduled tasks triggered')
     ctx.waitUntil(sweepStaleRuns(env))
     ctx.waitUntil(runTrendRadar(env))

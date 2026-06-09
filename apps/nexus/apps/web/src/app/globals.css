@@ -78,23 +78,16 @@
     --sidebar-accent: 268 40% 88%;
   }
 
-  /* Layout density modes. Stored as a preference and applied to <html> via
-     data-layout. Previously the value was saved but never reflected in the
-     DOM, so "compact"/"minimal" had no visible effect. We scale the base
-     font and tighten common paddings via CSS variables. */
-  :root { --layout-pad-scale: 1; }
-  html[data-layout='compact'] {
-    font-size: 14px;
-    --layout-pad-scale: 0.75;
-  }
-  html[data-layout='minimal'] {
-    font-size: 13px;
-    --layout-pad-scale: 0.55;
-  }
-  html[data-layout='expanded'] {
-    font-size: 16px;
-    --layout-pad-scale: 1;
-  }
+  /* Layout density modes, applied to <html> via data-layout (set by the
+     pre-hydration script in app/layout.tsx and by useLayout in Sidebar.tsx).
+     Tailwind spacing is rem-based, so scaling the root font-size rescales
+     padding, margins and type together — that IS the density effect, and it
+     takes hold on first paint. (An earlier pass also declared a
+     `--layout-pad-scale` custom property here that nothing consumed; it was a
+     no-op and has been removed rather than left as misleading dead code.) */
+  html[data-layout='compact'] { font-size: 14px; }
+  html[data-layout='minimal'] { font-size: 13px; }
+  html[data-layout='expanded'] { font-size: 16px; }
 }
 
 @layer base {
