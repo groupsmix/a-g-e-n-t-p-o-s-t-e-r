@@ -20,6 +20,10 @@ describe('detectSlop — reject filter (T4)', () => {
   it('flags bracketed placeholders', () => {
     expect(detectSlop({ name: 'Guide for [INSERT NICHE]' }).length).toBeGreaterThan(0)
     expect(detectSlop({ name: 'The Ultimate [TOPIC] Planner' }).length).toBeGreaterThan(0)
+    expect(detectSlop({ name: 'Career with [Action] Plans' }).length).toBeGreaterThan(0)
+    expect(detectSlop({ name: 'The [Digital] Marketing Guide' }).length).toBeGreaterThan(0)
+    expect(detectSlop({ name: '[Topic] for Beginners' }).length).toBeGreaterThan(0)
+    expect(detectSlop({ name: 'Quick [X] Planner' }).length).toBeGreaterThan(0)
     expect(detectSlop({ description: 'Built for {{audience}} who want results.' }).length).toBeGreaterThan(0)
     expect(detectSlop({ description: 'Perfect for {topic} lovers.' }).length).toBeGreaterThan(0)
     expect(detectSlop({ name: 'A <product> for everyone' }).length).toBeGreaterThan(0)

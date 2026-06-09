@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Send, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
+import { EmptyState } from '@/components/shared/EmptyState'
 
 type Summary = {
   source: 'live' | 'unconfigured'
@@ -89,9 +91,38 @@ export default function PublisherQueuePage() {
         <div className="rounded-xl border border-border bg-card">
           <div className="border-b border-border px-5 py-3 text-sm font-medium">Jobs ({jobs.length})</div>
           {jobs.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-              {loading ? 'Loading…' : 'No jobs match this filter.'}
-            </div>
+            loading ? (
+              <div className="px-5 py-8 text-center text-sm text-muted-foreground">Loading…</div>
+            ) : (
+              <div className="px-5 py-4">
+                <EmptyState
+                  icon={<Send className="h-5 w-5" />}
+                  title={filter === 'all' ? 'No publish jobs yet' : 'No jobs match this filter'}
+                  description={
+                    filter === 'all'
+                      ? 'Approve and publish products to create scheduled platform jobs.'
+                      : 'Try another queue filter or clear the filter to see all jobs.'
+                  }
+                  action={
+                    filter === 'all' ? (
+                      <Link
+                        href="/review"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+                      >
+                        Go to Review Queue
+                      </Link>
+                    ) : (
+                      <button
+                        onClick={() => setFilter('all')}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+                      >
+                        Clear filter
+                      </button>
+                    )
+                  }
+                />
+              </div>
+            )
           ) : (
             <div className="divide-y divide-border">
               {jobs.map((j) => (

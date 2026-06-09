@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { STEP_META, TEAM_ROLES } from './workflow-engine'
+import { hasPlaceholderToken, STEP_META, TEAM_ROLES } from './workflow-engine'
 
 describe('workflow team registry', () => {
   it('exposes one role per pipeline step', () => {
@@ -31,5 +31,24 @@ describe('workflow team registry', () => {
     const counts = new Map<number, number>()
     for (const r of TEAM_ROLES) counts.set(r.wave, (counts.get(r.wave) ?? 0) + 1)
     expect([...counts.values()].some((n) => n > 1)).toBe(true)
+  })
+})
+
+describe('hasPlaceholderToken - T4 regression', () => {
+  it('catches ALL-CAPS bracket tokens', () => {
+    expect(hasPlaceholderToken('[ACTION]')).toBe(true)
+    expect(hasPlaceholderToken('[INSERT NICHE]')).toBe(true)
+  })
+
+  it('catches mixed-case bracket tokens', () => {
+    expect(hasPlaceholderToken('[Action]')).toBe(true)
+    expect(hasPlaceholderToken('[Digital]')).toBe(true)
+    expect(hasPlaceholderToken('[Topic]')).toBe(true)
+    expect(hasPlaceholderToken('[Niche]')).toBe(true)
+  })
+
+  it('does not flag clean titles', () => {
+    expect(hasPlaceholderToken('Normal title')).toBe(false)
+    expect(hasPlaceholderToken('Year in Review (2024)')).toBe(false)
   })
 })

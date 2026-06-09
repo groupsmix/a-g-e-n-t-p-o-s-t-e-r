@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { DollarSign, ShoppingBag, Trophy, ExternalLink, Loader2, Plug } from 'lucide-react'
 import { api, type RevenueResponse } from '@/lib/api'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
+import { EmptyState } from '@/components/shared/EmptyState'
 
 export default function RevenuePage() {
   const [data, setData] = useState<RevenueResponse | null>(null)
@@ -82,7 +83,21 @@ export default function RevenuePage() {
             <div className="rounded-xl border border-border bg-card">
               <div className="border-b border-border px-5 py-3 text-sm font-medium">Products ({data.product_count ?? 0})</div>
               {(!data.products || data.products.length === 0) ? (
-                <div className="px-5 py-8 text-center text-sm text-muted-foreground">No products listed on Gumroad yet.</div>
+                <div className="px-5 py-4">
+                  <EmptyState
+                    icon={<ShoppingBag className="h-5 w-5" />}
+                    title="No products listed on Gumroad yet"
+                    description="Approve a product and publish it to Gumroad to start tracking real sales here."
+                    action={
+                      <Link
+                        href="/review"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+                      >
+                        Go to Review Queue
+                      </Link>
+                    }
+                  />
+                </div>
               ) : (
                 <div className="divide-y divide-border">
                   {data.products.map((p) => (

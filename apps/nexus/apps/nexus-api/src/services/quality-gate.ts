@@ -37,7 +37,7 @@ const PLACEHOLDER_PATTERNS: { re: RegExp; label: string }[] = [
     re: /\[[^\]]*\b(insert|your|topic|niche|audience|name|product|keyword|placeholder|todo|tbd|xxx|tk|tktk|fill|example|category|brand)\b[^\]]*\]/i,
     label: 'bracket placeholder ([…])',
   },
-  { re: /\[[A-Z][A-Z0-9 _\-]{2,}\]/, label: 'ALL-CAPS bracket placeholder ([…])' },
+  { re: /\[[A-Z][A-Z0-9 _\-]{0,40}\]/i, label: 'bracket placeholder ([…])' },
   { re: /\b(lorem ipsum|tktk|tbd|todo)\b/i, label: 'draft marker (lorem ipsum / TKTK / TBD / TODO)' },
 ]
 

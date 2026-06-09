@@ -7,6 +7,7 @@ import { api } from '@/lib/api'
 import type { Product } from '@nexus/types'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { EmptyState } from '@/components/shared/EmptyState'
 
 export default function GraveyardPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -53,9 +54,19 @@ export default function GraveyardPage() {
         {loading ? (
           <div className="text-sm text-muted-foreground">Loading...</div>
         ) : products.length === 0 ? (
-          <div className="rounded-2xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
-            The graveyard is empty.
-          </div>
+          <EmptyState
+            icon={<Skull className="h-5 w-5" />}
+            title="The graveyard is empty"
+            description="Rejected products and failed builds appear here. Build a product to start filling the pipeline."
+            action={
+              <Link
+                href="/create"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                Build a product
+              </Link>
+            }
+          />
         ) : (
           <ul className="space-y-3">
             {products.map((p) => (
