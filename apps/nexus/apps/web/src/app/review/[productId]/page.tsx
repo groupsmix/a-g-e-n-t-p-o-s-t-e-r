@@ -148,9 +148,10 @@ export default function ReviewPage() {
         }
       />
       <PageBody>
-        {/* pb-28 on the grid keeps both columns (including the Pricing card in
-            the right column) clear of the sticky action bar that follows. */}
-        <div className="grid lg:grid-cols-[1fr_340px] gap-6 pb-28">
+        {/* The grid's bottom padding clears the sticky action bar. The bar
+            wraps on narrow viewports (two rows on mobile), so we need extra
+            room there — pb-44 mobile / pb-28 desktop. T6. */}
+        <div className="grid lg:grid-cols-[1fr_340px] gap-6 pb-44 md:pb-28">
           <div className="space-y-5">
             {p.image_url && (
               <Section title="Hero image">
@@ -513,7 +514,14 @@ export default function ReviewPage() {
           </div>
         </div>
 
-        <div className="sticky bottom-0 mt-8 -mx-6 md:-mx-8 px-6 md:px-8 py-4 border-t border-border bg-background/95 backdrop-blur flex items-center justify-between gap-3">
+        {/* T6: z-30 keeps the bar above any in-page stacking contexts
+            (e.g. AI badges in cards); flex-wrap + gap-y-3 prevents the
+            left/right groups from clipping each other on narrow viewports;
+            safe-area inset handles iOS home-indicator overlap. */}
+        <div
+          className="sticky bottom-0 z-30 mt-8 -mx-6 md:-mx-8 px-6 md:px-8 py-4 border-t border-border bg-background/95 backdrop-blur flex flex-wrap items-center justify-between gap-3 gap-y-3"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        >
           <div className="flex items-center gap-4">
             <Link href="/products" className="text-sm text-muted-foreground hover:text-foreground">
               ← Back to products

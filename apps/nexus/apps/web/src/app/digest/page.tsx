@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   Sunrise, Package, ShieldCheck, DollarSign, Wallet, CalendarClock,
   AlertTriangle, Trophy, ArrowRight, RefreshCw, Mail, Clock, Loader2,
+  Sparkles,
 } from 'lucide-react'
 import { api, type Digest, type DigestRecord } from '@/lib/api'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
@@ -241,13 +242,21 @@ function TodayView({ digest: d }: { digest: Digest }) {
             </div>
           )
         }
+        // T8: With no sales, calling this card "Top Performer" is dishonest —
+        // there's nothing to perform yet. Rename to "Latest Activity" and
+        // swap the trophy for a Sparkles icon so the visual cue matches the
+        // copy. "Top Performer" returns automatically once a sale arrives.
         return (
           <div className="rounded-2xl border border-border bg-card/40 p-5 shadow-card">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground mb-2">
-              <Trophy className="h-4 w-4" /> Top Performer
+              <Sparkles className="h-4 w-4" /> Latest Activity
             </h3>
             <p className="text-sm text-muted-foreground">
-              No sales data yet{d.top_product ? <> — latest completed product is <span className="text-foreground">{d.top_product}</span>.</> : '.'}
+              {d.top_product ? (
+                <>Latest completed product is <span className="text-foreground">{d.top_product}</span>. No sales data yet — once Gumroad sales sync, the top performer will appear here.</>
+              ) : (
+                <>No completed products yet. Approve a product to get the engine moving.</>
+              )}
             </p>
           </div>
         )
