@@ -248,6 +248,27 @@ function NavList({ onNavigate, sections }: { onNavigate?: () => void; sections: 
     } catch { /* ignore quota / serialization errors */ }
   }, [openSections])
 
+  // Reconcile when the section set changes (e.g. a custom sidebar order loads
+  // from the API after mount). Add unseen groups with their default open-state
+  // and drop groups that no longer exist, preserving the user's existing
+  // choices — so persisted state never drifts or accumulates stale keys.
+  useEffect(() => {
+    setOpenSections((prev) => {
+      const next: Record<string, boolean> = {}
+      let changed = Object.keys(prev).length !== sections.length
+      for (const sec of sections) {
+        if (sec.title in prev) {
+          next[sec.title] = prev[sec.title]
+        } else {
+          next[sec.title] = !sec.collapsible || sec.items.some((i) => isActive(i.to))
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sections])
+
   const renderItem = (item: Item) => {
     const Icon = item.icon
     const active = isActive(item.to)

@@ -67,9 +67,14 @@ binding = "BROWSER"
 # store_id = "YOUR_SECRETS_STORE_ID"
 
 # ================================
-# SCHEDULED TRIGGERS (Trend Radar)
+# SCHEDULED TRIGGERS
 # ================================
+# Two lanes (the handler in src/index.ts branches on `controller.cron`):
+#   - "*/5 * * * *" → run-timeout janitor only (T13). Reaps workflow_runs /
+#     workflow_steps / products / agent_tasks / agent_runs stuck in RUNNING
+#     past the 10-min cutoff. Must match STALE_SWEEP_CRON in src/index.ts.
+#   - "0 7 * * *"   → daily batch (trend radar, autopilot, digest, analytics…).
 [triggers]
-crons = ["0 7 * * *"]  # Daily at 7am UTC
+crons = ["*/5 * * * *", "0 7 * * *"]
 
 

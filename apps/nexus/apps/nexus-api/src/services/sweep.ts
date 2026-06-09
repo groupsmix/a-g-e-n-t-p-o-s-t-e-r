@@ -1,11 +1,42 @@
 import type { Env } from '../env'
 
-// Stale-run cutoff. A 15-step pipeline that hasn't moved in 30 min is
-// almost always wedged (Worker eviction, AI provider hang, dropped
-// `waitUntil`, etc.). We bumped this from 15 to 30 min so legitimately
-// slow runs aren't killed prematurely while still rescuing the
-// "RUNNING forever" rows the user was seeing.
-const STALE_CUTOFF_MS = 30 * 60 * 1000
+// Stale-run cutoff. A run that hasn't moved in 10 min is almost always
+// wedged (Worker eviction, AI provider hang, dropped `waitUntil`, etc.).
+// The 15-step product pipeline completes in ≤ 3 min for 15 AI calls
+// (see nexus-api/wrangler.toml), so 10 min is ~3x headroom — slow-but-live
+// runs survive while "RUNNING forever" rows get reaped promptly.
+//
+// NOTE: this cutoff only bites if the sweep actually runs every few
+// minutes. The Worker registers a dedicated high-frequency cron lane for
+// exactly that — see `STALE_SWEEP_CRON` + the `scheduled` handler in
+// src/index.ts. On the daily 07:00 lane alone a stuck row could sit for
+// up to 24h, which is the bug this task (T13) closes.
+export const STALE_CUTOFF_MS = 10 * 60 * 1000
+
+// Cutoffs in both shapes the DB stores timestamps in. Workflow/product rows
+// are written as ISO-8601 (`new Date().toISOString()`), while agent_tasks /
+// agent_runs use SQLite `CURRENT_TIMESTAMP` ("YYYY-MM-DD HH:MM:SS"). Mixing
+// the two in a raw `<` is a trap: ' ' (0x20) sorts before 'T' (0x54), so a
+// space-format "now" always compares as *older* than any ISO cutoff on the
+// same day — which would reap brand-new rows. We therefore normalise the
+// column to the 19-char space form in SQL and compare against `space` here.
+export function staleCutoffs(nowMs: number = Date.now()): { iso: string; space: string } {
+  const iso = new Date(nowMs - STALE_CUTOFF_MS).toISOString()
+  return { iso, space: iso.slice(0, 19).replace('T', ' ') }
+}
+
+// Mirror of the SQL `REPLACE(SUBSTR(ts,1,19),'T',' ')` normalisation, exported
+// so the staleness rule can be unit-tested without standing up a database.
+// Accepts ISO ("…T…Z"), ISO-without-Z, or space-format strings and returns a
+// canonical, lexicographically-sortable "YYYY-MM-DD HH:MM:SS".
+export function normalizeTs(ts: string): string {
+  return ts.slice(0, 19).replace('T', ' ')
+}
+
+export function isStale(ts: string | null | undefined, cutoffSpace: string): boolean {
+  if (!ts) return false
+  return normalizeTs(ts) < cutoffSpace
+}
 
 // Graveyard janitor cutoff. The engine moves an unusable run's product
 // row into the graveyard (sets `graveyard_at` + a `graveyard_reason`).
@@ -28,8 +59,9 @@ const GRAVEYARD_CUTOFF_MS = 60 * 60 * 1000 // 1 hour, per user spec
 // 'rejected' with a stale-run reason so the dashboard reflects reality and
 // the Retry button on the row has something to act on.
 export async function sweepStaleRuns(env: Env): Promise<void> {
-  const cutoff = new Date(Date.now() - STALE_CUTOFF_MS).toISOString()
+  const { iso: cutoff, space: cutoffSpace } = staleCutoffs()
   const stamp = new Date().toISOString()
+  const stampSpace = normalizeTs(stamp)
   try {
     await env.DB.prepare(
       `UPDATE workflow_steps SET status='failed', completed_at=?, error='stale: run exceeded time budget'
@@ -59,8 +91,40 @@ export async function sweepStaleRuns(env: Env): Promise<void> {
     ).bind(stamp, stamp, cutoff).run()
     const pn = (prodRes.meta as { changes?: number } | undefined)?.changes ?? 0
 
-    if (n > 0 || pn > 0) {
-      console.log(`[sweep] recovered ${n} stale run(s), ${pn} stale product(s)`)
+    // Orchestrator BaseAgent tasks (agent_tasks) wedged mid-run. started_at is
+    // written with SQLite CURRENT_TIMESTAMP (space format), so we normalise
+    // both sides before comparing. We deliberately scope this to 'running'
+    // only — never 'queued' — because a large queued backlog can legitimately
+    // wait longer than the cutoff for the drainer and must not be killed.
+    const taskRes = await env.DB.prepare(
+      `UPDATE agent_tasks
+          SET status='failed',
+              error='stale: run exceeded time budget (reaped by janitor)',
+              finished_at=?,
+              updated_at=?
+        WHERE status='running'
+          AND REPLACE(SUBSTR(COALESCE(started_at, updated_at, created_at), 1, 19), 'T', ' ') < ?`,
+    ).bind(stampSpace, stampSpace, cutoffSpace).run()
+    const tn = (taskRes.meta as { changes?: number } | undefined)?.changes ?? 0
+
+    // Money-machine ledger runs (agent_runs) wedged mid-run. This table has a
+    // dedicated 'killed' status for exactly this case — a run the janitor
+    // stops because it exceeded its time budget.
+    const runLedgerRes = await env.DB.prepare(
+      `UPDATE agent_runs
+          SET status='killed',
+              error_message='stale: run exceeded time budget (killed by janitor)',
+              finished_at=?
+        WHERE status='running'
+          AND REPLACE(SUBSTR(COALESCE(started_at, created_at), 1, 19), 'T', ' ') < ?`,
+    ).bind(stampSpace, cutoffSpace).run()
+    const rn = (runLedgerRes.meta as { changes?: number } | undefined)?.changes ?? 0
+
+    if (n > 0 || pn > 0 || tn > 0 || rn > 0) {
+      console.log(
+        `[sweep] recovered ${n} stale run(s), ${pn} stale product(s), ` +
+          `${tn} stale task(s), ${rn} killed ledger run(s)`,
+      )
     }
   } catch (err) {
     console.error('[sweep] stale-run sweep failed:', err)
