@@ -60,8 +60,8 @@ export function Sidebar(): JSX.Element {
         </div>
         {!sidebarCollapsed && (
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold">NEXUS</div>
-            <div className="truncate text-xs text-muted-foreground">Money Machine</div>
+            <div className="truncate text-sm font-semibold">posteragent</div>
+            <div className="truncate text-xs text-muted-foreground">Brain Cockpit</div>
           </div>
         )}
       </div>

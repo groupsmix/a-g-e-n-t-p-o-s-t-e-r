@@ -7,13 +7,18 @@ Personal AI content machine: NEXUS orchestration, site factory, Mastra agents, R
 This repo has two coexisting stacks. They share `packages/*` and run from
 different entry points. Do **not** delete one assuming it's dead.
 
+**Canonical UI is NEXUS.** `apps/dashboard` is the *Brain Cockpit* — memory,
+identity, proactivity, agent journals — not the money/ops dashboard. See
+[`docs/ADR-001-canonical-dashboard.md`](docs/ADR-001-canonical-dashboard.md).
+
 | Stack | Package scope | Driven by | What it does |
 |-------|---------------|-----------|--------------|
-| Legacy / @repo | `@repo/*` packages, `apps/factory`, `apps/runner`, `apps/dashboard` | GitHub Actions cron + a Next.js dashboard on port 3030 | Daily content runs, site generation, stats pull, Supabase-backed |
-| NEXUS / @posteragent | `apps/nexus/*`, `@posteragent/*` packages | Cloudflare Workers + Pages (D1 / KV / R2) | New orchestrator, money-machine, brain layer, web UI |
+| Legacy / @repo | `@repo/*` packages, `apps/factory`, `apps/runner` | GitHub Actions cron | Daily content runs, site generation, stats pull |
+| Brain Cockpit | `apps/dashboard`, `@posteragent/memory \| identity \| proactivity` | Next.js on port 3030 | Brain-layer UI: memory, identity, journals, agent status. No money/ops data. |
+| NEXUS / @posteragent | `apps/nexus/*`, `@posteragent/agent-*` | Cloudflare Workers + Pages (D1 / KV / R2) | **Canonical dashboard.** Revenue, products, publish queue, autopilot, observability, freelance, learning loop. |
 
-Until the legacy stack is formally retired (cron migrated, dashboard
-rewritten on top of NEXUS), both ship together. CI proves it:
+Until the legacy cron is formally retired (jobs migrated into NEXUS
+workflows), the @repo runners still ship. CI proves it:
 
 ```
 .github/workflows/daily-run.yml      → @repo/runner

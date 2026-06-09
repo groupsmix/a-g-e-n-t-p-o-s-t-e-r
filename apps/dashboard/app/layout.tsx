@@ -6,8 +6,10 @@ import { CommandPalette } from '@/components/layout/CommandPalette'
 import { Providers } from './providers'
 
 export const metadata: Metadata = {
-  title: 'NEXUS — Money Machine',
-  description: 'Single-owner all-in-one AI cockpit',
+  title: 'Brain Cockpit — posteragent',
+  description:
+    'Brain layer: memory, identity, proactivity, agent journals. ' +
+    'For revenue, products, and money-machine ops use the NEXUS web UI.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }): JSX.Element {

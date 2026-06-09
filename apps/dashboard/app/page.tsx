@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { MetricCard } from '@/components/shared/MetricCard'
 import { AgentStatus } from '@/components/shared/AgentStatus'
 import { LiveActivityFeed } from '@/components/shared/LiveActivityFeed'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, ExternalLink } from 'lucide-react'
 
 export default function Home(): JSX.Element {
   return (
@@ -10,9 +10,9 @@ export default function Home(): JSX.Element {
       {/* Greeting */}
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Mission Control</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Brain Cockpit</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every agent, every task, every dollar — one window.
+            Memory, identity, proactivity, agent journals. The thinking layer.
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground">
@@ -21,18 +21,31 @@ export default function Home(): JSX.Element {
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      {/* Money-machine pointer — this cockpit is the brain, not the ops UI. */}
+      <Card className="border-dashed">
+        <CardContent className="flex items-center justify-between gap-4 py-4">
+          <div className="min-w-0">
+            <div className="text-sm font-medium">Looking for revenue, products, or publish queues?</div>
+            <p className="text-xs text-muted-foreground">
+              Those live in the NEXUS web UI (the Cloudflare-Workers stack).
+              This cockpit is the brain layer only.
+            </p>
+          </div>
+          <a
+            href={process.env.NEXT_PUBLIC_NEXUS_WEB_URL ?? '/'}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted/40"
+          >
+            Open NEXUS <ExternalLink className="h-3 w-3" />
+          </a>
+        </CardContent>
+      </Card>
+
+      {/* KPIs — brain-layer signals only. Revenue/spend live in NEXUS. */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <MetricCard label="Tasks today" value="0" delta="+0" icon="tasks" />
-        <MetricCard
-          label="AI spend"
-          value="$0.00"
-          delta="of $20 budget"
-          intent="default"
-          icon="spend"
-        />
         <MetricCard label="Active agents" value="0" icon="agents" />
-        <MetricCard label="Revenue 24h" value="$0.00" intent="success" icon="revenue" />
         <MetricCard label="New leads" value="0" icon="leads" />
       </div>
 
