@@ -5,6 +5,20 @@
 # These power REAL publishing. Without them, the publish endpoints return an
 # honest "not configured" error (they never fake a successful publish).
 
+# --- Access gate ---
+# Locks the whole dashboard + API behind a single password. When set, the gate
+# is active the instant the worker boots (no "open until a password is set"
+# window). This is the authoritative password — rotate it here / via
+# `wrangler secret put ACCESS_PASSWORD`. Use 16+ characters.
+# Leave unset to use the dashboard's KV-based first-run setup flow instead.
+ACCESS_PASSWORD=
+
+# Static admin token for /api/money-machine/* (paid LLM + image + publish).
+# These endpoints burn money, so they require this bearer regardless of the
+# access-gate state. Also used as the bootstrap token for first-time password
+# setup. If unset, money-machine routes return 503 (fail closed).
+MONEY_MACHINE_TOKEN=
+
 # --- Storefronts ---
 GUMROAD_ACCESS_TOKEN=   # https://app.gumroad.com/settings/advanced (create access token)
 SHOPIFY_STORE=          # e.g. my-store.myshopify.com

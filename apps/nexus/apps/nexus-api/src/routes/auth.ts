@@ -35,9 +35,27 @@ export async function hashPassword(password: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+// Resolve the active access-gate hash.
+//
+// Precedence:
+//   1. ACCESS_PASSWORD env secret (authoritative when set). Hashing it here
+//      means the gate is active the instant the worker boots — there is no
+//      window where a fresh deploy is unprotected because nobody has written
+//      a password to KV yet. This closes the "open until set" gap.
+//   2. KV `access_hash` (the dashboard bootstrap/change flow).
+//   3. null → not protected (legacy local-dev / pre-bootstrap).
 export async function getAccessHash(env: Env): Promise<string | null> {
+  if (env.ACCESS_PASSWORD && env.ACCESS_PASSWORD.length > 0) {
+    return hashPassword(env.ACCESS_PASSWORD)
+  }
   if (!env.CONFIG) return null
   return env.CONFIG.get(KV_HASH)
+}
+
+// Whether the password is pinned by the ACCESS_PASSWORD secret (so the
+// runtime change flow is disabled — rotate via the secret instead).
+function isEnvPasswordActive(env: Env): boolean {
+  return Boolean(env.ACCESS_PASSWORD && env.ACCESS_PASSWORD.length > 0)
 }
 
 function generateToken(): string {
@@ -125,6 +143,17 @@ authRoutes.post('/setup', async (c) => {
   const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown'
   if (!(await checkRateLimit(c.env, ip))) {
     return c.json({ error: 'Too many attempts. Try again in a minute.' }, 429)
+  }
+
+  // When the password is pinned by the ACCESS_PASSWORD secret, runtime
+  // changes are meaningless (getAccessHash always returns the env hash, so a
+  // KV write would be silently shadowed). Reject clearly and tell the owner
+  // where to rotate it.
+  if (isEnvPasswordActive(c.env)) {
+    return c.json(
+      { error: 'Password is managed by the ACCESS_PASSWORD secret. Rotate it with `wrangler secret put ACCESS_PASSWORD`.' },
+      409,
+    )
   }
 
   const { password, current } = await c.req.json<{ password?: string; current?: string }>()

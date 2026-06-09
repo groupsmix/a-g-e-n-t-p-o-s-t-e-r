@@ -120,3 +120,14 @@ jobs:
           npm install -g wrangler@3
           cd apps/nexus-api
           wrangler d1 migrations list nexus-db --local || true
+      # D1 schema-drift check — applies every migration to an in-memory
+      # SQLite DB and prepares every static query in the worker, failing on
+      # any NEW "no such column/table" drift (the class of bug that broke
+      # /observability). Known pre-existing drift is tolerated via
+      # scripts/schema-drift-baseline.json. better-sqlite3 is installed
+      # ad-hoc (outside the frozen lockfile); the script also falls back to
+      # node:sqlite.
+      - name: D1 schema-drift check
+        run: |
+          npm install --no-save better-sqlite3@^12 || true
+          node scripts/check-schema-drift.mjs

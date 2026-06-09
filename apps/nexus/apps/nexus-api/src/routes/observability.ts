@@ -66,7 +66,13 @@ observabilityRoutes.get('/', async (c) => {
       ).all<WorkflowRow>(),
 
       c.env.DB.prepare(
-        `SELECT run_id, step_name, status, model_used, error, started_at, completed_at
+        // SCHEMA DRIFT FIX: the column on workflow_steps is `ai_model_used`,
+        // not `model_used`. Selecting `model_used` threw
+        // "D1_ERROR: no such column: model_used" and broke the entire
+        // /observability page. Alias back to `model_used` to keep the
+        // StepRow shape + JSON response unchanged. Guarded by the new
+        // schema-drift CI check (scripts/check-schema-drift.mjs).
+        `SELECT run_id, step_name, status, ai_model_used AS model_used, error, started_at, completed_at
          FROM workflow_steps WHERE status = 'failed'
          ORDER BY started_at DESC LIMIT 20`,
       ).all<StepRow>(),
