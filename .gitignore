@@ -48,3 +48,6 @@ Thumbs.db
 coverage/
 .nyc_output/
 bun.lock
+
+# Node 24 compile cache (created when running scripts/check-schema-drift.mjs)
+node-compile-cache/

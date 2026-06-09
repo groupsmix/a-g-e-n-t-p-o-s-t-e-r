@@ -108,16 +108,20 @@ export default function LearningPage() {
           </div>
         )}
 
+        {/* T7: distinct error vs empty states.
+            - Error: the request actually failed (network / auth / 5xx). Show
+              the raw error and offer a Retry. Don't lecture the user about
+              Gumroad sales — the load failure isn't about that.
+            - Empty: the request succeeded but the loop has nothing to learn
+              from yet (no stats, or zero sales synced and no patterns). Show
+              an inviting CTA that actually moves them forward (Sync Now or
+              connect Gumroad in Settings), not a Retry button that won't
+              change anything. */}
         {!loading && loadError && (
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
             <AlertTriangle className="mx-auto h-8 w-8 text-destructive opacity-70" />
             <p className="mt-3 text-sm font-medium text-destructive">Couldn&apos;t load learning data</p>
             <p className="mt-1 text-xs text-muted-foreground break-all">{loadError}</p>
-            <p className="mt-3 text-xs text-muted-foreground">
-              The Winner Learning Loop needs at least one synced Gumroad sale before it can show patterns.
-              Connect Gumroad in <a className="text-primary hover:underline" href="/settings/keys">Settings → Keys</a>{' '}
-              and run <span className="font-mono">Sync Now</span> above.
-            </p>
             <button
               onClick={() => load()}
               className="mt-4 inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-sidebar-accent transition-colors"
@@ -127,30 +131,44 @@ export default function LearningPage() {
           </div>
         )}
 
-        {/* BUG-203: when the API responds OK but with empty/null stats
-            (e.g. a fresh instance with no Gumroad sales synced yet), the
-            page used to render a blank screen with no recovery path. Show
-            the same friendly explainer + retry block we use for hard
-            errors so the user always has somewhere to go. */}
-        {!loading && !loadError && !stats && (
-          <div className="rounded-xl border border-border bg-card p-6 text-center">
-            <Brain className="mx-auto h-8 w-8 text-muted-foreground opacity-70" />
-            <p className="mt-3 text-sm font-medium">No learning data yet</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              The Winner Learning Loop needs at least one synced Gumroad sale.
-              Connect Gumroad in <a className="text-primary hover:underline" href="/settings/keys">Settings → Keys</a>{' '}
-              and run <span className="font-mono">Sync Now</span> above.
-            </p>
-            <button
-              onClick={() => load()}
-              className="mt-4 inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-sidebar-accent transition-colors"
-            >
-              <RefreshCw className="h-3 w-3" /> Retry
-            </button>
-          </div>
-        )}
+        {!loading && !loadError && (() => {
+          const noData =
+            !stats ||
+            ((stats.total_sales_synced ?? 0) === 0 &&
+             (stats.patterns_extracted ?? 0) === 0 &&
+             patterns.length === 0)
+          if (!noData) return null
+          return (
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-6 text-center">
+              <Brain className="mx-auto h-8 w-8 text-primary opacity-80" />
+              <p className="mt-3 text-sm font-medium">Loop is empty — feed it some sales</p>
+              <p className="mt-1 text-xs text-muted-foreground max-w-md mx-auto">
+                The Winner Learning Loop extracts patterns from sales you&apos;ve already
+                made. Connect Gumroad, sync your sales, then re-analyze to see what&apos;s
+                actually working.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  onClick={handleSync}
+                  disabled={syncing}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-gradient-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                  Sync Gumroad sales
+                </button>
+                <a
+                  href="/settings/keys"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-sidebar-accent transition-colors"
+                >
+                  Connect Gumroad →
+                </a>
+              </div>
+            </div>
+          )
+        })()}
 
-        {!loading && !loadError && stats && (
+        {!loading && !loadError && stats &&
+         ((stats.total_sales_synced ?? 0) > 0 || (stats.patterns_extracted ?? 0) > 0 || patterns.length > 0) && (
           <>
             {/* Stat Cards */}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
