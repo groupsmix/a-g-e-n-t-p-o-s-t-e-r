@@ -742,4 +742,57 @@ export const api = {
     apiFetch<{ source: 'live' | 'unconfigured'; query_id: string;
       rows?: unknown[]; note?: string;
     }>(`/api/insights/${encodeURIComponent(queryId)}`),
+
+  // ── Leads (intent-mining scanner, TASK-801) ──────────────────
+  getLeads: (params?: {
+    status?: string; source?: string; intent?: string;
+    min_score?: number; limit?: number;
+  }) => {
+    const q = new URLSearchParams()
+    if (params?.status) q.set('status', params.status)
+    if (params?.source) q.set('source', params.source)
+    if (params?.intent) q.set('intent', params.intent)
+    if (typeof params?.min_score === 'number') q.set('min_score', String(params.min_score))
+    if (typeof params?.limit === 'number') q.set('limit', String(params.limit))
+    const qs = q.toString()
+    return apiFetch<{
+      leads: Array<{
+        fingerprint: string; source: string; source_id: string;
+        author: string; author_bio: string | null;
+        text: string; url: string; posted_at: string;
+        matched_terms: string[]; extra: Record<string, unknown> | null;
+        score_total: number; score_intent: string;
+        score_components: Record<string, number>;
+        suggested_reply: string | null;
+        status: string;
+        engaged_at: string | null; dismissed_at: string | null;
+        operator_note: string | null; created_at: string;
+      }>;
+      total: number;
+    }>(`/api/leads${qs ? `?${qs}` : ''}`)
+  },
+  getLeadStats: () =>
+    apiFetch<{
+      byStatus: Array<{ status: string; n: number }>;
+      byIntent: Array<{ intent: string; n: number }>;
+      bySource: Array<{ source: string; n: number }>;
+      top_score: number;
+    }>('/api/leads/stats'),
+  scanLeads: (body: { terms: string[]; subreddits?: string[]; sources?: Array<'reddit' | 'hn'>; limit?: number }) =>
+    apiFetch<{
+      ok: boolean; scanned: number; inserted: number; skipped: number;
+      filtered: number; errors: string[]; sources: Record<string, number>;
+    }>('/api/leads/scan', { method: 'POST', body: JSON.stringify(body) }),
+  engageLead: (fp: string, note?: string) =>
+    apiFetch<{ ok: boolean }>(`/api/leads/${fp}/engage`, {
+      method: 'POST',
+      body: JSON.stringify({ note: note ?? null }),
+    }),
+  dismissLead: (fp: string, note?: string) =>
+    apiFetch<{ ok: boolean }>(`/api/leads/${fp}/dismiss`, {
+      method: 'POST',
+      body: JSON.stringify({ note: note ?? null }),
+    }),
+  deleteLead: (fp: string) =>
+    apiFetch<{ ok: boolean }>(`/api/leads/${fp}`, { method: 'DELETE' }),
 }
