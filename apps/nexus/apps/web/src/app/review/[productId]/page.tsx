@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { api, assetUrl, API_BASE } from '@/lib/api'
+import { useProjectionGate } from '@/lib/projection-gate'
 import type { ProductDetail } from '@nexus/types'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 import { ScoreBar } from '@/components/shared/ScoreBar'
@@ -32,6 +33,8 @@ export default function ReviewPage() {
   const [p, setP] = useState<ProductDetail | null>(null)
   const [tab, setTab] = useState<'platforms' | 'social'>('platforms')
   const [activePlatform, setActivePlatform] = useState(0)
+  // T9: same gate as autopilot uses for the aggregate projection.
+  const gate = useProjectionGate()
   const [activeSocial, setActiveSocial] = useState(0)
   const [feedback, setFeedback] = useState('')
   const [showReject, setShowReject] = useState(false)
@@ -322,13 +325,21 @@ export default function ReviewPage() {
                     {p.currency}
                   </span>
                 </div>
+                {/* T9: hide the per-product 90-day estimate until we have
+                    real sales data. Same gate as the autopilot aggregate. */}
                 <div className="text-right">
                   <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
                     Revenue est. (90 days)
                   </div>
-                  <div className="text-sm font-mono">
-                    ${p.revenue_estimate_detail?.min ?? '—'}–${p.revenue_estimate_detail?.max ?? '—'}
-                  </div>
+                  {gate.locked ? (
+                    <div className="text-sm font-mono text-muted-foreground" title={gate.reason ?? 'Projection hidden until 10 recorded sales.'}>
+                      $—
+                    </div>
+                  ) : (
+                    <div className="text-sm font-mono">
+                      ${p.revenue_estimate_detail?.min ?? '—'}–${p.revenue_estimate_detail?.max ?? '—'}
+                    </div>
+                  )}
                 </div>
               </div>
             </Section>

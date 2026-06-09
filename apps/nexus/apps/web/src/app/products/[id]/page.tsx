@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { api, assetUrl } from '@/lib/api'
+import { useProjectionGate } from '@/lib/projection-gate'
 import { toast } from '@/lib/toast'
 import type { ProductDetail } from '@nexus/types'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
@@ -20,6 +21,8 @@ export default function ProductDetailPage() {
   const router = useRouter()
   const id = params?.id as string
   const [product, setProduct] = useState<ProductDetail | null>(null)
+  // T9: same gate the autopilot status uses.
+  const gate = useProjectionGate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
@@ -317,10 +320,17 @@ export default function ProductDetailPage() {
                 <div className="text-2xl font-bold">
                   {product.currency} {product.price?.toFixed(2) ?? '—'}
                 </div>
-                {product.revenue_estimate_detail && (
+                {/* T9: hide the per-product revenue projection until the
+                    system has ≥10 real sales (same gate as autopilot). */}
+                {product.revenue_estimate_detail && !gate.locked && (
                   <p className="text-xs text-muted-foreground mt-1">
                     Est. revenue: {product.revenue_estimate_detail.currency}{' '}
                     {product.revenue_estimate_detail.min}–{product.revenue_estimate_detail.max}/mo
+                  </p>
+                )}
+                {product.revenue_estimate_detail && gate.locked && (
+                  <p className="text-xs text-muted-foreground mt-1" title={gate.reason ?? 'Projection hidden until 10 recorded sales.'}>
+                    Est. revenue: locked until 10 recorded sales
                   </p>
                 )}
               </CardContent>
