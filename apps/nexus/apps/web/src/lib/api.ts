@@ -148,8 +148,22 @@ export const api = {
   rejectProduct: (productId: string, feedback: string) => apiFetch<void>(`/api/review/${productId}/reject`, { method: 'POST', body: JSON.stringify({ feedback }) }),
 
   // Products
-  getProducts: (filters?: { status?: string; domain_id?: string; limit?: number }) =>
-    apiFetch<{ products: Product[] }>(`/api/products?${new URLSearchParams(filters as Record<string, string>)}`),
+  //
+  // T16: server-side pagination. `total` is the true filtered total (not
+  // the page size, which is what the old endpoint returned). `has_more`
+  // is derived server-side so the UI doesn't repeat the math. `limit` is
+  // clamped to MAX=100 on the server.
+  getProducts: (filters?: { status?: string; domain_id?: string; limit?: number; offset?: number; q?: string }) => {
+    const params = new URLSearchParams()
+    if (filters?.status) params.set('status', filters.status)
+    if (filters?.domain_id) params.set('domain_id', filters.domain_id)
+    if (typeof filters?.limit === 'number') params.set('limit', String(filters.limit))
+    if (typeof filters?.offset === 'number') params.set('offset', String(filters.offset))
+    if (filters?.q) params.set('q', filters.q)
+    return apiFetch<{ products: Product[]; total: number; limit: number; offset: number; has_more: boolean }>(
+      `/api/products?${params.toString()}`,
+    )
+  },
   getProduct: (id: string) => apiFetch<Product>(`/api/products/${id}`),
   getProductDetail: (id: string) => apiFetch<ProductDetail>(`/api/products/${id}/detail`),
   generateDeliverable: (id: string, opts?: { format?: string; force?: boolean }) => {

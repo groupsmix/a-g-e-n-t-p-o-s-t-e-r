@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Wallet, AlertTriangle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
+import { formatCost } from '@/lib/utils'
 
 type Cap = {
   id?: string
@@ -82,13 +83,10 @@ export default function BudgetPage() {
             label={`Total spend (${period})`}
             value={(() => {
               if (!summary) return loading ? '…' : '$0.00'
-              const spend = summary.total_usd ?? 0
-              const runs = summary.total_runs ?? 0
-              // $0.00 with actual runs means the engine ran on free-tier models
-              // (e.g. Groq) and cost nothing — say so rather than showing a
-              // misleading "$0.00" that reads like "not tracked".
-              if (spend === 0 && runs > 0) return 'Free tier'
-              return `$${spend.toFixed(2)}`
+              // T15: free-tier-aware label. formatCost returns "Free tier"
+              // when spend is $0 but we actually did runs (Groq/Cloudflare
+              // free models), which reads more honestly than a bare $0.00.
+              return formatCost(summary.total_usd, summary.total_runs)
             })()}
           />
           <Stat label="Total runs" value={summary ? String(summary.total_runs ?? 0) : (loading ? '…' : '0')} />
@@ -131,7 +129,9 @@ export default function BudgetPage() {
                     <div className="truncate text-sm font-medium">{m.model}</div>
                     <div className="text-xs text-muted-foreground">{m.count} call{m.count === 1 ? '' : 's'}</div>
                   </div>
-                  <div className="text-sm font-semibold text-emerald-500">${m.cost.toFixed(2)}</div>
+                  {/* T15: per-model spend reads "Free tier" when calls happened
+                      but the model itself was free (Groq, CF Workers AI). */}
+                  <div className="text-sm font-semibold text-emerald-500">{formatCost(m.cost, m.count)}</div>
                 </div>
               ))}
             </div>
@@ -149,7 +149,8 @@ export default function BudgetPage() {
                     <div className="truncate text-sm font-medium">{t.task_type}</div>
                     <div className="text-xs text-muted-foreground">{t.count} call{t.count === 1 ? '' : 's'}</div>
                   </div>
-                  <div className="text-sm font-semibold text-emerald-500">${t.cost.toFixed(2)}</div>
+                  {/* T15: same "Free tier" treatment for per-task-type spend. */}
+                  <div className="text-sm font-semibold text-emerald-500">{formatCost(t.cost, t.count)}</div>
                 </div>
               ))}
             </div>

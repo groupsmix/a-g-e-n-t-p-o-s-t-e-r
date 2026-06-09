@@ -46,11 +46,49 @@ async function callAI(env: Env, prompt: string): Promise<string> {
 
 // POST /manager/chat — the CEO Manager. Interprets a goal, plans products,
 // kicks off the agents (workflows), and reports back.
+// T14: same short-circuit logic as in agent.ts — when the user asks a
+// "read" question and there's no data, skip the LLM call entirely. The
+// frontend (CEO page) calls both /manager/chat and /agent/agent in
+// parallel; without this guard, /manager/chat would still spend a model
+// call just to say "no data".
+const EMPTY_READ_PATTERNS: RegExp[] = [
+  /\b(sold|sales|revenue|earn(ed|ing)?|income|profit)\b/i,
+  /\b(best|top|highest|leading)\s+(seller|sellers|product|products|performer)/i,
+  /\b(list|show|see|view|browse)\s+(my\s+|the\s+|all\s+)?(products?|catalog|inventory)\b/i,
+  /\b(what|which)\s+products?\b/i,
+  /\b(performance|status|overview|dashboard|stats|summary)\b/i,
+  /\bhow\s+(many|much)\b/i,
+]
+const ACTION_INTENT_PATTERNS: RegExp[] = [
+  /\b(create|build|make|generate|dispatch|spin\s*up|start|launch|run|kick\s*off)\b/i,
+  /\b(approve|reject|delete|publish|retry|re-?run)\b/i,
+  /\b(scrape|browse|fetch|search\s+the\s+web|visit)\b/i,
+]
+function isEmptyReadQuestion(message: string): boolean {
+  if (ACTION_INTENT_PATTERNS.some((re) => re.test(message))) return false
+  return EMPTY_READ_PATTERNS.some((re) => re.test(message))
+}
+
 managerRoutes.post('/chat', async (c) => {
   const body = await c.req.json<{ message?: string; history?: ManagerMessage[] }>()
   const message = (body.message || '').trim()
   const history = Array.isArray(body.history) ? body.history.slice(-8) : []
   if (!message) return c.json({ error: 'message is required' }, 400)
+
+  // T14: empty-data short-circuit. A single COUNT is cheap and saves a
+  // full model round-trip on the most common cold-start prompts.
+  if (isEmptyReadQuestion(message)) {
+    const totalRow = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM products').first<any>()
+    const total = Number(totalRow?.n ?? 0)
+    if (total === 0) {
+      return c.json({
+        reply: "There's no data yet — once you create your first product I'll have something real to report. Try \"Create a product about productivity\" to get started.",
+        actions: [],
+        action_results: [],
+        short_circuited: true,
+      })
+    }
+  }
 
   // Give the model the real domains/categories so it picks valid slugs.
   const cats = await c.env.DB.prepare(`

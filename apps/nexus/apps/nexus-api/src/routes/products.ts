@@ -158,47 +158,58 @@ productRoutes.get('/:id/deliverable', async (c) => {
 })
 
 // GET /products - List products with filters
+//
+// T16: real server-side pagination.
+//   - clamps `limit` so a runaway client can't ask for 100k rows
+//   - runs a COUNT(*) against the *same* WHERE clause so `total` is the
+//     true filtered total, not "how many rows came back this page"
+//     (the previous implementation returned the page size, which made
+//     real pagination impossible on the frontend)
+//   - returns `total`, `limit`, `offset`, plus a derived `has_more` so
+//     the UI doesn't have to do offset+limit arithmetic itself
 productRoutes.get('/', async (c) => {
   try {
+    const DEFAULT_LIMIT = 25
+    const MAX_LIMIT = 100
+    const rawLimit = parseInt(c.req.query('limit') || String(DEFAULT_LIMIT))
+    const rawOffset = parseInt(c.req.query('offset') || '0')
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : DEFAULT_LIMIT, 1), MAX_LIMIT)
+    const offset = Math.max(Number.isFinite(rawOffset) ? rawOffset : 0, 0)
     const filters: ProductFilters = {
       domain_id: c.req.query('domain_id'),
       category_id: c.req.query('category_id'),
       status: c.req.query('status'),
       graveyard: c.req.query('graveyard') === 'true',
-      limit: parseInt(c.req.query('limit') || '50'),
-      offset: parseInt(c.req.query('offset') || '0'),
+      limit,
+      offset,
     }
-    
-    let query = `
-      SELECT p.*, d.name as domain_name, d.slug as domain_slug, 
-             c.name as category_name, c.slug as category_slug
-      FROM products p
-      JOIN domains d ON p.domain_id = d.id
-      JOIN categories c ON p.category_id = c.id
-      WHERE 1=1
-    `
-    const bindings: any[] = []
+    // Optional free-text search on name/niche — keeps the existing
+    // client-side AND-token filter, just executed server-side now so it
+    // composes correctly with pagination.
+    const q = (c.req.query('q') || '').trim()
+
+    // Build the WHERE clause once and reuse it for both the data query
+    // and the COUNT, so the two can never drift.
+    const whereParts: string[] = ['1=1']
+    const whereBindings: D1QueryValue[] = []
     let paramIndex = 1
-    
+
     if (filters.domain_id) {
-      query += ` AND p.domain_id = $${paramIndex++}`
-      bindings.push(filters.domain_id)
+      whereParts.push(`p.domain_id = $${paramIndex++}`)
+      whereBindings.push(filters.domain_id)
     }
-    
     if (filters.category_id) {
-      query += ` AND p.category_id = $${paramIndex++}`
-      bindings.push(filters.category_id)
+      whereParts.push(`p.category_id = $${paramIndex++}`)
+      whereBindings.push(filters.category_id)
     }
-    
     if (filters.status) {
-      query += ` AND p.status = $${paramIndex++}`
-      bindings.push(filters.status)
+      whereParts.push(`p.status = $${paramIndex++}`)
+      whereBindings.push(filters.status)
     }
-    
     if (filters.graveyard) {
-      query += ` AND p.graveyard_at IS NOT NULL`
+      whereParts.push(`p.graveyard_at IS NOT NULL`)
     } else {
-      query += ` AND p.graveyard_at IS NULL`
+      whereParts.push(`p.graveyard_at IS NULL`)
     }
 
     // BUG-P1-4: dashboard ("6 pending review") and /review header ("3
@@ -209,8 +220,8 @@ productRoutes.get('/', async (c) => {
     // review header, pipeline.summary) reads the same number from one
     // query — the DB is now the source of truth.
     if (filters.status === 'pending_review') {
-      query += `
-        AND p.name IS NOT NULL
+      whereParts.push(`
+        p.name IS NOT NULL
         AND TRIM(p.name) != ''
         AND LOWER(TRIM(p.name)) NOT IN (
           'untitled','untitled product','untitled draft',
@@ -218,19 +229,56 @@ productRoutes.get('/', async (c) => {
           'new product','tbd','n/a','-','—'
         )
         AND COALESCE(p.ai_score, 0) >= 1
-      `
+      `)
     }
-    
-    query += ` ORDER BY p.created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`
-    bindings.push(filters.limit, filters.offset)
-    
-    const result = await c.env.DB.prepare(query).bind(...bindings).all()
-    
+
+    if (q) {
+      const tokens = q.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6)
+      for (const t of tokens) {
+        // case-insensitive AND match across name + niche (the same
+        // surface the previous client-side filter scanned)
+        whereParts.push(`(LOWER(COALESCE(p.name,'') || ' ' || COALESCE(p.niche,'')) LIKE $${paramIndex++})`)
+        whereBindings.push(`%${t}%`)
+      }
+    }
+
+    const whereSql = whereParts.join(' AND ')
+
+    const dataSql = `
+      SELECT p.*, d.name as domain_name, d.slug as domain_slug,
+             c.name as category_name, c.slug as category_slug
+      FROM products p
+      JOIN domains d ON p.domain_id = d.id
+      JOIN categories c ON p.category_id = c.id
+      WHERE ${whereSql}
+      ORDER BY p.created_at DESC
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+    `
+    const dataBindings: D1QueryValue[] = [...whereBindings, limit, offset]
+
+    const countSql = `
+      SELECT COUNT(*) AS total
+      FROM products p
+      JOIN domains d ON p.domain_id = d.id
+      JOIN categories c ON p.category_id = c.id
+      WHERE ${whereSql}
+    `
+
+    const [page, totalRow] = await Promise.all([
+      c.env.DB.prepare(dataSql).bind(...dataBindings).all(),
+      c.env.DB.prepare(countSql).bind(...whereBindings).first<{ total: number }>(),
+    ])
+
+    const total = Number(totalRow?.total ?? 0)
+    const products = page.results || []
+    const has_more = offset + products.length < total
+
     return c.json({
-      products: result.results,
-      total: result.results.length,
-      limit: filters.limit,
-      offset: filters.offset,
+      products,
+      total,
+      limit,
+      offset,
+      has_more,
     })
   } catch (err) {
     console.error('Error listing products:', err)

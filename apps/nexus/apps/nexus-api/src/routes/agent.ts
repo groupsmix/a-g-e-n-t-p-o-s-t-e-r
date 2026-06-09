@@ -85,18 +85,73 @@ async function getCatalog(env: Env) {
   return cats.results || []
 }
 
-async function getOverview(env: Env): Promise<string> {
+async function getOverview(env: Env): Promise<{ summary: string; totalProducts: number }> {
   const counts = await env.DB.prepare(`
     SELECT status, COUNT(*) AS n FROM products GROUP BY status
   `).all<any>()
   const recent = await env.DB.prepare(`
     SELECT id, name, status, ai_score FROM products ORDER BY created_at DESC LIMIT 10
   `).all<any>()
-  const byStatus = (counts.results || []).map((r) => `${r.status}: ${r.n}`).join(', ') || 'no products yet'
+  const rows = counts.results || []
+  const totalProducts = rows.reduce((acc, r) => acc + (Number(r.n) || 0), 0)
+  const byStatus = rows.map((r) => `${r.status}: ${r.n}`).join(', ') || 'no products yet'
   const list = (recent.results || [])
     .map((r) => `  - "${r.name || 'Untitled'}" [${(r.id as string).slice(0, 8)}] status=${r.status}${typeof r.ai_score === 'number' ? ` score=${r.ai_score}` : ''}`)
     .join('\n')
-  return `Product counts → ${byStatus}\nMost recent products:\n${list || '  (none)'}`
+  return {
+    summary: `Product counts → ${byStatus}\nMost recent products:\n${list || '  (none)'}`,
+    totalProducts,
+  }
+}
+
+// T14: when the database is empty, certain "read" questions ("what sold
+// best?", "show my products", "how am I doing?") have a deterministic
+// answer — "nothing yet, here's how to start". Spinning up the 6-turn
+// LLM loop just to say that wastes seconds and tokens and sometimes loops
+// the model around `list_products` returning [] before it gives up. We
+// short-circuit those right at the door and hand back a written answer
+// directly. Action requests ("create a product about X") still flow
+// through the agent so it can actually do the work.
+const EMPTY_DATA_READ_PATTERNS: RegExp[] = [
+  /\b(sold|sales|revenue|earn(ed|ing)?|income|profit)\b/i,
+  /\b(best|top|highest|leading)\s+(seller|sellers|product|products|performer)/i,
+  /\b(how (are|is)|what.?s)\s+(my|the)\s+(products?|business|engine|store|sales)\b/i,
+  /\b(list|show|see|view|browse)\s+(my\s+|the\s+|all\s+)?(products?|catalog|inventory)\b/i,
+  /\b(what|which)\s+products?\b/i,
+  /\b(pending|approved|published|rejected|running)\s+products?\b/i,
+  /\b(any|got|have)\s+products?\b/i,
+  /\b(performance|status|overview|dashboard|stats|summary)\b/i,
+  /\bhow\s+(many|much)\b/i,
+  /\b(this|last)\s+(week|month|day|year)\b/i,
+]
+
+// "Build / create / make / dispatch ..." — clearly asks the agent to do
+// work, so even if the DB is empty we should not short-circuit.
+const ACTION_PATTERNS: RegExp[] = [
+  /\b(create|build|make|generate|dispatch|spin\s*up|start|launch|run|kick\s*off|setup|set\s*up)\b/i,
+  /\b(approve|reject|delete|publish|retry|re-?run)\b/i,
+  /\b(scrape|browse|fetch|search\s+the\s+web|visit)\b/i,
+  /\b(change|update|set|configure|toggle|switch)\b/i,
+]
+
+function shouldShortCircuitOnEmpty(message: string, totalProducts: number): boolean {
+  if (totalProducts > 0) return false
+  if (ACTION_PATTERNS.some((re) => re.test(message))) return false
+  return EMPTY_DATA_READ_PATTERNS.some((re) => re.test(message))
+}
+
+function emptyDataReply(): string {
+  return [
+    "There's nothing to report yet — your product catalog is empty, so there are no sales, scores, or pipeline runs to summarize.",
+    '',
+    "Want to kick things off? A few ways to start:",
+    '',
+    '- Tell me what to build: *"Create a product about productivity"* or *"Analyze the wedding planning niche"*',
+    '- Open **Domains** to make sure you have at least one domain/category configured',
+    '- Hit **Build a product** on the Products page for the guided flow',
+    '',
+    "Once even one product is running, ask me again and I'll give you real numbers.",
+  ].join('\n')
 }
 
 const KEY_NAMES = ['GROQ_API_KEY', 'OPENAI_API_KEY', 'FAL_KEY', 'GUMROAD_ACCESS_TOKEN', 'SHOPIFY_STORE', 'SHOPIFY_ADMIN_TOKEN', 'PUBLISH_WEBHOOK_URL']
@@ -223,7 +278,15 @@ agentRoutes.post('/agent', async (c) => {
   const catalog = cats.map((r) => `${r.domain_slug}/${r.category_slug} (${r.domain_name} → ${r.category_name})`)
   const validSlugs = new Set(cats.map((r) => `${r.domain_slug}/${r.category_slug}`))
 
-  const overview = await getOverview(c.env)
+  const { summary: overview, totalProducts } = await getOverview(c.env)
+
+  // T14: empty-data short-circuit — see helpers above. Bail before the LLM
+  // loop when there's literally nothing to read about and the user is
+  // asking a read-style question.
+  if (shouldShortCircuitOnEmpty(message, totalProducts)) {
+    return c.json({ reply: emptyDataReply(), steps: [], short_circuited: true })
+  }
+
   const convo = history.map((m) => `${m.role === 'user' ? 'CEO' : 'You'}: ${m.content}`).join('\n')
 
   const steps: AgentStep[] = []
