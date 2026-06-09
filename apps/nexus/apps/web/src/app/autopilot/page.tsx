@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Rocket, Play, Loader2, TrendingUp, Package, DollarSign, Activity, Zap, AlertTriangle } from 'lucide-react'
 import { api, type AutopilotStatus } from '@/lib/api'
+import { useProjectionGate } from '@/lib/projection-gate'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 
 const ACTION_LABEL: Record<string, string> = {
@@ -19,6 +20,9 @@ export default function AutopilotPage() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [running, setRunning] = useState(false)
+  // T9: same gate the API uses for est_revenue_locked. Per-winner $X
+  // numbers below are projections too, so they hide together.
+  const gate = useProjectionGate()
 
   const refresh = useCallback(async () => {
     const s = await api.getAutopilot()
@@ -195,7 +199,11 @@ export default function AutopilotPage() {
                       <span className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
                         <span className="rounded-full bg-muted px-2 py-0.5">{w.status}</span>
                         <span>score {w.ai_score?.toFixed?.(1) ?? w.ai_score}</span>
-                        <span className="text-emerald-500">~${w.est.toLocaleString()}</span>
+                        {gate.locked ? (
+                          <span className="text-muted-foreground" title={gate.reason ?? 'Projection hidden until 10 recorded sales.'}>~$—</span>
+                        ) : (
+                          <span className="text-emerald-500">~${w.est.toLocaleString()}</span>
+                        )}
                       </span>
                     </Link>
                   ))}

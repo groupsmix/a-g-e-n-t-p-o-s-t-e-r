@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Package, Trash2, Search, RotateCw, Loader2 } from 'lucide-react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { Package, Trash2, Search, RotateCw, Loader2, X } from 'lucide-react'
 import { api, type ProductScoreResponse } from '@/lib/api'
 import type { Product } from '@nexus/types'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
@@ -16,8 +17,27 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [retryingId, setRetryingId] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
+  // T10: seed search from ?q= so the back button restores filtered state
+  // and operators can deep-link a filtered view to themselves.
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  const [search, setSearch] = useState(searchParams?.get('q') ?? '')
   const [scores, setScores] = useState<Record<string, number>>({})
+
+  // Reflect search into the URL (no extra history entries; debounced not
+  // strictly needed for client-side filtering).
+  useEffect(() => {
+    const sp = new URLSearchParams(Array.from(searchParams?.entries() ?? []))
+    if (search.trim()) sp.set('q', search.trim())
+    else sp.delete('q')
+    const next = sp.toString()
+    const current = searchParams?.toString() ?? ''
+    if (next !== current) {
+      router.replace(`${pathname}${next ? `?${next}` : ''}`, { scroll: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
 
   useEffect(() => {
     api
@@ -71,20 +91,28 @@ export default function ProductsPage() {
     }
   }
 
-  // Match across every field the Product row actually carries: name, niche,
-  // and status. Previously it only matched name + niche, so a search whose
-  // term sat in the status (e.g. "rejected") looked broken. Whitespace-
-  // tolerant and case-insensitive so a stray space doesn't zero the list.
-  const q = search.trim().toLowerCase()
-  const filtered = q
-    ? products.filter((p) =>
-        [p.name, p.niche, p.status]
+  // T10: real multi-token AND search.
+  //
+  // The previous version concatenated name+niche+status and called
+  // `includes(q)` on the whole string. That works for a single token
+  // ("design") but fails for cross-field queries like "design tutorial"
+  // when "design" sits in the name and "tutorial" sits in the niche —
+  // a literal "design tutorial" substring never exists. Users see an
+  // empty list and reasonably conclude search is broken.
+  //
+  // Fix: split the query into whitespace-delimited tokens and require
+  // every token to appear *somewhere* in the searchable haystack. Each
+  // token is independently case-insensitive and trimmed.
+  const tokens = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const filtered = tokens.length === 0
+    ? products
+    : products.filter((p) => {
+        const hay = [p.name, p.niche, p.status]
           .filter(Boolean)
           .join(' ')
           .toLowerCase()
-          .includes(q),
-      )
-    : products
+        return tokens.every((t) => hay.includes(t))
+      })
 
   return (
     <>
@@ -93,14 +121,31 @@ export default function ProductsPage() {
         subtitle="Everything NEXUS has generated, across all domains."
         actions={
           products.length > 0 ? (
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search products…"
-                className="input pl-9 w-48 md:w-64 text-sm"
-              />
+            <div className="flex items-center gap-2">
+              {search && (
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {filtered.length}/{products.length}
+                </span>
+              )}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search products…"
+                  className="input pl-9 pr-8 w-48 md:w-64 text-sm"
+                  aria-label="Search products"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch('')}
+                    aria-label="Clear search"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
             </div>
           ) : undefined
         }
