@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -34,65 +34,91 @@ export interface GenerateSiteResult {
 const BOILERPLATE_REPO =
   "https://github.com/cosmicjs/cosmicjs-node-website-boilerplate";
 
+/**
+ * Audit #15: niches that sanitize to nothing (non-Latin scripts, emoji,
+ * punctuation-only) used to yield degenerate slugs like `site--173...`.
+ * Strip diacritics first, and when nothing survives fall back to a
+ * deterministic hash of the original niche so the slug is never empty.
+ */
+export function makeSiteSlug(niche: string): string {
+  const slug = niche
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+  if (slug.length >= 3) return slug;
+
+  let hash = 0;
+  for (const ch of niche) {
+    hash = (hash * 31 + (ch.codePointAt(0) ?? 0)) >>> 0;
+  }
+  return `niche-${hash.toString(36)}`;
+}
+
 export async function generateSite(
   config: SiteConfig,
 ): Promise<GenerateSiteResult> {
   const env = getEnv();
-  const siteSlug = config.niche
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
+  const siteSlug = makeSiteSlug(config.niche);
   const projectName = `site-${siteSlug}-${Date.now()}`;
-  const tempDir = path.join(os.tmpdir(), projectName);
+  // mkdtemp gives a unique, race-free directory; git clones into an
+  // empty existing dir without complaint.
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `${projectName}-`));
 
-  if (fs.existsSync(tempDir)) {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-
-  execSync(`git clone --depth 1 ${BOILERPLATE_REPO} "${tempDir}"`, {
-    stdio: "inherit",
-  });
-
-  const { cosmicBucketSlug } = await createCosmicBucket(siteSlug, config);
-  await configureProject(tempDir, config, cosmicBucketSlug);
-
-  const vercelUrl = await deployToVercel(
-    tempDir,
-    projectName,
-    cosmicBucketSlug,
-    config,
-  );
-
-  const { data, error } = await getSupabase()
-    .from("sites")
-    .insert({
-      niche: config.niche,
-      domain: config.domain ?? null,
-      vercel_project_id: projectName,
-      cosmic_bucket_slug: cosmicBucketSlug,
-      status: "live",
-      affiliate_program: config.affiliateProgram,
-      affiliate_tag: config.affiliateTag,
-      deployed_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
-
-  if (error || !data) {
-    throw new Error(`Failed to save site: ${error?.message ?? "no data"}`);
-  }
-
+  // Audit #14: build the clone as an argument array (no shell string
+  // interpolation), and guarantee temp-dir cleanup on every exit path.
   try {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  } catch {
-    // Non-fatal cleanup
-  }
+    execFileSync(
+      "git",
+      ["clone", "--depth", "1", BOILERPLATE_REPO, tempDir],
+      { stdio: "inherit" },
+    );
 
-  return {
-    siteId: data.id,
-    vercelUrl,
-    cosmicBucketSlug,
-  };
+    const { cosmicBucketSlug } = await createCosmicBucket(siteSlug, config);
+    await configureProject(tempDir, siteSlug, config, cosmicBucketSlug);
+
+    const vercelUrl = await deployToVercel(
+      tempDir,
+      projectName,
+      cosmicBucketSlug,
+      config,
+    );
+
+    const { data, error } = await getSupabase()
+      .from("sites")
+      .insert({
+        niche: config.niche,
+        domain: config.domain ?? null,
+        vercel_project_id: projectName,
+        cosmic_bucket_slug: cosmicBucketSlug,
+        status: "live",
+        affiliate_program: config.affiliateProgram,
+        affiliate_tag: config.affiliateTag,
+        deployed_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+
+    if (error || !data) {
+      throw new Error(`Failed to save site: ${error?.message ?? "no data"}`);
+    }
+
+    return {
+      siteId: data.id,
+      vercelUrl,
+      cosmicBucketSlug,
+    };
+  } finally {
+    try {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+      // Non-fatal cleanup
+    }
+  }
 }
 
 async function createCosmicBucket(
@@ -130,6 +156,7 @@ async function createCosmicBucket(
 
 async function configureProject(
   dir: string,
+  siteSlug: string,
   config: SiteConfig,
   cosmicBucketSlug: string,
 ): Promise<void> {
@@ -150,7 +177,8 @@ async function configureProject(
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as {
     name?: string;
   };
-  pkg.name = `site-${config.niche.toLowerCase().replace(/\s+/g, "-")}`;
+  // Use the sanitized slug so the package name is always npm-valid.
+  pkg.name = `site-${siteSlug}`;
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
 }
 
@@ -163,8 +191,10 @@ async function deployToVercel(
   const env = getEnv();
 
   try {
-    const output = execSync(
-      `npx vercel deploy --prod --yes --name ${projectName}`,
+    // Audit #14: argument array instead of an interpolated shell string.
+    const output = execFileSync(
+      "npx",
+      ["vercel", "deploy", "--prod", "--yes", "--name", projectName],
       {
         cwd: dir,
         encoding: "utf-8",
