@@ -9,7 +9,7 @@ different entry points. Do **not** delete one assuming it's dead.
 
 **Canonical UI is NEXUS.** `apps/dashboard` is the *Brain Cockpit* — memory,
 identity, proactivity, agent journals — not the money/ops dashboard. See
-[`docs/ADR-001-canonical-dashboard.md`](docs/ADR-001-canonical-dashboard.md).
+[`docs/adr/ADR-001-canonical-dashboard.md`](docs/adr/ADR-001-canonical-dashboard.md).
 
 | Stack | Package scope | Driven by | What it does |
 |-------|---------------|-----------|--------------|
@@ -36,7 +36,7 @@ workflows), the @repo runners still ship. CI proves it:
 | `apps/factory/` | CosmicJS site generator (TASK 6.x) — `@repo/factory` |
 | `apps/runner/` | Cron entrypoints for legacy pipeline — `@repo/runner` |
 | `packages/*` | Mixed: `@repo/*` (legacy) and `@posteragent/*` (NEXUS) |
-| `ref/` | Cloned reference repos (do not import directly in production code) |
+| `ref/` | Cloned reference repos — local only, not tracked in git (do not import directly in production code) |
 | `docs/AGENT_TASKS.md` | Full build plan — one task per agent session |
 
 ## Nested workspace install
@@ -49,7 +49,9 @@ workflows), the @repo runners still ship. CI proves it:
 cd apps/nexus && pnpm install
 ```
 
-## Reference repos (`ref/`)
+## Reference repos (`ref/`) — local only, not tracked
+
+`ref/` is git-ignored. Clone these locally if you need them:
 
 - `ref-mastra` — agent/workflow patterns
 - `ref-openmontage` — Remotion compositions
