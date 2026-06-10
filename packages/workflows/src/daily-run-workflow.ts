@@ -136,12 +136,27 @@ const generateAllContentStep = createStep({
     if (!inputData) throw new Error("Missing step input");
     if (!mastra) throw new Error("Mastra instance required");
 
-    const { data: pendingItems } = await getSupabase()
+    // Audit #16: claim the batch atomically instead of select-then-process.
+    // Two overlapping runs used to both read the same `pending` rows and
+    // double-generate. The conditional UPDATE (`status = 'pending'` in the
+    // WHERE) means each row is claimed by exactly one run; rows another run
+    // grabbed first simply drop out of the returned set.
+    const { data: candidates } = await getSupabase()
       .from("content_queue")
-      .select("*")
+      .select("id")
       .eq("status", "pending")
       .order("scheduled_at", { ascending: true })
       .limit(50);
+
+    const candidateIds = (candidates ?? []).map((c: { id: string }) => c.id);
+    const { data: pendingItems } = candidateIds.length
+      ? await getSupabase()
+          .from("content_queue")
+          .update({ status: "generating" })
+          .in("id", candidateIds)
+          .eq("status", "pending")
+          .select("*")
+      : { data: [] };
 
     const formatMap: Record<string, string> = {
       video_short: "did_you_know",
@@ -209,12 +224,25 @@ const publishAllReadyStep = createStep({
       return { ...inputData, publishResults };
     }
 
-    const { data: readyItems } = await getSupabase()
+    // Audit #16: same atomic-claim pattern as generation — transition
+    // ready → publishing in a conditional UPDATE so concurrent runs can
+    // never double-publish the same queue item.
+    const { data: readyCandidates } = await getSupabase()
       .from("content_queue")
-      .select("id, scheduled_at")
+      .select("id")
       .eq("status", "ready")
       .lte("scheduled_at", new Date().toISOString())
       .order("scheduled_at", { ascending: true });
+
+    const readyIds = (readyCandidates ?? []).map((c: { id: string }) => c.id);
+    const { data: readyItems } = readyIds.length
+      ? await getSupabase()
+          .from("content_queue")
+          .update({ status: "publishing" })
+          .in("id", readyIds)
+          .eq("status", "ready")
+          .select("id, scheduled_at")
+      : { data: [] };
 
     for (const item of readyItems ?? []) {
       const run = await publishingWorkflow.createRun();
