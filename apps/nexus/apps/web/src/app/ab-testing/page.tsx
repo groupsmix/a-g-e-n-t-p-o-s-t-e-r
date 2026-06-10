@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { api, type ABTest, type ABTestDetail } from '@/lib/api'
 import { toast } from '@/lib/toast'
-import type { Product } from '@nexus/types'
+import type { Product } from '@posteragent/types/nexus'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 
 function StatusBadge({ status }: { status: string }) {

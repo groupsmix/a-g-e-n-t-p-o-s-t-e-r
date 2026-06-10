@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { LayoutGrid, Plus, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
-import type { Domain, Category } from '@nexus/types'
+import type { Domain, Category } from '@posteragent/types/nexus'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 
 export default function ManagerDomainsPage() {

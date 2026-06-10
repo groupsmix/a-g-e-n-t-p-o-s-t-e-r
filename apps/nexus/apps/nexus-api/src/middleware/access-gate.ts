@@ -26,7 +26,7 @@
 import type { MiddlewareHandler } from 'hono'
 import type { Env } from '../env'
 import { getAccessHash, validateSessionToken } from '../routes/auth'
-import { createLogger } from '@nexus/logger'
+import { createLogger } from '@posteragent/logger/workers'
 
 const logger = createLogger({ service: 'nexus-api' })
 

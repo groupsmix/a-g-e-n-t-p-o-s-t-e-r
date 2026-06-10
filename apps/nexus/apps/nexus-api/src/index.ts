@@ -4,7 +4,7 @@ import type { Env } from './env'
 import { cfAccessMiddleware } from './middleware/cf-access'
 import { isLocalDevRequest } from './local-dev'
 import { sweepStaleRuns } from './services/sweep'
-import { createLogger } from '@nexus/logger'
+import { createLogger } from '@posteragent/logger/workers'
 
 const logger = createLogger({ service: 'nexus-api' })
 

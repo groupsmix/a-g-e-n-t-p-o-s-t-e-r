@@ -30,7 +30,7 @@
  */
 
 import type { Env } from '../env'
-import { createLogger } from '@nexus/logger'
+import { createLogger } from '@posteragent/logger/workers'
 
 import { runAgentTask } from '@posteragent/orchestrator'
 import type { AgentTaskType } from '@posteragent/types'

@@ -1,0 +1,75 @@
+name: D1 Backup
+
+# Audit §4.4 — the whole business state (products, publish queue, revenue,
+# learning loop) lives in a single D1 database with no other backup story.
+# This exports it weekly to the existing R2 bucket (nexus-assets) under
+# backups/d1/ and verifies the upload byte-for-byte.
+#
+# Restore procedure: docs/runbooks/restore-d1-backup.md
+# Retention: add an R2 lifecycle rule on the backups/d1/ prefix (e.g. expire
+# after 90 days) in the Cloudflare dashboard — wrangler can't set it yet.
+#
+# Like deploy.yml, the job no-ops politely when Cloudflare credentials are
+# not configured on the repo.
+
+on:
+  schedule:
+    # Mondays 05:00 UTC — before the 07:00 UTC daily batch cron touches data.
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        # wrangler.toml here defines nexus-db, so wrangler resolves the
+        # database without extra flags.
+        working-directory: apps/nexus/apps/nexus-api
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Cloudflare credentials
+        id: creds
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Cloudflare credentials missing — skipping backup."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.creds.outputs.proceed == 'true'
+        with:
+          node-version: 24
+
+      - name: Install wrangler
+        if: steps.creds.outputs.proceed == 'true'
+        run: npm install -g wrangler@3
+
+      - name: Export D1 to SQL
+        if: steps.creds.outputs.proceed == 'true'
+        run: |
+          STAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          wrangler d1 export nexus-db --remote --output "nexus-db-$STAMP.sql"
+          ls -la "nexus-db-$STAMP.sql"
+
+      - name: Upload to R2 (nexus-assets/backups/d1/)
+        if: steps.creds.outputs.proceed == 'true'
+        run: |
+          wrangler r2 object put "nexus-assets/backups/d1/nexus-db-$STAMP.sql" \
+            --file "nexus-db-$STAMP.sql"
+
+      - name: Verify the upload
+        if: steps.creds.outputs.proceed == 'true'
+        run: |
+          wrangler r2 object get "nexus-assets/backups/d1/nexus-db-$STAMP.sql" \
+            --file /tmp/roundtrip.sql
+          cmp "nexus-db-$STAMP.sql" /tmp/roundtrip.sql
+          echo "Backup verified: backups/d1/nexus-db-$STAMP.sql ($(wc -c < /tmp/roundtrip.sql) bytes)"

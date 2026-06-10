@@ -2,7 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types'
 import type {
   AllocatorDecision,
   VentureVertical,
-} from '@nexus/types'
+} from '@posteragent/types/nexus'
 import {
   computeVentureMetrics,
   killVenture,

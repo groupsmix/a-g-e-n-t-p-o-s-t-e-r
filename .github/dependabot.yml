@@ -5,22 +5,10 @@
 # majors arrive as separate PRs so they get individual review.
 version: 2
 updates:
-  # Root pnpm workspace (apps/*, packages/*)
+  # Single pnpm workspace — one lockfile at the root covers apps/*,
+  # packages/*, apps/nexus/apps/* and apps/nexus/packages/* (audit §2.1).
   - package-ecosystem: "npm"
     directory: "/"
-    schedule:
-      interval: "weekly"
-    groups:
-      minor-and-patch:
-        update-types:
-          - "minor"
-          - "patch"
-    open-pull-requests-limit: 5
-
-  # Nested pnpm workspace with its own lockfile (see audit §2.1 — until the
-  # workspaces are merged, both lockfiles must be kept fresh).
-  - package-ecosystem: "npm"
-    directory: "/apps/nexus"
     schedule:
       interval: "weekly"
     groups:

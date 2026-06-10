@@ -4,7 +4,7 @@ import type {
   VentureMetrics,
   VentureVertical,
   AllocatorDecision,
-} from '@nexus/types'
+} from '@posteragent/types/nexus'
 
 // ============================================================
 // Opportunity Graph Service

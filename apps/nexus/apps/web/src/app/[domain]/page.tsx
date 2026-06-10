@@ -8,7 +8,7 @@ import { api } from '@/lib/api'
 import { Card, CardContent } from '@/components/ui/card'
 import { Plus, ChevronRight, Loader2 } from 'lucide-react'
 import Link from 'next/link'
-import type { Category, Domain } from '@nexus/types'
+import type { Category, Domain } from '@posteragent/types/nexus'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 
 function CategoryCard({ category, domainSlug }: { category: Category; domainSlug: string }) {

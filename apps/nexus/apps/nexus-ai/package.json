@@ -11,9 +11,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@nexus/logger": "workspace:*",
-    "@nexus/types": "workspace:*",
     "@nexus/prompts": "workspace:*",
+    "@posteragent/logger": "workspace:*",
+    "@posteragent/types": "workspace:*",
     "hono": "^4.0.0"
   },
   "devDependencies": {

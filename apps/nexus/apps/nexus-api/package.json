@@ -12,9 +12,7 @@
   },
   "dependencies": {
     "@cloudflare/puppeteer": "^1.1.0",
-    "@nexus/logger": "workspace:*",
     "@nexus/prompts": "workspace:*",
-    "@nexus/types": "workspace:*",
     "@posteragent/agent-analytics": "workspace:*",
     "@posteragent/agent-autonome": "workspace:*",
     "@posteragent/agent-budget": "workspace:*",
@@ -23,6 +21,7 @@
     "@posteragent/agent-research": "workspace:*",
     "@posteragent/agent-revenue": "workspace:*",
     "@posteragent/identity": "workspace:*",
+    "@posteragent/logger": "workspace:*",
     "@posteragent/memory": "workspace:*",
     "@posteragent/orchestrator": "workspace:*",
     "@posteragent/proactivity": "workspace:*",

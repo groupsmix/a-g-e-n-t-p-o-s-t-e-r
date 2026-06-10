@@ -11,7 +11,7 @@
 // picks the best provider for the job.
 
 import type { Env } from '../env'
-import type { TaskType, AIRunTaskResponse } from '@nexus/types'
+import type { TaskType, AIRunTaskResponse } from '@posteragent/types/nexus'
 import {
   callAI as sharedCallAI,
   callAIJson,

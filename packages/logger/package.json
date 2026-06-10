@@ -2,11 +2,12 @@
   "name": "@posteragent/logger",
   "version": "0.1.0",
   "private": true,
-  "description": "Structured pino logger for the posteragent monorepo",
+  "description": "Loggers for the posteragent monorepo: pino (Node) at ., zero-dep Workers-safe logger at ./workers (audit 2.3)",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./workers": "./src/workers.ts"
   },
   "scripts": {
     "build": "tsc",

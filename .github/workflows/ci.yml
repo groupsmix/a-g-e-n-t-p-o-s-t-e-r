@@ -97,9 +97,6 @@ jobs:
   nexus:
     name: nexus
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/nexus
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -107,15 +104,21 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-          cache-dependency-path: apps/nexus/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm build
+      # Run via turbo from the single root workspace (audit §2.1). The old
+      # `pnpm typecheck` here executed the nexus package's no-op
+      # "Run from root" scripts, so this job validated nothing.
+      - run: pnpm turbo run typecheck --filter="@nexus/*"
+      - run: pnpm turbo run test --filter="@nexus/*"
+      # Workers build with tsc. The web app is built by Cloudflare Pages
+      # (pages:build) with its own env, so CI builds only the workers.
+      - run: pnpm turbo run build --filter=@nexus/nexus-api --filter=@nexus/nexus-ai
       # D1 migrations syntax check — runs against an ephemeral local DB
       # so we catch broken SQL before deploy. Skips silently when wrangler
       # isn't available in the runtime.
       - name: D1 migrations dry-run
+        working-directory: apps/nexus
         run: |
           npm install -g wrangler@3
           cd apps/nexus-api
@@ -128,6 +131,7 @@ jobs:
       # ad-hoc (outside the frozen lockfile); the script also falls back to
       # node:sqlite.
       - name: D1 schema-drift check
+        working-directory: apps/nexus
         run: |
           npm install --no-save better-sqlite3@^12 || true
           node scripts/check-schema-drift.mjs

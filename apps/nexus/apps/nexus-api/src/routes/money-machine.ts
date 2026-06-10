@@ -27,7 +27,7 @@
 
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import { createLogger } from '@nexus/logger'
+import { createLogger } from '@posteragent/logger/workers'
 import {
   runMoneyMachineChain,
   enqueueChainAsQueueDriven,

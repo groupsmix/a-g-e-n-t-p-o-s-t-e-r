@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Settings as SettingsIcon, Lock, ShieldCheck } from 'lucide-react'
 import { api, setToken } from '@/lib/api'
-import type { Settings as BaseSettings } from '@nexus/types'
+import type { Settings as BaseSettings } from '@posteragent/types/nexus'
 
 interface Settings extends BaseSettings {
   default_currency?: string

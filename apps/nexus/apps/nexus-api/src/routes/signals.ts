@@ -6,7 +6,7 @@ import {
   scoreSignal,
   promoteSignalToOpportunity,
 } from '../services/signal-normalizer'
-import type { SignalSourceType } from '@nexus/types'
+import type { SignalSourceType } from '@posteragent/types/nexus'
 
 export const signalRoutes = new Hono<{ Bindings: Env }>()
 

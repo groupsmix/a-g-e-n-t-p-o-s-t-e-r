@@ -18,7 +18,7 @@ import {
   type PlatformListing,
   type ListingResult,
 } from '@/lib/api'
-import type { Product } from '@nexus/types'
+import type { Product } from '@posteragent/types/nexus'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 
 const STATUS_ICON: Record<string, React.ReactNode> = {

@@ -1,5 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types'
-import type { VentureVertical } from '@nexus/types'
+import type { VentureVertical } from '@posteragent/types/nexus'
 import { createVenture } from './venture-service'
 
 // ============================================================

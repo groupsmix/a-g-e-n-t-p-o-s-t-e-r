@@ -2,7 +2,7 @@
 // NEXUS-AI Types
 // ============================================================
 
-import type { TaskType, AIRunTaskRequest, AIRunTaskResponse } from '@nexus/types'
+import type { TaskType, AIRunTaskRequest, AIRunTaskResponse } from '@posteragent/types/nexus'
 
 export type { TaskType, AIRunTaskRequest, AIRunTaskResponse }
 

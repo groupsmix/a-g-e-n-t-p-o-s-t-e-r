@@ -1,6 +1,6 @@
 import type { Env } from '../../env'
-import type { AIRunTaskResponse } from '@nexus/types'
-import { createLogger } from '@nexus/logger'
+import type { AIRunTaskResponse } from '@posteragent/types/nexus'
+import { createLogger } from '@posteragent/logger/workers'
 import { safeJson } from './json-parse'
 import { z } from 'zod'
 

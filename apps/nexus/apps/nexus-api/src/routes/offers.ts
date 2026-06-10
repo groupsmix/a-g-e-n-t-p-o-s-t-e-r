@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
 import { rateLimit } from '../middleware/rate-limit'
-import type { Offer } from '@nexus/types'
+import type { Offer } from '@posteragent/types/nexus'
 
 export const offerRoutes = new Hono<{ Bindings: Env }>()
 

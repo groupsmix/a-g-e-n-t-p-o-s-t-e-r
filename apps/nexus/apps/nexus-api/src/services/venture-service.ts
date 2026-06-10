@@ -4,7 +4,7 @@ import type {
   VentureMetrics,
   CreateVentureInput,
   Vertical,
-} from '@nexus/types'
+} from '@posteragent/types/nexus'
 
 // ============================================================
 // Venture Service

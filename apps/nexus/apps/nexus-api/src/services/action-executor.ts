@@ -1,5 +1,5 @@
 import type { Env } from '../env'
-import type { ActionStep, ActionResult } from '@nexus/types'
+import type { ActionStep, ActionResult } from '@posteragent/types/nexus'
 import { browse } from './browser'
 import { listProducts as gumroadListProducts, listSales as gumroadGetSales } from './gumroad'
 import { scoreNiche } from './product-scorer'
