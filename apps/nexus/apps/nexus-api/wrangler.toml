@@ -69,12 +69,17 @@ binding = "BROWSER"
 # ================================
 # SCHEDULED TRIGGERS
 # ================================
-# Two lanes (the handler in src/index.ts branches on `controller.cron`):
+# Three lanes (the handler in src/index.ts branches on `controller.cron`):
 #   - "*/5 * * * *" → run-timeout janitor only (T13). Reaps workflow_runs /
 #     workflow_steps / products / agent_tasks / agent_runs stuck in RUNNING
 #     past the 10-min cutoff. Must match STALE_SWEEP_CRON in src/index.ts.
+#   - "0 */6 * * *" → legacy stats-pull (audit §2.2): TikTok/IG engagement
+#     for LEGACY-pipeline posts → Supabase published_posts. Workers port of
+#     .github/workflows/stats-pull.yml; parallel-runs with it until legacy
+#     retirement. Must match LEGACY_STATS_CRON in src/index.ts. No-ops until
+#     SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY secrets are set.
 #   - "0 7 * * *"   → daily batch (trend radar, autopilot, digest, analytics…).
 [triggers]
-crons = ["*/5 * * * *", "0 7 * * *"]
+crons = ["*/5 * * * *", "0 */6 * * *", "0 7 * * *"]
 
 

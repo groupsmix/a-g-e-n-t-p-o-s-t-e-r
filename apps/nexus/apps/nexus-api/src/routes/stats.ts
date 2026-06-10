@@ -150,3 +150,15 @@ statsRoutes.get('/', async (c) => {
     kill_switch_active: killSwitch === 'true',
   })
 })
+
+// ── POST /api/stats/legacy-pull ─────────────────────────────
+// Manual trigger for the legacy stats-pull port (audit §2.2). The cron lane
+// ("0 */6 * * *") does this automatically; this endpoint exists so the
+// parallel-run week can be verified on demand — run it, then diff the
+// Supabase rows against the legacy Actions run logs. Behind the access gate
+// like every /api route. Returns the run summary.
+statsRoutes.post('/legacy-pull', async (c) => {
+  const { runLegacyStatsPull } = await import('../services/legacy-stats-pull')
+  const result = await runLegacyStatsPull(c.env)
+  return c.json(result)
+})

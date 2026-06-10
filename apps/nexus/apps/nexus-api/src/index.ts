@@ -4,6 +4,7 @@ import type { Env } from './env'
 import { cfAccessMiddleware } from './middleware/cf-access'
 import { isLocalDevRequest } from './local-dev'
 import { sweepStaleRuns } from './services/sweep'
+import { runLegacyStatsPull } from './services/legacy-stats-pull'
 import { createLogger } from '@posteragent/logger/workers'
 
 const logger = createLogger({ service: 'nexus-api' })
@@ -266,6 +267,13 @@ app.notFound((c) => {
 // of the whole daily batch (digest, trend radar, analytics, …).
 const STALE_SWEEP_CRON = '*/5 * * * *'
 
+// Cron expression for the legacy stats-pull lane (audit §2.2, item 11) —
+// the Workers port of .github/workflows/stats-pull.yml. Same matching rule
+// as STALE_SWEEP_CRON: must stay byte-for-byte identical to wrangler.toml.
+// Runs every 6h like the legacy Actions cron it parallel-runs against; safe
+// no-op until the SUPABASE_* secrets are configured on the worker.
+const LEGACY_STATS_CRON = '0 */6 * * *'
+
 // Export for Cloudflare Workers
 export default {
   fetch: app.fetch,
@@ -275,6 +283,16 @@ export default {
     // waiting up to 24h for the daily 07:00 batch — the bug T13 fixes.
     if (controller.cron === STALE_SWEEP_CRON) {
       ctx.waitUntil(sweepStaleRuns(env))
+      return
+    }
+
+    // Legacy stats-pull lane (audit §2.2): TikTok/IG engagement for posts
+    // published by the LEGACY pipeline, written to Supabase. Distinct from
+    // runAnalyticsCollector (TASK-702), which only covers NEXUS publish_jobs.
+    if (controller.cron === LEGACY_STATS_CRON) {
+      ctx.waitUntil(runLegacyStatsPull(env).catch((err) => {
+        logger.error('Legacy stats pull error', err instanceof Error ? err : new Error(String(err)))
+      }))
       return
     }
 

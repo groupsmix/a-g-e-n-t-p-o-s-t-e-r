@@ -58,6 +58,19 @@ export interface Env {
   // Gumroad access token for auto-publish
   GUMROAD_ACCESS_TOKEN?: string
 
+  // ── Legacy stats-pull (audit §2.2 — Workers port of stats-pull.yml) ──
+  // Supabase project URL + service-role key for the LEGACY pipeline's
+  // published_posts table. While unset, the legacy stats cron lane no-ops.
+  // Set via `wrangler secret put SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY`
+  // (also resolvable from the SECRETS store or dashboard KV keys).
+  SUPABASE_URL?: string
+  SUPABASE_SERVICE_ROLE_KEY?: string
+
+  // Platform tokens used by the legacy stats pull. Optional — each platform
+  // is skipped when its token is missing.
+  TIKTOK_ACCESS_TOKEN?: string
+  INSTAGRAM_ACCESS_TOKEN?: string
+
   // URL for the Nexus AI service endpoint (configurable, defaults to https://nexus-ai/task)
   NEXUS_AI_URL?: string
 
