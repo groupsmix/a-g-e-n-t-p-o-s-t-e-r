@@ -1,10 +1,12 @@
 /**
- * T17 — Worker API auth audit.
+ * T17 — Worker API auth audit. Extended for audit 1.2 (fail-closed).
  *
  * Proves the access gate protects EVERY /api route (not a hand-maintained
- * per-route list) once a password is configured, while keeping the
- * by-design-open surfaces reachable. Uses a tiny in-memory KV stub and
- * Hono's app.request() so we exercise the real middleware without Miniflare.
+ * per-route list) once a password is configured, keeps the by-design-open
+ * surfaces reachable, and — fail-closed — refuses everything except
+ * /api/auth/* when NO password is configured. Uses a tiny in-memory KV stub
+ * and Hono's app.request() so we exercise the real middleware without
+ * Miniflare.
  */
 
 import { describe, it, expect } from 'vitest'
@@ -44,11 +46,39 @@ function makeApp() {
 
 const PASSWORD = { ACCESS_PASSWORD: 'a-sufficiently-long-password' }
 
-describe('access gate (T17)', () => {
-  it('lets everything through when no password is configured', async () => {
+describe('access gate — fail-closed when unconfigured (audit 1.2)', () => {
+  it('refuses a normal route with 403 setup_required when no password is configured', async () => {
     const res = await makeApp().request('/api/products', {}, env())
+    expect(res.status).toBe(403)
+    expect(await res.json()).toMatchObject({ code: 'setup_required' })
+  })
+
+  it('refuses UNKNOWN routes too when unconfigured — fail-closed is blanket', async () => {
+    const res = await makeApp().request('/api/route-that-does-not-exist', {}, env())
+    expect(res.status).toBe(403)
+  })
+
+  it('refuses /api/assets/* and /api/email/subscribe when unconfigured', async () => {
+    const e = env()
+    expect((await makeApp().request('/api/assets/r2/abc', {}, e)).status).toBe(403)
+    expect(
+      (await makeApp().request('/api/email/subscribe', { method: 'POST' }, e)).status,
+    ).toBe(403)
+  })
+
+  it('keeps /api/auth/* reachable when unconfigured so the owner can bootstrap', async () => {
+    const res = await makeApp().request('/api/auth/status', {}, env())
     expect(res.status).toBe(200)
   })
+
+  it('never blocks OPTIONS preflight, even when unconfigured', async () => {
+    const res = await makeApp().request('/api/products', { method: 'OPTIONS' }, env())
+    expect(res.status).not.toBe(403)
+    expect(res.status).not.toBe(401)
+  })
+})
+
+describe('access gate (T17)', () => {
 
   it('returns 401 auth_required for a protected route with no token once locked', async () => {
     const res = await makeApp().request('/api/products', {}, env(PASSWORD))
