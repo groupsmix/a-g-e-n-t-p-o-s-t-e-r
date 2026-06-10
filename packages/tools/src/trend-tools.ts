@@ -24,22 +24,79 @@ export const fetchGoogleTrendsTool = createTool({
       }),
     ),
   }),
-  execute: async ({ niche, region }) => {
+  execute: async ({ niche, region, timeframe, limit }) => {
+    // Audit #21: this used interestOverTime and mapped formattedValue —
+    // a traffic *index* time series ("83", "100", ...) — as "keywords",
+    // so downstream content generation ran on meaningless numbers.
+    // relatedQueries gives actual search queries for the niche, and
+    // dailyTrends gives real trending topics with traffic + related queries.
     const googleTrends = await import("google-trends-api");
-    const results = await googleTrends.interestOverTime({
-      keyword: niche,
-      geo: region,
-      startTime: new Date(Date.now() - 24 * 60 * 60 * 1000),
-    });
-    const parsed = JSON.parse(results) as {
-      default?: { timelineData?: { formattedValue: string[] }[] };
+
+    const timeframeToMs: Record<string, number> = {
+      "now 1-H": 60 * 60 * 1000,
+      "now 4-H": 4 * 60 * 60 * 1000,
+      "now 1-d": 24 * 60 * 60 * 1000,
+      "now 7-d": 7 * 24 * 60 * 60 * 1000,
+      "today 1-m": 30 * 24 * 60 * 60 * 1000,
     };
-    const keywords =
-      parsed.default?.timelineData
-        ?.map((d) => d.formattedValue[0])
-        .filter(Boolean)
-        .slice(0, 20) ?? [];
-    return { keywords, topics: [] };
+    const startTime = new Date(
+      Date.now() - (timeframeToMs[timeframe ?? "now 1-d"] ?? 24 * 60 * 60 * 1000),
+    );
+    const maxResults = limit ?? 20;
+
+    let keywords: string[] = [];
+    try {
+      const relatedRaw = await googleTrends.relatedQueries({
+        keyword: niche,
+        geo: region,
+        startTime,
+      });
+      const related = JSON.parse(relatedRaw) as {
+        default?: {
+          rankedList?: { rankedKeyword?: { query?: string }[] }[];
+        };
+      };
+      keywords = (related.default?.rankedList ?? [])
+        .flatMap((list) => list.rankedKeyword ?? [])
+        .map((k) => k.query)
+        .filter((q): q is string => Boolean(q))
+        .slice(0, maxResults);
+    } catch {
+      // Fall through with empty keywords; topics below may still succeed.
+    }
+
+    let topics: { title: string; traffic: string; relatedQueries: string[] }[] =
+      [];
+    try {
+      const dailyRaw = await googleTrends.dailyTrends({ geo: region });
+      const daily = JSON.parse(dailyRaw) as {
+        default?: {
+          trendingSearchesDays?: {
+            trendingSearches?: {
+              title?: { query?: string };
+              formattedTraffic?: string;
+              relatedQueries?: { query?: string }[];
+            }[];
+          }[];
+        };
+      };
+      topics = (
+        daily.default?.trendingSearchesDays?.[0]?.trendingSearches ?? []
+      )
+        .map((t) => ({
+          title: t.title?.query ?? "",
+          traffic: t.formattedTraffic ?? "",
+          relatedQueries: (t.relatedQueries ?? [])
+            .map((q) => q.query)
+            .filter((q): q is string => Boolean(q)),
+        }))
+        .filter((t) => t.title)
+        .slice(0, maxResults);
+    } catch {
+      // Daily trends are best-effort.
+    }
+
+    return { keywords, topics };
   },
 });
 
@@ -62,25 +119,47 @@ export const fetchTikTokTrendsTool = createTool({
     ),
     topics: z.array(z.string()),
   }),
-  execute: async ({ country, limit }) => {
-    const url = `https://ads.tiktok.com/creative_radar_api/v1/popular_trend/hashtag/list?period=7&country_code=${country}&page_size=${limit}`;
+  execute: async ({ niche, country, limit }) => {
+    // Audit #22: `niche` was accepted but silently ignored — every niche got
+    // the same generic top hashtags. The Creative Center list endpoint has no
+    // keyword filter, so we over-fetch and filter by niche tokens, falling
+    // back to the unfiltered top list when nothing matches.
+    const maxResults = limit ?? 30;
+    const pageSize = Math.min(Math.max(maxResults * 2, 50), 100);
+    const url = `https://ads.tiktok.com/creative_radar_api/v1/popular_trend/hashtag/list?period=7&country_code=${country}&page_size=${pageSize}`;
     const response = await fetch(url, {
       headers: { "User-Agent": "Mozilla/5.0" },
     });
+    if (!response.ok) {
+      throw new Error(`TikTok trends request failed: HTTP ${response.status}`);
+    }
     const data = (await response.json()) as {
       data?: {
         list?: {
           hashtag_name: string;
-          video_views: number;
+          video_views?: number;
+          publish_cnt?: number;
         }[];
       };
     };
-    const hashtags =
-      data?.data?.list?.map((item) => ({
+    const list = data?.data?.list ?? [];
+
+    const nicheTokens = niche
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length > 2);
+    const matches = list.filter((item) =>
+      nicheTokens.some((t) => item.hashtag_name?.toLowerCase().includes(t)),
+    );
+
+    const hashtags = (matches.length > 0 ? matches : list)
+      .slice(0, maxResults)
+      .map((item) => ({
         name: item.hashtag_name,
-        videoCount: item.video_views,
-        viewCount: item.video_views,
-      })) ?? [];
+        // Audit #22 (bonus): videoCount used to duplicate video_views.
+        videoCount: item.publish_cnt ?? 0,
+        viewCount: item.video_views ?? 0,
+      }));
     return { hashtags, topics: hashtags.map((h) => h.name) };
   },
 });

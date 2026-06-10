@@ -10,7 +10,7 @@ export class LinkedInPublisher extends BasePlatformPublisher {
   maxCaptionLength = 1300;
   supportedMediaTypes: ("image" | "video")[] = ["image", "video"];
 
-  async publish(content: PostContent): Promise<PublishResult> {
+  protected async doPublish(content: PostContent): Promise<PublishResult> {
     try {
       const env = getEnv();
       if (!env.LINKEDIN_ACCESS_TOKEN) {
@@ -19,6 +19,13 @@ export class LinkedInPublisher extends BasePlatformPublisher {
 
       const text = this.buildFullCaption(content.caption, content.hashtags);
       const authorUrn = await this.getAuthorUrn(env.LINKEDIN_ACCESS_TOKEN);
+
+      // Audit #24: the recipe and share category were hardcoded to video,
+      // so images were registered and posted as videos. Pick by media type.
+      const isVideo = content.type === "video";
+      const recipe = isVideo
+        ? "urn:li:digitalmediaRecipe:feedshare-video"
+        : "urn:li:digitalmediaRecipe:feedshare-image";
 
       const registerRes = await fetch(
         "https://api.linkedin.com/v2/assets?action=registerUpload",
@@ -31,7 +38,7 @@ export class LinkedInPublisher extends BasePlatformPublisher {
           },
           body: JSON.stringify({
             registerUploadRequest: {
-              recipes: ["urn:li:digitalmediaRecipe:feedshare-video"],
+              recipes: [recipe],
               owner: authorUrn,
               serviceRelationships: [
                 {
@@ -43,6 +50,12 @@ export class LinkedInPublisher extends BasePlatformPublisher {
           }),
         },
       );
+
+      if (!registerRes.ok) {
+        throw new Error(
+          `LinkedIn asset registration failed: HTTP ${registerRes.status}`,
+        );
+      }
 
       const register = (await registerRes.json()) as {
         value?: {
@@ -70,11 +83,14 @@ export class LinkedInPublisher extends BasePlatformPublisher {
           )
         : await this.downloadMedia(content.mediaUrl);
 
-      await fetch(uploadUrl, {
+      const uploadRes = await fetch(uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": "application/octet-stream" },
         body: buffer,
       });
+      if (!uploadRes.ok) {
+        throw new Error(`LinkedIn media upload failed: HTTP ${uploadRes.status}`);
+      }
 
       const postRes = await fetch("https://api.linkedin.com/v2/ugcPosts", {
         method: "POST",
@@ -89,7 +105,7 @@ export class LinkedInPublisher extends BasePlatformPublisher {
           specificContent: {
             "com.linkedin.ugc.ShareContent": {
               shareCommentary: { text },
-              shareMediaCategory: "VIDEO",
+              shareMediaCategory: isVideo ? "VIDEO" : "IMAGE",
               media: [
                 {
                   status: "READY",

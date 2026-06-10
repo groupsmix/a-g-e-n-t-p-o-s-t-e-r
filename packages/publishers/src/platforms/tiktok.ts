@@ -10,7 +10,7 @@ export class TikTokPublisher extends BasePlatformPublisher {
   maxCaptionLength = 2200;
   supportedMediaTypes: ("video")[] = ["video"];
 
-  async publish(content: PostContent): Promise<PublishResult> {
+  protected async doPublish(content: PostContent): Promise<PublishResult> {
     try {
       const env = getEnv();
       const initResponse = await fetch(
@@ -50,9 +50,16 @@ export class TikTokPublisher extends BasePlatformPublisher {
       }
 
       const publishId = initData.data.publish_id;
-      let attempts = 0;
-      while (attempts < 30) {
-        await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Audit #29: this polled every 3s for a fixed 30 attempts (~90s of
+      // blocking, ~30 API calls). Exponential backoff (3s → 15s) against an
+      // explicit deadline bounds the worst case and roughly halves the
+      // number of status calls. PULL_FROM_URL has no webhook in this setup,
+      // so some polling is unavoidable in the cron path.
+      const deadline = Date.now() + 5 * 60_000;
+      let delayMs = 3000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        delayMs = Math.min(Math.round(delayMs * 1.5), 15_000);
         const statusResponse = await fetch(
           "https://open.tiktokapis.com/v2/post/publish/status/fetch/",
           {
@@ -64,7 +71,12 @@ export class TikTokPublisher extends BasePlatformPublisher {
             body: JSON.stringify({ publish_id: publishId }),
           },
         );
-        const statusData = (await statusResponse.json()) as {
+        if (!statusResponse.ok) {
+          throw new Error(
+            `TikTok status check failed: HTTP ${statusResponse.status}`,
+          );
+        }
+        const statusData = (await statusResponse.json().catch(() => ({}))) as {
           data?: { status?: string; fail_reason?: string };
         };
         if (statusData.data?.status === "PUBLISH_COMPLETE") {
@@ -75,7 +87,6 @@ export class TikTokPublisher extends BasePlatformPublisher {
             `TikTok publish failed: ${statusData.data.fail_reason ?? "unknown"}`,
           );
         }
-        attempts++;
       }
 
       throw new Error("TikTok publish timed out");

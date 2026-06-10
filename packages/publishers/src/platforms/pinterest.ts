@@ -10,7 +10,7 @@ export class PinterestPublisher extends BasePlatformPublisher {
   maxCaptionLength = 500;
   supportedMediaTypes: ("image" | "video")[] = ["image", "video"];
 
-  async publish(content: PostContent): Promise<PublishResult> {
+  protected async doPublish(content: PostContent): Promise<PublishResult> {
     try {
       const env = getEnv();
       if (!env.PINTEREST_ACCESS_TOKEN) {
