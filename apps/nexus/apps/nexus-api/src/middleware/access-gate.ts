@@ -25,7 +25,7 @@
 
 import type { MiddlewareHandler } from 'hono'
 import type { Env } from '../env'
-import { getAccessHash, validateSessionToken } from '../routes/auth'
+import { isAccessConfigured, validateSessionToken } from '../routes/auth'
 import { createLogger } from '@nexus/logger'
 
 const logger = createLogger({ service: 'nexus-api' })
@@ -99,8 +99,8 @@ export function accessGate(): MiddlewareHandler<{ Bindings: Env }> {
     // FAIL-CLOSED: nothing else responds until a password is configured.
     // A fresh deploy without ACCESS_PASSWORD used to be wide open here
     // ("not protected yet"); now it refuses everything and points at setup.
-    const hash = await getAccessHash(c.env)
-    if (!hash) {
+    const configured = await isAccessConfigured(c.env)
+    if (!configured) {
       logger.warn('access gate refused request on unconfigured deploy', { path })
       return c.json(
         {
