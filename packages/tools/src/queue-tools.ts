@@ -28,7 +28,7 @@ export const addToQueueTool = createTool({
     platform_targets: z.array(z.string()),
     source_url: z.string().optional(),
     scheduled_at: z.string().optional(),
-    metadata: z.record(z.unknown()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
   }),
   outputSchema: z.object({
     id: z.string(),
@@ -89,7 +89,7 @@ export const getNextBatchTool = createTool({
     "Returns the next N pending items from the queue sorted by scheduled_at",
   inputSchema: z.object({ limit: z.number().default(10) }),
   outputSchema: z.object({
-    items: z.array(z.record(z.unknown())),
+    items: z.array(z.record(z.string(), z.unknown())),
   }),
   execute: async ({ limit }) => {
     const rowLimit = limit ?? 10;
@@ -109,7 +109,7 @@ export const updateQueueItemTool = createTool({
   inputSchema: z.object({
     id: z.string(),
     status: queueStatusSchema.optional(),
-    metadata: z.record(z.unknown()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
     error: z.string().optional(),
   }),
   outputSchema: z.object({ updated: z.boolean() }),

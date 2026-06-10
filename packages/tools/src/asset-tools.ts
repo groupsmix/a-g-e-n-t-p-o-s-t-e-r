@@ -23,7 +23,7 @@ export const addAssetToDbTool = createTool({
     height: z.number().optional(),
     duration_seconds: z.number().optional(),
     file_size_bytes: z.number().optional(),
-    metadata: z.record(z.unknown()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
   }),
   outputSchema: z.object({
     id: z.string(),

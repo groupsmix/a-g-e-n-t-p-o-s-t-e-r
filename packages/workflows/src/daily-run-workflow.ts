@@ -52,7 +52,7 @@ const generationOutputSchema = queueFilledSchema.extend({
 });
 
 const publishOutputSchema = generationOutputSchema.extend({
-  publishResults: z.array(z.record(z.unknown())),
+  publishResults: z.array(z.record(z.string(), z.unknown())),
 });
 
 const siteContentOutputSchema = publishOutputSchema.extend({

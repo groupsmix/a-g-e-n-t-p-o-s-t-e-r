@@ -34,7 +34,7 @@ const videoInputSchema = z.object({
 });
 
 const scriptStepOutputSchema = z.object({
-  script: z.array(z.record(z.unknown())),
+  script: z.array(z.record(z.string(), z.unknown())),
   fullVoiceoverText: z.string(),
   estimatedDurationSeconds: z.number(),
   compositionId: z.string(),
