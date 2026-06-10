@@ -24,7 +24,7 @@ export class InstagramPublisher extends BasePlatformPublisher {
           : ["image", "video", "carousel"];
   }
 
-  async publish(content: PostContent): Promise<PublishResult> {
+  protected async doPublish(content: PostContent): Promise<PublishResult> {
     try {
       const env = getEnv();
       const accountId = env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
@@ -45,12 +45,16 @@ export class InstagramPublisher extends BasePlatformPublisher {
             }),
           },
         );
-        const container = (await containerRes.json()) as {
+        // Audit #26: check HTTP status and surface the Graph error message.
+        const container = (await containerRes.json().catch(() => ({}))) as {
           id?: string;
           error?: { message?: string };
         };
-        if (!container.id) {
-          throw new Error(container.error?.message ?? "IG container failed");
+        if (!containerRes.ok || !container.id) {
+          throw new Error(
+            container.error?.message ??
+              `IG container failed: HTTP ${containerRes.status}`,
+          );
         }
 
         await this.waitForContainer(container.id, token);
@@ -65,7 +69,16 @@ export class InstagramPublisher extends BasePlatformPublisher {
             }),
           },
         );
-        const published = (await publishRes.json()) as { id?: string };
+        const published = (await publishRes.json().catch(() => ({}))) as {
+          id?: string;
+          error?: { message?: string };
+        };
+        if (!publishRes.ok || !published.id) {
+          throw new Error(
+            published.error?.message ??
+              `IG publish failed: HTTP ${publishRes.status}`,
+          );
+        }
         return this.success(published.id);
       }
 
@@ -81,9 +94,16 @@ export class InstagramPublisher extends BasePlatformPublisher {
           }),
         },
       );
-      const imageContainer = (await imageRes.json()) as { id?: string };
-      if (!imageContainer.id) {
-        throw new Error("Instagram image container failed");
+      // Audit #26: check HTTP status and surface the Graph error message.
+      const imageContainer = (await imageRes.json().catch(() => ({}))) as {
+        id?: string;
+        error?: { message?: string };
+      };
+      if (!imageRes.ok || !imageContainer.id) {
+        throw new Error(
+          imageContainer.error?.message ??
+            `Instagram image container failed: HTTP ${imageRes.status}`,
+        );
       }
       await this.waitForContainer(imageContainer.id, token);
       const publishRes = await fetch(
@@ -97,7 +117,16 @@ export class InstagramPublisher extends BasePlatformPublisher {
           }),
         },
       );
-      const published = (await publishRes.json()) as { id?: string };
+      const published = (await publishRes.json().catch(() => ({}))) as {
+        id?: string;
+        error?: { message?: string };
+      };
+      if (!publishRes.ok || !published.id) {
+        throw new Error(
+          published.error?.message ??
+            `Instagram publish failed: HTTP ${publishRes.status}`,
+        );
+      }
       return this.success(published.id);
     } catch (error) {
       return this.failure(error);
@@ -114,7 +143,14 @@ export class InstagramPublisher extends BasePlatformPublisher {
         `https://graph.facebook.com/v19.0/${containerId}?fields=status_code`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      const data = (await res.json()) as { status_code?: string };
+      if (!res.ok) {
+        throw new Error(
+          `Instagram container status check failed: HTTP ${res.status}`,
+        );
+      }
+      const data = (await res.json().catch(() => ({}))) as {
+        status_code?: string;
+      };
       if (data.status_code === "FINISHED") return;
       if (data.status_code === "ERROR") {
         throw new Error("Instagram media processing failed");

@@ -11,7 +11,7 @@ export class TwitterPublisher extends BasePlatformPublisher {
   maxCaptionLength = 280;
   supportedMediaTypes: ("image" | "video")[] = ["image", "video"];
 
-  async publish(content: PostContent): Promise<PublishResult> {
+  protected async doPublish(content: PostContent): Promise<PublishResult> {
     try {
       const env = getEnv();
       const buffer = content.localPath
@@ -23,26 +23,30 @@ export class TwitterPublisher extends BasePlatformPublisher {
       const mediaId = await this.uploadMedia(buffer, content.type === "video");
       const text = this.buildFullCaption(content.caption, content.hashtags);
 
-      const tweetRes = await fetch("https://api.twitter.com/2/tweets", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${env.TWITTER_ACCESS_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      // Audit #25: POST /2/tweets requires OAuth 1.0a user context here.
+      // TWITTER_ACCESS_TOKEN is an OAuth1 user token, not an app bearer
+      // token — sending it as `Bearer ...` is always rejected (and an app
+      // bearer token cannot create tweets anyway). Sign like media upload.
+      const tweetRes = await this.oauthFetch(
+        "https://api.twitter.com/2/tweets",
+        "POST",
+        env,
+        JSON.stringify({
           text,
           media: { media_ids: [mediaId] },
         }),
-      });
+        "application/json",
+      );
 
-      const tweet = (await tweetRes.json()) as {
+      const tweet = (await tweetRes.json().catch(() => ({}))) as {
         data?: { id: string };
         errors?: Array<{ message: string }>;
       };
 
-      if (!tweet.data?.id) {
+      if (!tweetRes.ok || !tweet.data?.id) {
         throw new Error(
-          tweet.errors?.[0]?.message ?? "Twitter tweet create failed",
+          tweet.errors?.[0]?.message ??
+            `Twitter tweet create failed: HTTP ${tweetRes.status}`,
         );
       }
 
@@ -141,12 +145,18 @@ export class TwitterPublisher extends BasePlatformPublisher {
     url: string,
     method: string,
     env: ReturnType<typeof getEnv>,
-    body?: FormData,
+    body?: FormData | string,
+    contentType?: string,
   ): Promise<Response> {
+    // Note: only oauth_* and query params are included in the OAuth1
+    // signature base string. JSON and multipart bodies are intentionally
+    // excluded per the OAuth 1.0a spec / Twitter docs.
     const oauthHeader = this.buildOAuth1Header(url, method, env);
+    const headers: Record<string, string> = { Authorization: oauthHeader };
+    if (contentType) headers["Content-Type"] = contentType;
     return fetch(url, {
       method,
-      headers: { Authorization: oauthHeader },
+      headers,
       body,
     });
   }

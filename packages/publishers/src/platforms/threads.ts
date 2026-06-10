@@ -10,7 +10,7 @@ export class ThreadsPublisher extends BasePlatformPublisher {
   maxCaptionLength = 500;
   supportedMediaTypes: ("image" | "video")[] = ["image", "video"];
 
-  async publish(content: PostContent): Promise<PublishResult> {
+  protected async doPublish(content: PostContent): Promise<PublishResult> {
     try {
       const env = getEnv();
       const token = env.INSTAGRAM_ACCESS_TOKEN;
@@ -34,9 +34,15 @@ export class ThreadsPublisher extends BasePlatformPublisher {
           body: JSON.stringify({ ...containerBody, access_token: token }),
         },
       );
-      const container = (await containerRes.json()) as { id?: string };
-      if (!container.id) {
-        throw new Error("Threads container creation failed");
+      const container = (await containerRes.json().catch(() => ({}))) as {
+        id?: string;
+        error?: { message?: string };
+      };
+      if (!containerRes.ok || !container.id) {
+        throw new Error(
+          container.error?.message ??
+            `Threads container creation failed: HTTP ${containerRes.status}`,
+        );
       }
 
       const publishRes = await fetch(
@@ -50,7 +56,18 @@ export class ThreadsPublisher extends BasePlatformPublisher {
           }),
         },
       );
-      const published = (await publishRes.json()) as { id?: string };
+      // Audit #27: this used to report success even when the publish call
+      // failed or returned no id. Assert both the status and the id.
+      const published = (await publishRes.json().catch(() => ({}))) as {
+        id?: string;
+        error?: { message?: string };
+      };
+      if (!publishRes.ok || !published.id) {
+        throw new Error(
+          published.error?.message ??
+            `Threads publish failed: HTTP ${publishRes.status}`,
+        );
+      }
       return this.success(published.id);
     } catch (error) {
       return this.failure(error);

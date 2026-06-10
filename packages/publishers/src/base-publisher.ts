@@ -27,7 +27,22 @@ export abstract class BasePlatformPublisher {
   abstract maxCaptionLength: number;
   abstract supportedMediaTypes: MediaType[];
 
-  abstract publish(content: PostContent): Promise<PublishResult>;
+  // Audit #23: supportedMediaTypes was declared per-platform but never
+  // checked, so e.g. a carousel could be handed to TikTok and fail deep
+  // inside the platform API call. publish() is now a template method that
+  // enforces the declared support before delegating to doPublish().
+  async publish(content: PostContent): Promise<PublishResult> {
+    if (!this.supportedMediaTypes.includes(content.type)) {
+      return this.failure(
+        new Error(
+          `${this.platform} does not support media type "${content.type}" (supported: ${this.supportedMediaTypes.join(", ")})`,
+        ),
+      );
+    }
+    return this.doPublish(content);
+  }
+
+  protected abstract doPublish(content: PostContent): Promise<PublishResult>;
 
   protected truncateCaption(caption: string): string {
     if (caption.length <= this.maxCaptionLength) return caption;

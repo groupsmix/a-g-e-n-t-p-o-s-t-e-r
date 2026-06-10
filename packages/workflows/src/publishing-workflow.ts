@@ -7,7 +7,7 @@ import {
 } from "@mastra/core/tools";
 import { z } from "zod";
 import { getSupabase } from "@repo/core";
-import { getPublisher, type PublishResult } from "@repo/publishers";
+import { findPublisher, type PublishResult } from "@repo/publishers";
 import {
   generateCaptionTool,
   updateQueueItemTool,
@@ -217,15 +217,25 @@ const publishToPlatformsStep = createStep({
         throw new Error(`Missing captions for platform: ${platform}`);
       }
 
-      const publisher = getPublisher(platform);
-      const result = await publisher.publish({
-        type: mediaType,
-        mediaUrl,
-        caption: captions.caption,
-        hashtags: captions.hashtags,
-        title: inputData.topic,
-        description: captions.fullPost,
-      });
+      // Audit #30: an unknown platform used to throw here, aborting the
+      // whole queue item (and skipping the published_posts insert) even when
+      // other platforms would have succeeded. Record a failure row instead.
+      const publisher = findPublisher(platform);
+      const result: PublishResult = publisher
+        ? await publisher.publish({
+            type: mediaType,
+            mediaUrl,
+            caption: captions.caption,
+            hashtags: captions.hashtags,
+            title: inputData.topic,
+            description: captions.fullPost,
+          })
+        : {
+            platform,
+            success: false,
+            error: `No publisher for platform: ${platform}`,
+            publishedAt: new Date(),
+          };
 
       await getSupabase().from("published_posts").insert({
         content_queue_id: inputData.id,

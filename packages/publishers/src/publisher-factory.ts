@@ -1,4 +1,8 @@
-import { BasePlatformPublisher, type PostContent } from "./base-publisher.js";
+import {
+  BasePlatformPublisher,
+  type PostContent,
+  type PublishResult,
+} from "./base-publisher.js";
 import { TikTokPublisher } from "./platforms/tiktok.js";
 import { InstagramPublisher } from "./platforms/instagram.js";
 import { YouTubePublisher } from "./platforms/youtube.js";
@@ -28,13 +32,37 @@ export function getPublisher(platform: string): BasePlatformPublisher {
   return publisher;
 }
 
+/** Like getPublisher, but returns undefined instead of throwing. */
+export function findPublisher(
+  platform: string,
+): BasePlatformPublisher | undefined {
+  return publishers[platform];
+}
+
 export function listPublisherPlatforms(): string[] {
   return Object.keys(publishers);
 }
 
+// Audit #30: an unknown platform string used to throw inside Promise.all,
+// killing the entire multi-platform batch (including platforms that would
+// have succeeded). Unknown platforms now produce a per-platform failure
+// result instead.
 export async function publishToAll(
   platforms: string[],
   content: PostContent,
-): Promise<Awaited<ReturnType<BasePlatformPublisher["publish"]>>[]> {
-  return Promise.all(platforms.map((p) => getPublisher(p).publish(content)));
+): Promise<PublishResult[]> {
+  return Promise.all(
+    platforms.map(async (p): Promise<PublishResult> => {
+      const publisher = publishers[p];
+      if (!publisher) {
+        return {
+          platform: p,
+          success: false,
+          error: `No publisher for platform: ${p}`,
+          publishedAt: new Date(),
+        };
+      }
+      return publisher.publish(content);
+    }),
+  );
 }

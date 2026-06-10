@@ -15,6 +15,7 @@ export { ThreadsPublisher } from "./platforms/threads.js";
 
 export {
   getPublisher,
+  findPublisher,
   listPublisherPlatforms,
   publishToAll,
 } from "./publisher-factory.js";

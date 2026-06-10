@@ -18,14 +18,13 @@ export class YouTubePublisher extends BasePlatformPublisher {
     this.platform = format === "short" ? "youtube_shorts" : "youtube";
   }
 
-  async publish(content: PostContent): Promise<PublishResult> {
+  protected async doPublish(content: PostContent): Promise<PublishResult> {
     try {
       const accessToken = await this.getAccessToken();
-      const buffer = content.localPath
-        ? await import("node:fs/promises").then((fs) =>
-            fs.readFile(content.localPath!),
-          )
-        : await this.downloadMedia(content.mediaUrl);
+      // Audit #28: don't buffer the entire video in memory. Resolve a sized
+      // source (stream + byte length) and pipe it into the resumable upload;
+      // falls back to buffering only when the source size is unknowable.
+      const source = await this.resolveSource(content);
 
       const title =
         content.title ??
@@ -56,7 +55,7 @@ export class YouTubePublisher extends BasePlatformPublisher {
           headers: {
             Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
-            "X-Upload-Content-Length": String(buffer.length),
+            "X-Upload-Content-Length": String(source.size),
             "X-Upload-Content-Type": "video/mp4",
           },
           body: JSON.stringify(metadata),
@@ -76,15 +75,21 @@ export class YouTubePublisher extends BasePlatformPublisher {
       const uploadRes = await fetch(uploadUrl, {
         method: "PUT",
         headers: {
-          "Content-Length": String(buffer.length),
+          "Content-Length": String(source.size),
           "Content-Type": "video/mp4",
         },
-        body: buffer,
-      });
+        body: source.body as RequestInit["body"],
+        // Required by undici when the body is a stream.
+        duplex: "half",
+      } as RequestInit);
 
-      const result = (await uploadRes.json()) as { id?: string };
-      if (!result.id) {
-        throw new Error("YouTube upload did not return video id");
+      const result = (await uploadRes.json().catch(() => ({}))) as {
+        id?: string;
+      };
+      if (!uploadRes.ok || !result.id) {
+        throw new Error(
+          `YouTube upload did not return video id (HTTP ${uploadRes.status})`,
+        );
       }
 
       return this.success(
@@ -94,6 +99,41 @@ export class YouTubePublisher extends BasePlatformPublisher {
     } catch (error) {
       return this.failure(error);
     }
+  }
+
+  /**
+   * Audit #28: resolve the video source as a stream with a known byte
+   * length wherever possible. Local files are streamed from disk; remote
+   * URLs are streamed when the server advertises Content-Length. Only an
+   * unsized remote source is buffered (we need the size up front for the
+   * resumable upload headers).
+   */
+  private async resolveSource(
+    content: PostContent,
+  ): Promise<{ body: Buffer | ReadableStream; size: number }> {
+    if (content.localPath) {
+      const fsSync = await import("node:fs");
+      const { stat } = await import("node:fs/promises");
+      const { Readable } = await import("node:stream");
+      const { size } = await stat(content.localPath);
+      return {
+        body: Readable.toWeb(
+          fsSync.createReadStream(content.localPath),
+        ) as ReadableStream,
+        size,
+      };
+    }
+
+    const res = await fetch(content.mediaUrl);
+    if (!res.ok) {
+      throw new Error(`Failed to download media: ${res.status}`);
+    }
+    const declared = Number(res.headers.get("content-length") ?? 0);
+    if (declared > 0 && res.body) {
+      return { body: res.body, size: declared };
+    }
+    const buffer = Buffer.from(await res.arrayBuffer());
+    return { body: buffer, size: buffer.length };
   }
 
   private async getAccessToken(): Promise<string> {
