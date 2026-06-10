@@ -26,7 +26,7 @@ const app = new Hono<{ Bindings: Env }>()
 
 app.post('/task', async (c) => {
   const body = await c.req.json<AIRunTaskRequest>()
-  const { taskType, prompt, outputFormat = 'text', timeoutMs = 90000 } = body
+  const { taskType, prompt, outputFormat = 'text', timeoutMs = 90000, excludeModelIds } = body
 
   if (!taskType || !prompt) {
     return c.json({ error: 'taskType and prompt are required' }, 400)
@@ -37,7 +37,7 @@ app.post('/task', async (c) => {
       taskType as TaskType,
       prompt,
       c.env,
-      { outputFormat, timeoutMs }
+      { outputFormat, timeoutMs, excludeModelIds }
     )
 
     const response: AIRunTaskResponse = {
@@ -46,6 +46,7 @@ app.post('/task', async (c) => {
       models_tried: result.models_tried,
       tokens_used: result.tokens_used,
       cost_usd: result.cost_usd || 0,
+      source: result.source,
     }
 
     return c.json(response)
@@ -82,16 +83,20 @@ app.post('/image', async (c) => {
   }
 })
 
+import { SEARCH_REGISTRY } from './search-registry'
+
 // ============================================================
 // Registry Endpoint — the model line-up per task type, so the dashboard
 // can show which model each role uses + its fallback chain.
 // ============================================================
 
 app.get('/registry', async (c) => {
-  const out: Record<string, { id: string; name: string; provider: string; rank: number; isFree: boolean; why: string; configured: boolean }[]> = {}
+  const out: Record<string, { id: string; name: string; provider: string; rank: number; isFree: boolean; why: string; configured: boolean; type: 'llm' | 'search' }[]> = {}
+  
+  // LLMs
   for (const [taskType, models] of Object.entries(AI_REGISTRY)) {
     const rows = []
-    for (const m of models) {
+    for (const m of models!) {
       let configured = false
       if (m.secretKey) {
         try {
@@ -103,10 +108,50 @@ app.get('/registry', async (c) => {
       } else {
         configured = true // no key required (e.g. Cloudflare Workers AI)
       }
-      rows.push({ id: m.id, name: m.name, provider: m.provider, rank: m.rank, isFree: Boolean(m.isFree), why: m.why || '', configured })
+      // Check current cooldown from KV
+      let cooldownUntil: number | null = null
+      try {
+        const statusRaw = await c.env.CONFIG.get(`ai_status:${m.id}`, 'json') as { reset_at?: number } | null
+        if (statusRaw?.reset_at && Date.now() < statusRaw.reset_at) {
+          cooldownUntil = statusRaw.reset_at
+        }
+      } catch {}
+      rows.push({ id: m.id, name: m.name, provider: m.provider, rank: m.rank, isFree: Boolean(m.isFree), why: m.why || '', configured, type: 'llm' as const, cooldownUntil })
     }
-    out[taskType] = rows.sort((a, b) => a.rank - b.rank)
+    if (!out[taskType]) out[taskType] = []
+    out[taskType].push(...rows)
   }
+
+  // Searches
+  for (const [taskType, models] of Object.entries(SEARCH_REGISTRY)) {
+    const rows = []
+    for (const m of models!) {
+      let configured = false
+      if (m.secretKey) {
+        try {
+          const v = await c.env.CONFIG.get(`secret:${m.secretKey}`)
+          configured = Boolean(v)
+        } catch {}
+        const envVal = (c.env as Record<string, unknown>)[m.secretKey]
+        if (!configured && typeof envVal === 'string' && envVal.length > 0) configured = true
+      } else {
+        configured = true
+      }
+      // rank + 0 so they appear first if we sort later, though we sort at the end
+      rows.push({ id: m.id, name: m.name, provider: m.provider, rank: m.rank, isFree: Boolean(m.isFree), why: m.why || '', configured, type: 'search' as const })
+    }
+    if (!out[taskType]) out[taskType] = []
+    out[taskType].push(...rows)
+  }
+
+  // Sort by rank and type (search first, then LLM if ranks are equal, though search ranks should just be sorted)
+  for (const taskType of Object.keys(out)) {
+    out[taskType].sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'search' ? -1 : 1
+      return a.rank - b.rank
+    })
+  }
+
   return c.json({ registry: out })
 })
 
@@ -162,6 +207,33 @@ app.post('/providers/toggle', async (c) => {
 
 app.get('/health', (c) => {
   return c.json({ status: 'ok', service: 'nexus-ai', timestamp: new Date().toISOString() })
+})
+
+app.get('/wake-check', async (c) => {
+  if (!c.env.CONFIG) {
+    return c.json({ expired: [], active: [], message: 'KV CONFIG not bound' })
+  }
+  
+  const list = await c.env.CONFIG.list({ prefix: 'ai_status:' })
+  const now = Date.now()
+  const expired: string[] = []
+  const active: string[] = []
+  
+  for (const key of list.keys) {
+    const status = await c.env.CONFIG.get(key.name, 'json') as { reset_at?: number } | null
+    if (status && status.reset_at) {
+      if (now >= status.reset_at) {
+        expired.push(key.name)
+        await c.env.CONFIG.delete(key.name)
+      } else {
+        active.push(key.name)
+      }
+    } else {
+      await c.env.CONFIG.delete(key.name)
+    }
+  }
+  
+  return c.json({ expired, active })
 })
 
 // ============================================================

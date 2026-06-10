@@ -12,8 +12,27 @@
 
 import type { Env } from '../env'
 import type { TaskType, AIRunTaskResponse } from '@nexus/types'
-import { callAI as sharedCallAI, safeJson } from './shared'
-import { checkPostBuild } from './quality-gate'
+import {
+  callAI as sharedCallAI,
+  callAIJson,
+  AIUnavailableError,
+  safeJson,
+  researchMarketSchema,
+  researchPsychologySchema,
+  researchKeywordsSchema,
+  generateSeoSchema,
+  generateTitleVariantsSchema,
+} from './shared'
+import { checkPostBuild, detectSlop } from './quality-gate'
+import { z } from 'zod'
+
+const ZOD_SCHEMAS: Record<string, z.ZodSchema<any>> = {
+  research_market: researchMarketSchema,
+  research_psychology: researchPsychologySchema,
+  research_keywords: researchKeywordsSchema,
+  generate_seo: generateSeoSchema,
+  generate_title_variants: generateTitleVariantsSchema,
+}
 
 interface StepDef {
   name: string
@@ -507,12 +526,21 @@ export class ProductWorkflow {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       console.error(`[workflow:${runId}] FATAL:`, message)
-      await this.env.DB.prepare(
-        `UPDATE workflow_runs SET status='failed', completed_at=?, error=? WHERE id=?`
-      ).bind(now(), message, runId).run()
-      await this.env.DB.prepare(
-        `UPDATE products SET status='rejected', updated_at=? WHERE id=?`
-      ).bind(now(), productId).run()
+      if (err instanceof AIUnavailableError) {
+        await this.env.DB.prepare(
+          `UPDATE workflow_runs SET status='waiting_ai', completed_at=?, error=? WHERE id=?`
+        ).bind(now(), message, runId).run()
+        await this.env.DB.prepare(
+          `UPDATE products SET status='waiting_ai', updated_at=? WHERE id=?`
+        ).bind(now(), productId).run()
+      } else {
+        await this.env.DB.prepare(
+          `UPDATE workflow_runs SET status='failed', completed_at=?, error=? WHERE id=?`
+        ).bind(now(), message, runId).run()
+        await this.env.DB.prepare(
+          `UPDATE products SET status='rejected', updated_at=? WHERE id=?`
+        ).bind(now(), productId).run()
+      }
     }
   }
 
@@ -553,7 +581,90 @@ export class ProductWorkflow {
 
     try {
       const prompt = step.buildPrompt(ctx)
-      const result = await this.callAI(step.taskType, prompt, step.outputFormat)
+      let attempts = 0
+      let excludeModelIds: string[] = []
+      let result: AIRunTaskResponse | null = null
+
+      while (attempts < 2) {
+        attempts++
+        const schema = ZOD_SCHEMAS[step.name]
+
+        let output = ''
+        let modelUsed = ''
+        let modelsTried: string[] = []
+        let tokensUsed = 0
+        let costUsd = 0
+        let source: 'model' | 'universal' | 'offline' | undefined
+
+        if (schema && step.outputFormat === 'json') {
+          const meta: { response?: AIRunTaskResponse } = {}
+          const parsedObject = await callAIJson(
+            this.env,
+            prompt,
+            schema,
+            {
+              taskType: step.taskType,
+              excludeModelIds,
+              timeoutMs: 90000,
+            }
+          )
+          const res = meta.response!
+          output = JSON.stringify(parsedObject)
+          modelUsed = res.model_used
+          modelsTried = res.models_tried
+          tokensUsed = res.tokens_used
+          costUsd = res.cost_usd
+          source = res.source
+        } else {
+          const res = await sharedCallAI(
+            this.env,
+            prompt,
+            {
+              taskType: step.taskType,
+              outputFormat: step.outputFormat,
+              excludeModelIds,
+              timeoutMs: 90000,
+              allowOffline: false,
+            }
+          )
+          output = res.output
+          modelUsed = res.model_used
+          modelsTried = res.models_tried
+          tokensUsed = res.tokens_used
+          costUsd = res.cost_usd
+          source = res.source
+        }
+
+        result = {
+          output,
+          model_used: modelUsed,
+          models_tried: modelsTried,
+          tokens_used: tokensUsed,
+          cost_usd: costUsd,
+          source,
+        }
+
+        const slopIssues = detectSlop({ description: output })
+        if (slopIssues.length === 0) {
+          break
+        }
+
+        console.warn(`[workflow:${runId}] Slop detected in step ${step.name} output, retrying:`, slopIssues)
+
+        if (attempts < 2) {
+          excludeModelIds.push(modelUsed)
+          console.log(`[workflow:${runId}] Regenerating step ${step.name} excluding model ${modelUsed}`)
+        } else {
+          throw new AIUnavailableError(
+            `Slop detected in step ${step.name} output: ${slopIssues.join(', ')}`
+          )
+        }
+      }
+
+      if (!result) {
+        throw new AIUnavailableError(`Step ${step.name} returned no result`)
+      }
+
       step.apply(ctx, result.output)
       if (result.model_used === 'offline-template') ctx.data.usedOffline = true
 
@@ -572,6 +683,9 @@ export class ProductWorkflow {
         stepId,
       ).run()
     } catch (err) {
+      if (err instanceof AIUnavailableError) {
+        throw err
+      }
       const message = err instanceof Error ? err.message : String(err)
       console.error(`[workflow:${runId}] step ${step.name} failed:`, message)
       await this.env.DB.prepare(
@@ -608,14 +722,6 @@ export class ProductWorkflow {
     } finally {
       clearTimeout(timer)
     }
-  }
-
-  private async callAI(
-    taskType: TaskType,
-    prompt: string,
-    outputFormat: 'text' | 'json',
-  ): Promise<AIRunTaskResponse> {
-    return sharedCallAI(this.env, prompt, { taskType, outputFormat })
   }
 
   // Persist AI outputs into the right tables so the review screen + listings

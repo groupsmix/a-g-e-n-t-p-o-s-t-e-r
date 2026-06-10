@@ -12,14 +12,14 @@
     "publish:all": "turbo publish:all",
     "factory:run": "turbo factory:run",
     "check-env": "tsx scripts/check-env.ts",
-    "postinstall": "[ -d apps/nexus ] && cd apps/nexus && pnpm install --prefer-offline || true"
+    "postinstall": "node -e \"const fs=require('fs'); if(fs.existsSync('apps/nexus')){require('child_process').execSync('cd apps/nexus && pnpm install --prefer-offline', {stdio:'inherit'})}\""
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "dotenv": "^16.4.5",
     "prettier": "^3.2.4",
     "tsx": "^4.7.0",
-    "turbo": "^2.0.0",
+    "turbo": "^2.9.16",
     "typescript": "^5.3.3"
   },
   "engines": {
@@ -28,6 +28,8 @@
   },
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "apps/nexus/apps/*",
+    "apps/nexus/packages/*"
   ]
 }

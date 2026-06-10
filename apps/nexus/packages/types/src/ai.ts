@@ -106,6 +106,7 @@ export interface AIRunTaskRequest {
   outputFormat?: 'text' | 'json'
   maxRetries?: number
   timeoutMs?: number
+  excludeModelIds?: string[]
 }
 
 export interface AIRunTaskResponse {
@@ -114,6 +115,7 @@ export interface AIRunTaskResponse {
   models_tried: string[]
   tokens_used: number
   cost_usd: number
+  source?: 'model' | 'universal' | 'offline'
 }
 
 // AI Model Status for Dashboard

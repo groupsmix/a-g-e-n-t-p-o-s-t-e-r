@@ -4,6 +4,7 @@
 // Core failover logic with automatic model switching on failure.
 
 import { AI_REGISTRY } from './registry'
+import { SEARCH_REGISTRY } from './search-registry'
 import { offlineGenerate } from './offline'
 import type { AIRegistryEntry, TaskType, FailoverResult, FailoverOptions, AIStatusCache } from './types'
 import { createLogger } from '@nexus/logger'
@@ -30,7 +31,12 @@ export async function runWithFailover(
   env: Env,
   options: FailoverOptions = {}
 ): Promise<FailoverResult> {
-  const { timeoutMs = 90000, outputFormat = 'text' } = options
+  const { timeoutMs = 90000, outputFormat = 'text', excludeModelIds } = options
+
+  if (['research_market', 'research_keywords', 'research_competitors', 'trend_analysis'].includes(taskType)) {
+    const searchResult = await runSearchWithFailover(taskType, prompt, env, options)
+    if (searchResult) return { ...searchResult, source: 'model' }
+  }
 
   const models = AI_REGISTRY[taskType] || []
   const tried: string[] = []
@@ -41,6 +47,10 @@ export async function runWithFailover(
   const capReached = cap > 0 && spentToday >= cap
 
   for (const model of models) {
+    if (excludeModelIds && excludeModelIds.includes(model.id)) {
+      logger.info('Skipping model — excluded by caller', { model: model.name, taskType })
+      continue
+    }
     // 0. Per-provider ON/OFF — a key can stay saved while the model is paused.
     if (await isProviderDisabled(env, model)) {
       logger.info('Skipping model — provider disabled', { model: model.name, taskType })
@@ -80,7 +90,7 @@ export async function runWithFailover(
     logger.info('Trying model', { model: model.name, taskType })
 
     try {
-      const result = await callModelWithTimeout(
+      let result = await callModelWithTimeout(
         model,
         apiKey,
         prompt,
@@ -88,6 +98,51 @@ export async function runWithFailover(
         outputFormat,
         env
       )
+
+      if (outputFormat === 'json') {
+        const parsed = parseSafeJson(result.output)
+        if (parsed === null) {
+          logger.warn('Invalid JSON from model, attempting repair', { model: model.name, taskType })
+          const cheapModel = await getCheapestConfiguredModel(env, models)
+          if (cheapModel) {
+            const cheapApiKey = cheapModel.secretKey ? await getSecret(env, cheapModel.secretKey) : 'local'
+            if (cheapApiKey) {
+              try {
+                const repairPrompt = `Return ONLY valid JSON equivalent of: ${result.output}`
+                const repairResult = await callModelWithTimeout(
+                  cheapModel,
+                  cheapApiKey,
+                  repairPrompt,
+                  timeoutMs,
+                  'json',
+                  env
+                )
+                if (cheapModel.isFree === false && repairResult.cost_usd) {
+                  await addSpend(env, repairResult.cost_usd)
+                }
+                const repairedParsed = parseSafeJson(repairResult.output)
+                if (repairedParsed !== null) {
+                  logger.info('Repair succeeded', { repairModel: cheapModel.name, taskType })
+                  result = {
+                    output: repairResult.output,
+                    tokens_used: result.tokens_used + repairResult.tokens_used,
+                    cost_usd: (result.cost_usd || 0) + (repairResult.cost_usd || 0),
+                  }
+                } else {
+                  throw new Error('Repaired output is still invalid JSON')
+                }
+              } catch (repairErr: any) {
+                logger.error('Repair failed', repairErr, { model: model.name, taskType })
+                throw new Error(`Invalid JSON and repair failed: ${repairErr.message}`)
+              }
+            } else {
+              throw new Error('Invalid JSON and repair could not find cheap model API key')
+            }
+          } else {
+            throw new Error('Invalid JSON and no cheap configured model available for repair')
+          }
+        }
+      }
 
       logger.info('Model succeeded', { model: model.name, taskType, tokens_used: result.tokens_used, cost_usd: result.cost_usd })
 
@@ -107,20 +162,28 @@ export async function runWithFailover(
         models_tried: tried,
         tokens_used: result.tokens_used,
         cost_usd: result.cost_usd,
+        source: 'model',
       }
     } catch (error: any) {
       const statusCode = error.status || error.statusCode || 0
       const errorMsg = error.message || 'Unknown error'
 
       if (statusCode === 429 || errorMsg.includes('rate_limit')) {
-        // Rate limit — sleep for 1 hour
-        const resetAt = Date.now() + 3_600_000
-        await env.CONFIG.put(statusKey, JSON.stringify({
-          type: 'rate_limited',
-          reset_at: resetAt,
-          hit_at: Date.now(),
-        }), { expirationTtl: 3700 })
-        logger.warn('Model rate limited — sleeping 1hr', { model: model.name, taskType, resetAt })
+        // Use provider-supplied reset time; fall back to 15 min default.
+        const resetAt = clampReset(error.resetAt ?? (Date.now() + 900_000))
+        const ttl = Math.ceil((resetAt - Date.now()) / 1000) + 60
+        const statusPayload = JSON.stringify({ type: 'rate_limited', reset_at: resetAt, hit_at: Date.now() })
+
+        // Per-model status
+        await env.CONFIG.put(statusKey, statusPayload, { expirationTtl: ttl })
+
+        // Per-provider status (account-wide limits share the same key)
+        if (model.secretKey) {
+          const providerKey = `ai_status:provider:${model.secretKey}`
+          await env.CONFIG.put(providerKey, statusPayload, { expirationTtl: ttl })
+        }
+
+        logger.warn('Model rate limited', { model: model.name, taskType, resetAt, source: error.resetSource ?? 'default' })
 
       } else if (statusCode === 402 || errorMsg.includes('quota') || errorMsg.includes('insufficient_quota')) {
         // Daily quota — sleep until midnight UTC
@@ -135,7 +198,7 @@ export async function runWithFailover(
         logger.warn('Model quota exceeded — sleeping until midnight', { model: model.name, taskType, resetAt })
 
       } else if (statusCode === 401 || statusCode === 403) {
-        // Invalid key — skip permanently until key changes
+        // Invalid key — skip for 24h until key changes
         await env.CONFIG.put(statusKey, JSON.stringify({
           type: 'invalid_key',
           reset_at: Date.now() + 86_400_000,
@@ -170,7 +233,64 @@ export async function runWithFailover(
     models_tried: tried,
     tokens_used: 0,
     cost_usd: 0,
+    source: 'offline',
   }
+}
+
+// ============================================================
+export async function runSearchWithFailover(
+  taskType: TaskType,
+  prompt: string,
+  env: Env,
+  options: FailoverOptions = {}
+): Promise<FailoverResult | null> {
+  const { timeoutMs = 90000 } = options
+  const models = SEARCH_REGISTRY[taskType] || []
+  const tried: string[] = []
+
+  for (const model of models) {
+    const apiKey = model.secretKey ? await getSecret(env, model.secretKey) : null
+    if (!apiKey) continue
+
+    tried.push(model.id)
+    logger.info('Trying search provider', { model: model.name, taskType })
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), timeoutMs)
+
+    try {
+      let result: { output: string; tokens_used: number; cost_usd: number }
+
+      if (model.provider === 'tavily') {
+        result = await callTavily(apiKey, prompt, controller.signal)
+      } else if (model.provider === 'exa') {
+        result = await callExa(apiKey, prompt, controller.signal)
+      } else if (model.provider === 'serpapi') {
+        result = await callSerpAPI(apiKey, prompt, controller.signal)
+      } else if (model.provider === 'dataforseo') {
+        result = await callDataForSEO(apiKey, prompt, controller.signal)
+      } else {
+        throw new Error(`Unknown search provider: ${model.provider}`)
+      }
+
+      logger.info('Search succeeded', { model: model.name, taskType })
+      if (!model.isFree && result.cost_usd) await addSpend(env, result.cost_usd)
+
+      return {
+        output: result.output,
+        model_used: model.id,
+        models_tried: tried,
+        tokens_used: result.tokens_used,
+        cost_usd: result.cost_usd,
+      }
+    } catch (error: any) {
+      logger.error('Search provider error', new Error(error.message), { model: model.name, taskType })
+      continue
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+  return null
 }
 
 // ============================================================
@@ -200,13 +320,13 @@ async function tryUniversalProviders(
       const result = await callOpenAICompatible(
         'https://api.groq.com/openai/v1',
         groqKey,
-        { apiModelName: 'llama-3.3-70b-versatile', costPer1MTokens: 0 } as AIRegistryEntry,
+        { id: 'groq-llama-3.3-70b', name: 'llama-3.3-70b-versatile', provider: 'groq', secretKey: 'GROQ_API_KEY', rank: 99, isFree: true, why: 'Universal free fallback', apiModelName: 'llama-3.3-70b-versatile', costPer1kIn: 0, costPer1kOut: 0, maxOutputTokens: 8192, supportsJsonMode: true } as AIRegistryEntry,
         prompt,
         outputFormat,
         controller.signal
       )
       logger.info('Universal fallback succeeded', { model: 'groq-llama-3.3-70b' })
-      return { output: result.output, model_used: 'groq-llama-3.3-70b', models_tried: tried, tokens_used: result.tokens_used, cost_usd: result.cost_usd }
+      return { output: result.output, model_used: 'groq-llama-3.3-70b', models_tried: tried, tokens_used: result.tokens_used, cost_usd: result.cost_usd, source: 'universal' }
     } catch (error) {
       logger.warn('Groq universal fallback failed', { error: error instanceof Error ? error.message : 'error' })
     } finally {
@@ -231,7 +351,7 @@ async function tryUniversalProviders(
       ])) as { response?: string }
       if (out?.response && out.response.trim()) {
         logger.info('Universal fallback succeeded', { model: 'cloudflare-workers-ai-llama' })
-        return { output: out.response, model_used: 'cloudflare-workers-ai-llama', models_tried: tried, tokens_used: 0, cost_usd: 0 }
+        return { output: out.response, model_used: 'cloudflare-workers-ai-llama', models_tried: tried, tokens_used: 0, cost_usd: 0, source: 'universal' }
       }
     } catch (error) {
       logger.warn('Cloudflare Workers AI fallback failed', { error: error instanceof Error ? error.message : 'error' })
@@ -312,7 +432,7 @@ async function callModelWithTimeout(
         break
 
       case 'anthropic':
-        result = await callAnthropic(apiKey, model, prompt, controller.signal)
+        result = await callAnthropic(apiKey, model, prompt, outputFormat, controller.signal)
         break
 
       case 'openai':
@@ -349,7 +469,7 @@ async function callModelWithTimeout(
         break
 
       case 'google':
-        result = await callGemini(apiKey, model, prompt, controller.signal)
+        result = await callGemini(apiKey, model, prompt, outputFormat, controller.signal)
         break
 
       case 'fal':
@@ -401,7 +521,7 @@ async function callOpenAICompatible(
     temperature: 0.7,
   }
 
-  if (outputFormat === 'json') {
+  if (outputFormat === 'json' && model.supportsJsonMode) {
     body.response_format = { type: 'json_object' }
   }
 
@@ -419,13 +539,19 @@ async function callOpenAICompatible(
     const err = await (response.json().catch(() => ({ error: { message: response.statusText } })) as Promise<{ error?: { message?: string } }>)
     const error: any = new Error(err?.error?.message || response.statusText)
     error.status = response.status
+    // Attach reset time from standard rate-limit headers so the caller can
+    // write an accurate cooldown into KV instead of guessing 1h.
+    const { resetAt, source } = parseRateLimitReset(response.headers)
+    error.resetAt = resetAt
+    error.resetSource = source
     throw error
   }
 
   const data = await response.json() as any
   const tokensUsed = data.usage?.total_tokens || 0
-  const rate = model.costPer1MTokens ?? priceFor(model.apiModelName)
-  const costUsd = (tokensUsed / 1_000_000) * rate
+  // Use per-token pricing from registry; fall back to blended estimate.
+  const ratePer1k = model.costPer1kOut ?? (priceFor(model.apiModelName) / 1000)
+  const costUsd = tokensUsed * ratePer1k / 1000
 
   return {
     output: data.choices[0].message.content,
@@ -442,8 +568,14 @@ async function callAnthropic(
   apiKey: string,
   model: AIRegistryEntry,
   prompt: string,
+  outputFormat: string,
   signal: AbortSignal
 ): Promise<{ output: string; tokens_used: number; cost_usd: number }> {
+  const messages: any[] = [{ role: 'user', content: prompt }]
+  if (outputFormat === 'json' && model.supportsJsonMode) {
+    messages.push({ role: 'assistant', content: '{' })
+  }
+
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -453,8 +585,8 @@ async function callAnthropic(
     },
     body: JSON.stringify({
       model: model.apiModelName,
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
+      max_tokens: model.maxOutputTokens || 4096,
+      messages,
     }),
     signal,
   })
@@ -463,15 +595,36 @@ async function callAnthropic(
     const err = await (response.json().catch(() => ({ error: { message: response.statusText } })) as Promise<{ error?: { message?: string } }>)
     const error: any = new Error(err?.error?.message || response.statusText)
     error.status = response.status
+    // Anthropic rate-limit headers: anthropic-ratelimit-requests-reset, anthropic-ratelimit-tokens-reset
+    // These are ISO-8601 timestamps.
+    const requestsReset = response.headers.get('anthropic-ratelimit-requests-reset')
+    const tokensReset = response.headers.get('anthropic-ratelimit-tokens-reset')
+    const headerTs = requestsReset || tokensReset
+    if (headerTs) {
+      const ts = Date.parse(headerTs)
+      if (!isNaN(ts)) {
+        error.resetAt = ts
+        error.resetSource = 'anthropic-header'
+      }
+    } else {
+      const { resetAt, source } = parseRateLimitReset(response.headers)
+      error.resetAt = resetAt
+      error.resetSource = source
+    }
     throw error
   }
 
   const data = await response.json() as any
-  const tokensUsed = data.usage?.input_tokens + data.usage?.output_tokens || 0
-  const costUsd = (tokensUsed / 1_000_000) * 15 // Claude Opus rate
+  const inputTokens = data.usage?.input_tokens || 0
+  const outputTokens = data.usage?.output_tokens || 0
+  const tokensUsed = inputTokens + outputTokens
+  const costUsd = (inputTokens / 1000) * (model.costPer1kIn ?? 0.003) + (outputTokens / 1000) * (model.costPer1kOut ?? 0.015)
+
+  const rawText = data.content[0].text
+  const output = (outputFormat === 'json' && model.supportsJsonMode) ? '{' + rawText : rawText
 
   return {
-    output: data.content[0].text,
+    output,
     tokens_used: tokensUsed,
     cost_usd: costUsd,
   }
@@ -485,8 +638,17 @@ async function callGemini(
   apiKey: string,
   model: AIRegistryEntry,
   prompt: string,
+  outputFormat: string,
   signal: AbortSignal
 ): Promise<{ output: string; tokens_used: number; cost_usd: number }> {
+  const generationConfig: Record<string, unknown> = {
+    maxOutputTokens: model.maxOutputTokens || 4096,
+    temperature: 0.7,
+  }
+  if (outputFormat === 'json' && model.supportsJsonMode) {
+    generationConfig.responseMimeType = 'application/json'
+  }
+
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1/models/${model.apiModelName}:generateContent?key=${apiKey}`,
     {
@@ -494,7 +656,7 @@ async function callGemini(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 4096, temperature: 0.7 },
+        generationConfig,
       }),
       signal,
     }
@@ -728,6 +890,51 @@ async function callSerpAPI(
 }
 
 // ============================================================
+// DataForSEO Caller
+// ============================================================
+
+async function callDataForSEO(
+  apiKey: string,
+  prompt: string,
+  signal: AbortSignal
+): Promise<{ output: string; tokens_used: number; cost_usd: number }> {
+  // Simplified mock-friendly caller since DataForSEO has complex endpoints
+  const [login, password] = apiKey.split(':')
+  const auth = btoa(`${login || apiKey}:${password || ''}`)
+
+  const response = await fetch('https://api.dataforseo.com/v3/serp/google/organic/live/advanced', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Basic ${auth}`,
+    },
+    body: JSON.stringify([{ keyword: prompt, language_code: 'en', location_code: 2840 }]),
+    signal,
+  })
+
+  if (!response.ok) {
+    const error: any = new Error(response.statusText)
+    error.status = response.status
+    throw error
+  }
+
+  const data = await response.json() as any
+  const items = data.tasks?.[0]?.result?.[0]?.items?.slice(0, 10) || []
+
+  return {
+    output: JSON.stringify({
+      results: items.map((r: any) => ({
+        title: r.title,
+        url: r.url,
+        description: r.description,
+      })),
+    }),
+    tokens_used: 0,
+    cost_usd: 0.001,
+  }
+}
+
+// ============================================================
 // Helper Functions
 // ============================================================
 
@@ -737,6 +944,121 @@ async function callSerpAPI(
 
 function todayKey(): string {
   return `ai_spend:${new Date().toISOString().slice(0, 10)}`
+}
+
+// Parse JSON safely using safeJson-like extraction logic.
+export function parseSafeJson(raw: string): any {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+
+  // Fast path: clean JSON.
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    /* fall through */
+  }
+
+  // Strip ```json ... ``` fences and retry.
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (fenced) {
+    try {
+      return JSON.parse(fenced[1].trim())
+    } catch {
+      /* fall through */
+    }
+  }
+
+  // Extract the first balanced { … } object.
+  const candidate = fenced ? fenced[1] : trimmed
+  const start = candidate.indexOf('{')
+  const end = candidate.lastIndexOf('}')
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(candidate.slice(start, end + 1))
+    } catch {
+      /* fall through */
+    }
+  }
+
+  return null
+}
+
+// Helper to find the cheapest configured model for the current task type.
+export async function getCheapestConfiguredModel(env: Env, models: AIRegistryEntry[]): Promise<AIRegistryEntry | null> {
+  const configured: AIRegistryEntry[] = []
+  for (const m of models) {
+    if (await isProviderDisabled(env, m)) continue
+    const apiKey = m.secretKey ? await getSecret(env, m.secretKey) : 'local'
+    if (!apiKey) continue
+
+    if (env.CONFIG) {
+      const statusKey = `ai_status:${m.id}`
+      const statusRaw = await env.CONFIG.get(statusKey, 'json')
+      if (statusRaw) {
+        const status = statusRaw as AIStatusCache
+        if (Date.now() < status.reset_at) continue
+      }
+    }
+
+    configured.push(m)
+  }
+
+  if (configured.length === 0) return null
+
+  return configured.sort((a, b) => {
+    if (a.isFree && !b.isFree) return -1
+    if (!a.isFree && b.isFree) return 1
+    const costA = (a.costPer1kIn ?? 0) + (a.costPer1kOut ?? 0)
+    const costB = (b.costPer1kIn ?? 0) + (b.costPer1kOut ?? 0)
+    return costA - costB
+  })[0]
+}
+
+// Clamp a rate-limit reset timestamp to [now+30s, now+6h].
+export function clampReset(ts: number): number {
+  const now = Date.now()
+  return Math.max(now + 30_000, Math.min(now + 6 * 3_600_000, ts))
+}
+
+/**
+ * Parse standard rate-limit headers from a provider response.
+ * Handles:
+ *   - Retry-After: <seconds> or <HTTP-date>
+ *   - x-ratelimit-reset-requests: <ISO-8601>
+ *   - x-ratelimit-reset-tokens: <ISO-8601>
+ * Returns {resetAt: timestamp, source: string} — null values mean "not found".
+ */
+export function parseRateLimitReset(headers: Headers): { resetAt: number | null; source: string | null } {
+  // 1. Retry-After
+  const retryAfter = headers.get('retry-after')
+  if (retryAfter) {
+    const secs = Number(retryAfter)
+    if (!isNaN(secs) && secs > 0) {
+      return { resetAt: Date.now() + secs * 1000, source: 'retry-after-seconds' }
+    }
+    const ts = Date.parse(retryAfter)
+    if (!isNaN(ts)) {
+      return { resetAt: ts, source: 'retry-after-date' }
+    }
+  }
+
+  // 2. OpenAI / Groq / standard: x-ratelimit-reset-requests (ISO-8601 or seconds)
+  for (const hdr of ['x-ratelimit-reset-requests', 'x-ratelimit-reset-tokens', 'x-ratelimit-reset']) {
+    const val = headers.get(hdr)
+    if (!val) continue
+    // Could be "21s", "1500ms", or ISO timestamp
+    const msMatch = val.match(/^(\d+)ms$/)
+    if (msMatch) return { resetAt: Date.now() + Number(msMatch[1]), source: hdr }
+    const sMatch = val.match(/^(\d+)s$/)
+    if (sMatch) return { resetAt: Date.now() + Number(sMatch[1]) * 1000, source: hdr }
+    const ts = Date.parse(val)
+    if (!isNaN(ts)) return { resetAt: ts, source: hdr }
+    // Plain number = unix epoch seconds
+    const n = Number(val)
+    if (!isNaN(n) && n > 1_000_000) return { resetAt: n * 1000, source: hdr }
+  }
+
+  return { resetAt: null, source: null }
 }
 
 // Blended $/1M tokens estimate for paid models that don't carry an explicit
