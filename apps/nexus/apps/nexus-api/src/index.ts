@@ -1,6 +1,8 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Env } from './env'
+import { cfAccessMiddleware } from './middleware/cf-access'
+import { isLocalDevRequest } from './local-dev'
 import { sweepStaleRuns } from './services/sweep'
 import { createLogger } from '@nexus/logger'
 
@@ -83,6 +85,13 @@ const app = new Hono<{ Bindings: Env }>()
 
 // Middleware
 //
+// Audit #4: Cloudflare Access gate. Inert until the CF_ACCESS_AUD and
+// CF_ACCESS_TEAM_DOMAIN secrets are configured (see middleware/cf-access.ts
+// for the setup steps); once set, every route except the public bypass list
+// requires a valid Access JWT before anything else runs.
+app.use('*', cfAccessMiddleware(['/api/assets/', '/api/email/subscribe', '/health', '/api/health']))
+
+//
 // AUDIT-PR20 #7: CORS is the only protection on routes that trigger paid
 // actions until the dashboard password is set. We allow-list explicitly
 // when ALLOWED_ORIGINS is configured, and fall back to wildcard only for
@@ -96,10 +105,11 @@ app.use('*', (c, next) => {
     : null
   const corsMiddleware = cors({
     // When allow-list is configured, echo back only matching origins.
-    // When unset, wildcard for local dev — the dashboard's own auth
-    // gate still applies.
+    // When unset (audit #2): wildcard is only acceptable for genuine local
+    // dev — a deployed worker with no ALLOWED_ORIGINS now fails closed
+    // instead of allowing any origin.
     origin: (origin) => {
-      if (!allowList) return '*'
+      if (!allowList) return isLocalDevRequest(c.req.url) ? '*' : null
       if (!origin) return null
       return allowList.includes(origin) ? origin : null
     },
@@ -168,7 +178,8 @@ api.route('/agent', agentRoutes)
 api.route('/team', teamRoutes)
 api.route('/schedules', scheduleRoutes)
 api.route('/autopilot', autopilotRoutes)
-api.route('/revenue', revenueRoutes)
+// NOTE: /revenue is mounted once, below (Phase 9 — revenue tracker, TASK-901).
+// It was previously mounted twice (audit #31).
 api.route('/marketing', marketingRoutes)
 api.route('/browser', browserRoutes)
 api.route('/digest', digestRoutes)
@@ -224,10 +235,18 @@ app.route('/api', api)
 
 // Error handling middleware
 app.onError((err, c) => {
-  logger.error('Unhandled error', err, { path: c.req.path, method: c.req.method })
+  // Audit #32: never echo internal error details (err.message can leak
+  // stack paths, SQL fragments, upstream API responses). Log the full error
+  // under a correlation id and return only the id to the client.
+  const requestId = crypto.randomUUID()
+  logger.error('Unhandled error', err, {
+    path: c.req.path,
+    method: c.req.method,
+    request_id: requestId,
+  })
   return c.json({
     error: 'Internal Server Error',
-    message: err.message || 'An unexpected error occurred',
+    request_id: requestId,
     path: c.req.path,
   }, 500)
 })

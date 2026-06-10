@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
+import { isLocalDevRequest } from '../local-dev'
 
 // ============================================================
 // Access gate — a single shared password that locks the whole
@@ -307,7 +308,14 @@ authRoutes.post('/login', async (c) => {
     return c.json({ error: 'Too many attempts. Try again in a minute.' }, 429)
   }
 
-  const { password } = await c.req.json<{ password?: string }>()
+  // Audit #33: malformed JSON must be a 400, not an unhandled 500.
+  let body: { password?: string }
+  try {
+    body = await c.req.json<{ password?: string }>()
+  } catch {
+    return c.json({ error: 'Malformed JSON body' }, 400)
+  }
+  const { password } = body
   const configured = await getAccessHash(c.env)
   if (!configured) return c.json({ error: 'No password set yet' }, 400)
   if (!password || !(await verifyAccessPassword(c.env, password))) {
@@ -336,8 +344,9 @@ authRoutes.post('/logout-all', async (c) => {
 //   that an internet scanner who reaches the worker before the owner can't
 //   set a password and lock the owner out. The token is already a required
 //   server secret for /api/money-machine, so reusing it costs nothing.
-//   If MONEY_MACHINE_TOKEN is unset, bootstrap is allowed without auth and
-//   logs a warning — keeps the legacy local-dev workflow alive.
+//   If MONEY_MACHINE_TOKEN is unset, bootstrap FAILS CLOSED (503) on any
+//   non-loopback host (audit #1). Only `wrangler dev` on localhost keeps
+//   the zero-config bootstrap flow.
 // - Change: must present the current password (no token needed). A
 //   successful change bumps the session generation, so every session minted
 //   under the old password dies immediately (audit 1.5).
@@ -358,7 +367,14 @@ authRoutes.post('/setup', async (c) => {
     )
   }
 
-  const { password, current } = await c.req.json<{ password?: string; current?: string }>()
+  // Audit #33: malformed JSON must be a 400, not an unhandled 500.
+  let body: { password?: string; current?: string }
+  try {
+    body = await c.req.json<{ password?: string; current?: string }>()
+  } catch {
+    return c.json({ error: 'Malformed JSON body' }, 400)
+  }
+  const { password, current } = body
 
   // FIX #1 — enforce 16-character minimum.
   if (!password || password.length < MIN_PASSWORD_LENGTH) {
@@ -382,9 +398,20 @@ authRoutes.post('/setup', async (c) => {
           401,
         )
       }
+    } else if (!isLocalDevRequest(c.req.url)) {
+      // Audit #1 — fail closed. Without a bootstrap token, a deployed
+      // worker's /setup could be claimed by whoever finds the URL first.
+      // Only genuine local dev (`wrangler dev` on a loopback host) keeps
+      // the zero-config bootstrap flow.
+      return c.json(
+        {
+          error:
+            'First-run setup is disabled until a bootstrap secret is configured. ' +
+            'Run `wrangler secret put MONEY_MACHINE_TOKEN` (or pin a password with ACCESS_PASSWORD), then retry.',
+        },
+        503,
+      )
     }
-    // else: legacy local-dev path — no token configured, anyone on this
-    // worker can claim the password. Acceptable for `wrangler dev`.
   } else {
     if (!current || !(await verifyAccessPassword(c.env, current))) {
       return c.json({ error: 'Current password is incorrect' }, 401)
