@@ -67,17 +67,20 @@ export async function syncGumroadSales(env: Env): Promise<{
 
   let synced = 0
   let totalRevenue = 0
-  let pageUrl: string | null = `https://api.gumroad.com/v2/sales?access_token=${encodeURIComponent(token)}`
+  // Audit #5: token moved from query string to Authorization header.
+  let pageUrl: string | null = 'https://api.gumroad.com/v2/sales'
 
   // Pull the last sync date to only fetch new sales
   const lastSync = await getSetting(env, 'learning_last_sync_at')
   if (lastSync) {
-    pageUrl += `&after=${encodeURIComponent(lastSync)}`
+    pageUrl += `?after=${encodeURIComponent(lastSync)}`
   }
 
   try {
     while (pageUrl) {
-      const res = await fetch(pageUrl)
+      const res = await fetch(pageUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
       const data = (await res.json().catch(() => ({}))) as GumroadSalesResponse
 
       if (!res.ok || !data.success) {
@@ -118,7 +121,14 @@ export async function syncGumroadSales(env: Env): Promise<{
         }
       }
 
-      pageUrl = data.next_page_url || null
+      // Gumroad returns next_page_url as a relative path (e.g. "/v2/sales?page_key=...").
+      // Resolve it against the API origin and never follow off-origin URLs.
+      if (data.next_page_url) {
+        const next = new URL(data.next_page_url, 'https://api.gumroad.com')
+        pageUrl = next.origin === 'https://api.gumroad.com' ? next.toString() : null
+      } else {
+        pageUrl = null
+      }
     }
 
     await setSetting(env, 'learning_last_sync_at', new Date().toISOString())

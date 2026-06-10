@@ -58,9 +58,10 @@ export class ThreadsPublisher extends BasePlatformPublisher {
   }
 
   private async getThreadsUserId(token: string): Promise<string> {
-    const res = await fetch(
-      `https://graph.threads.net/v1.0/me?fields=id&access_token=${token}`,
-    );
+    // Audit #5: token moved from query string to Authorization header.
+    const res = await fetch(`https://graph.threads.net/v1.0/me?fields=id`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     const data = (await res.json()) as { id?: string };
     if (!data.id) {
       throw new Error("Threads user id lookup failed");

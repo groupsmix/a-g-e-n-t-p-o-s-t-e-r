@@ -84,8 +84,10 @@ async function pullInstagramStats(posts: PublishedPostRow[]): Promise<number> {
 
   for (const post of igPosts) {
     try {
+      // Audit #5: token moved from query string to Authorization header.
       const response = await fetch(
-        `https://graph.facebook.com/v19.0/${post.platform_post_id}/insights?metric=impressions,reach,likes,comments,shares,saved&access_token=${env.INSTAGRAM_ACCESS_TOKEN}`,
+        `https://graph.facebook.com/v19.0/${post.platform_post_id}/insights?metric=impressions,reach,likes,comments,shares,saved`,
+        { headers: { Authorization: `Bearer ${env.INSTAGRAM_ACCESS_TOKEN}` } },
       );
 
       if (!response.ok) continue;

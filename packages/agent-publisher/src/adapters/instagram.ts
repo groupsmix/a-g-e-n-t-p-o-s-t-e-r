@@ -22,18 +22,29 @@ export function createInstagramAdapter(config: InstagramConfig): PublishAdapter 
       if (!imageUrl) return { ok: false, platform: 'instagram', error: 'media[image] required' }
       const caption = job.parts.join('\n\n').slice(0, 2200)
       try {
-        const create = await f(
-          `https://graph.facebook.com/v18.0/${igUserId}/media?image_url=${encodeURIComponent(imageUrl)}&caption=${encodeURIComponent(caption)}&access_token=${config.accessToken}`,
-          { method: 'POST' },
-        )
+        // Audit #5: never put access tokens in URLs (they end up in proxy/CDN
+        // logs and browser history). Token goes in the Authorization header,
+        // params go in the POST body.
+        const create = await f(`https://graph.facebook.com/v18.0/${igUserId}/media`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${config.accessToken}`,
+          },
+          body: JSON.stringify({ image_url: imageUrl, caption }),
+        })
         const c = (await create.json().catch(() => ({}))) as { id?: string; error?: { message?: string } }
         if (!create.ok || !c.id) {
           return { ok: false, platform: 'instagram', error: c.error?.message ?? `HTTP ${create.status}` }
         }
-        const publish = await f(
-          `https://graph.facebook.com/v18.0/${igUserId}/media_publish?creation_id=${c.id}&access_token=${config.accessToken}`,
-          { method: 'POST' },
-        )
+        const publish = await f(`https://graph.facebook.com/v18.0/${igUserId}/media_publish`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${config.accessToken}`,
+          },
+          body: JSON.stringify({ creation_id: c.id }),
+        })
         const p = (await publish.json().catch(() => ({}))) as { id?: string; error?: { message?: string } }
         if (!publish.ok || !p.id) {
           return { ok: false, platform: 'instagram', error: p.error?.message ?? `HTTP ${publish.status}` }

@@ -111,10 +111,11 @@ metricsRoutes.get('/summary', async (c) => {
     const token = await getSecret(c.env, 'GUMROAD_ACCESS_TOKEN')
     if (token) {
       const sinceTs = Math.floor(new Date(last24h).getTime() / 1000)
-      const res = await fetch(
-        `https://api.gumroad.com/v2/sales?access_token=${encodeURIComponent(token)}&after=${sinceTs}`,
-        { signal: AbortSignal.timeout(5000) },
-      )
+      // Audit #5: token moved from query string to Authorization header.
+      const res = await fetch(`https://api.gumroad.com/v2/sales?after=${sinceTs}`, {
+        signal: AbortSignal.timeout(5000),
+        headers: { Authorization: `Bearer ${token}` },
+      })
       const data = (await res.json().catch(() => ({}))) as {
         success?: boolean
         sales?: Array<{ price: number; created_at: string }>

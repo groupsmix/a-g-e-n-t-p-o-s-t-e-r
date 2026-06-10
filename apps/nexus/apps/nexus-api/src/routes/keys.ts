@@ -315,7 +315,10 @@ const TESTERS: Record<string, Tester> = {
     return { ok: false, status: 'unauthorized', message: `${res.status} ${res.statusText}` }
   },
   GUMROAD_ACCESS_TOKEN: async (v) => {
-    const res = await fetch(`https://api.gumroad.com/v2/user?access_token=${encodeURIComponent(v)}`)
+    // Audit #5: token moved from query string to Authorization header.
+    const res = await fetch('https://api.gumroad.com/v2/user', {
+      headers: { Authorization: `Bearer ${v}` },
+    })
     if (res.ok) {
       const body = (await res.json().catch(() => ({}))) as { success?: boolean }
       if (body.success) return { ok: true, status: 'ok', message: `${res.status}` }
