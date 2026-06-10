@@ -7,7 +7,7 @@ export const renderVideoTool = createTool({
   description: "Renders a Remotion composition to an MP4 file on disk",
   inputSchema: z.object({
     compositionId: z.string(),
-    props: z.record(z.unknown()),
+    props: z.record(z.string(), z.unknown()),
     outputPath: z.string().optional(),
     codec: z.enum(["h264", "h265", "vp8", "vp9"]).optional(),
     crf: z.number().optional(),

@@ -37,6 +37,7 @@ const queueItemSchema = z.object({
 
 const captionsStepSchema = queueItemSchema.extend({
   captionsByPlatform: z.record(
+    z.string(),
     z.object({
       caption: z.string(),
       hashtags: z.array(z.string()),
