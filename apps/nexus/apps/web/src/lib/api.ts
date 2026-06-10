@@ -11,12 +11,12 @@ import type {
   Product,
   ProductDetail,
   WorkflowStatusResponse,
-} from '@nexus/types'
+} from '@posteragent/types/nexus'
 
 // Re-export all types for backward compatibility — consumers can import from
 // either 'api' or 'api-types'.
 export * from './api-types'
-export type { Domain, Product, ProductDetail, WorkflowStatusResponse } from '@nexus/types'
+export type { Domain, Product, ProductDetail, WorkflowStatusResponse } from '@posteragent/types/nexus'
 
 import type {
   ApiKeyInfo, KeysResponse, ManagerMessage, ManagerAction, ActionStep, ActionResult,

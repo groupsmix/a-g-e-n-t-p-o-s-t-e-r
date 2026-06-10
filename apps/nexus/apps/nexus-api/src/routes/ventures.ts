@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import type { Vertical } from '@nexus/types'
+import type { Vertical } from '@posteragent/types/nexus'
 import { rateLimit } from '../middleware/rate-limit'
 import {
   createVenture,

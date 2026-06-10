@@ -7,7 +7,7 @@ import { AI_REGISTRY } from './registry'
 import { SEARCH_REGISTRY } from './search-registry'
 import { offlineGenerate } from './offline'
 import type { AIRegistryEntry, TaskType, FailoverResult, FailoverOptions, AIStatusCache } from './types'
-import { createLogger } from '@nexus/logger'
+import { createLogger } from '@posteragent/logger/workers'
 
 const logger = createLogger({ service: 'nexus-ai', module: 'failover' })
 

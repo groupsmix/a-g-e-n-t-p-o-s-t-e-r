@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { VoiceInput } from '@/components/VoiceInput'
 import { Loader2 } from 'lucide-react'
-import type { Platform, SocialChannel } from '@nexus/types'
+import type { Platform, SocialChannel } from '@posteragent/types/nexus'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 
 interface FormState {

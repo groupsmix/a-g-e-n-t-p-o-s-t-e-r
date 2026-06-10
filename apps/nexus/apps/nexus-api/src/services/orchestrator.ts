@@ -20,7 +20,7 @@
  */
 
 import type { D1Database } from '@cloudflare/workers-types'
-import { createLogger } from '@nexus/logger'
+import { createLogger } from '@posteragent/logger/workers'
 import {
   AGENT_TASK_TYPES,
   getAgent,

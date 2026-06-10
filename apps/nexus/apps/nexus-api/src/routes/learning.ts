@@ -7,7 +7,7 @@ import {
   getLearningStats,
 } from '../services/learning'
 import type { LearningPattern } from '../services/learning'
-import { createLogger } from '@nexus/logger'
+import { createLogger } from '@posteragent/logger/workers'
 
 const logger = createLogger({ service: 'nexus-api', module: 'learning' })
 

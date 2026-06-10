@@ -22,7 +22,7 @@
  */
 
 import type { Env } from '../env'
-import { createLogger } from '@nexus/logger'
+import { createLogger } from '@posteragent/logger/workers'
 
 import { wireRegistry, runAgentTask, type WireDeps } from '@posteragent/orchestrator'
 import { createAnthropicLLM, createTavilySearch } from '@posteragent/agent-research/adapters'

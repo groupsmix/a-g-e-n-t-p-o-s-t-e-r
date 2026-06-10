@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Cpu } from 'lucide-react'
 import Link from 'next/link'
 import { api } from '@/lib/api'
-import type { AIModelDashboardStatus } from '@nexus/types'
+import type { AIModelDashboardStatus } from '@posteragent/types/nexus'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 import { EmptyState } from '@/components/shared/EmptyState'
 

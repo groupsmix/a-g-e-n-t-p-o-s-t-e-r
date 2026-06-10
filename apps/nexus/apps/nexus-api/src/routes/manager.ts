@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
-import type { ActionResult } from '@nexus/types'
+import type { ActionResult } from '@posteragent/types/nexus'
 import { ProductWorkflow } from '../services/workflow-engine'
 import { callAISimple, safeJson } from '../services/shared'
 import { executeAction, type LiveAction, type LiveActionType } from '../services/action-executor'

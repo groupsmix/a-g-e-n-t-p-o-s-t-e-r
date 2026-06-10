@@ -1,5 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types'
-import type { Signal, SignalSourceType } from '@nexus/types'
+import type { Signal, SignalSourceType } from '@posteragent/types/nexus'
 
 // ============================================================
 // Signal Normalizer Service

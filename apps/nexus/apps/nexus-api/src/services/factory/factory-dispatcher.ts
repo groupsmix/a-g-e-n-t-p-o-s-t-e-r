@@ -1,5 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types'
-import type { VentureVertical } from '@nexus/types'
+import type { VentureVertical } from '@posteragent/types/nexus'
 import { buildDigitalVenture } from './digital-factory'
 import { buildPODVenture } from './pod-factory'
 import { buildContentVenture } from './content-factory'

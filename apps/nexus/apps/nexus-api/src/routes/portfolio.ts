@@ -8,7 +8,7 @@ import type {
   CreateAssetLibraryItemInput, CreateAllocatorActionInput,
   SignalFilters, VentureFilters, OfferFilters, EconomicEventFilters,
   AssetLibraryFilters
-} from '@nexus/types/portfolio'
+} from '@posteragent/types/nexus/portfolio'
 
 export const portfolioRoutes = new Hono<{ Bindings: Env }>()
 

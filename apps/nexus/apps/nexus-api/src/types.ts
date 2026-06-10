@@ -16,7 +16,7 @@ export type {
   AIModel,
   TaskType,
   FailoverResult,
-} from '@nexus/types'
+} from '@posteragent/types/nexus'
 
 // Env type for Cloudflare bindings
 export type { Env }

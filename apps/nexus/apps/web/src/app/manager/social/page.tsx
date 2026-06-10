@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Megaphone, Plus, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
-import type { SocialChannel } from '@nexus/types'
+import type { SocialChannel } from '@posteragent/types/nexus'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 import { EmptyState } from '@/components/shared/EmptyState'
 

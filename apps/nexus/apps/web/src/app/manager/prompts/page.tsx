@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { FileCode } from 'lucide-react'
 import { api } from '@/lib/api'
-import type { PromptTemplate } from '@nexus/types'
+import type { PromptTemplate } from '@posteragent/types/nexus'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 
 const LAYERS = ['master', 'persona', 'role', 'domain', 'category', 'platform', 'social', 'quality']

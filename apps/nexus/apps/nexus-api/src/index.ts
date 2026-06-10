@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Env } from './env'
 import { sweepStaleRuns } from './services/sweep'
-import { createLogger } from '@nexus/logger'
+import { createLogger } from '@posteragent/logger/workers'
 
 const logger = createLogger({ service: 'nexus-api' })
 

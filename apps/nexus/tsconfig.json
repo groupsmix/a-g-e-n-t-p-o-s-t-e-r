@@ -24,12 +24,8 @@
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
     "paths": {
-      "@nexus/types": ["./packages/types/src"],
-      "@nexus/types/*": ["./packages/types/src/*"],
       "@nexus/prompts": ["./packages/prompts/src"],
-      "@nexus/prompts/*": ["./packages/prompts/src/*"],
-      "@nexus/logger": ["./packages/logger/src"],
-      "@nexus/logger/*": ["./packages/logger/src/*"]
+      "@nexus/prompts/*": ["./packages/prompts/src/*"]
     }
   },
   "exclude": ["node_modules", "dist", ".turbo"]
