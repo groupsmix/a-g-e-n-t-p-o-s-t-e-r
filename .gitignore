@@ -34,6 +34,9 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
+# Reference repos (documented in README — local clones, never tracked)
+ref/
+
 # Wrangler
 .wrangler/
 .dev.vars
