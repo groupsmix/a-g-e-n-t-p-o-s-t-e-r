@@ -16,13 +16,31 @@ function getRemotionEntryPoint(): string {
   return path.join(generatorsRoot, "src/video/remotion/index.tsx");
 }
 
+// Audit #48: bundling the Remotion project is by far the slowest part of a
+// render and the entry point never changes at runtime, so the webpack bundle
+// is built once per process and reused. Failures are not cached, so a broken
+// bundle attempt is retried on the next render.
+const bundleCache = new Map<string, Promise<string>>();
+
+function getBundle(entryPoint: string): Promise<string> {
+  let cached = bundleCache.get(entryPoint);
+  if (!cached) {
+    cached = bundle({
+      entryPoint,
+      webpackOverride: (config) => config,
+    }).catch((err: unknown) => {
+      bundleCache.delete(entryPoint);
+      throw err;
+    });
+    bundleCache.set(entryPoint, cached);
+  }
+  return cached;
+}
+
 export async function renderVideo(params: RenderVideoParams): Promise<string> {
   const entryPoint = getRemotionEntryPoint();
 
-  const bundleLocation = await bundle({
-    entryPoint,
-    webpackOverride: (config) => config,
-  });
+  const bundleLocation = await getBundle(entryPoint);
 
   const composition = await selectComposition({
     serveUrl: bundleLocation,

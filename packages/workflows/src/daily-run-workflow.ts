@@ -253,7 +253,18 @@ const dailyReportStep = createStep({
   inputSchema: siteContentOutputSchema,
   outputSchema: dailyOutputSchema,
   execute: async () => {
-    const today = new Date().toISOString().split("T")[0];
+    // Audit #49: report boundaries used to be UTC midnight, which split
+    // "yesterday evening" and "this morning" into the wrong day for anyone
+    // not living on UTC. The day is now computed in REPORT_TIMEZONE
+    // (IANA name, e.g. "Africa/Casablanca"), defaulting to UTC.
+    const timeZone = process.env.REPORT_TIMEZONE || "UTC";
+    // en-CA formats as YYYY-MM-DD, matching the previous string shape.
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
 
     const { count: published } = await getSupabase()
       .from("published_posts")

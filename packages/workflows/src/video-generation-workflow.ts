@@ -1,5 +1,6 @@
 import { createStep, createWorkflow } from "@mastra/core/workflows";
 import { RequestContext } from "@mastra/core/di";
+import fs from "node:fs/promises";
 import {
   isValidationError,
   noopObserve,
@@ -45,7 +46,6 @@ const scriptStepOutputSchema = z.object({
 
 const voiceoverStepOutputSchema = scriptStepOutputSchema.extend({
   voiceoverCdnUrl: z.string(),
-  voiceoverLocalPath: z.string(),
 });
 
 const backgroundStepOutputSchema = voiceoverStepOutputSchema.extend({
@@ -145,7 +145,6 @@ const generateVoiceoverStep = createStep({
     const ctx = toolContext(mastra, requestContext);
     const voiceover = unwrapToolResult<{
       cdnUrl: string;
-      localPath: string;
       durationSeconds: number;
     }>(
       await generateVoiceoverTool.execute!(
@@ -160,7 +159,6 @@ const generateVoiceoverStep = createStep({
     return {
       ...inputData,
       voiceoverCdnUrl: voiceover.cdnUrl,
-      voiceoverLocalPath: voiceover.localPath,
     };
   },
 });
@@ -233,19 +231,26 @@ const uploadVideoStep = createStep({
     if (!inputData) throw new Error("Missing step input");
 
     const ctx = toolContext(mastra, requestContext);
-    const uploaded = unwrapToolResult<{
-      cdnUrl: string;
-      objectId?: string;
-    }>(
-      await uploadToCosmicTool.execute!(
-        {
-          sourceUrlOrPath: inputData.localVideoPath,
-          folder: `videos/${inputData.niche}`,
-          title: inputData.topic,
-        },
-        ctx,
-      ),
-    );
+    let uploaded: { cdnUrl: string; objectId?: string };
+    try {
+      uploaded = unwrapToolResult<{
+        cdnUrl: string;
+        objectId?: string;
+      }>(
+        await uploadToCosmicTool.execute!(
+          {
+            sourceUrlOrPath: inputData.localVideoPath,
+            folder: `videos/${inputData.niche}`,
+            title: inputData.topic,
+          },
+          ctx,
+        ),
+      );
+    } finally {
+      // Audit #47: the rendered MP4 only exists so it can be uploaded —
+      // remove it once the upload settles instead of leaking it in tmpdir.
+      await fs.unlink(inputData.localVideoPath).catch(() => {});
+    }
 
     return {
       ...inputData,
