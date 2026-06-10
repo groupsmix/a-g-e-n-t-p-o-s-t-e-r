@@ -61,15 +61,11 @@ jobs:
         working-directory: apps/nexus/apps/nexus-api
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
-          cache-dependency-path: apps/nexus/pnpm-lock.yaml
-      - name: Install
-        working-directory: apps/nexus
-        run: pnpm install --frozen-lockfile
+      # No workspace install needed: wrangler only reads wrangler.toml and
+      # the migrations dir (audit §2.1 — nested lockfile removed).
       - name: Install wrangler
         run: npm install -g wrangler@3
       - name: Apply D1 migrations
@@ -84,9 +80,6 @@ jobs:
       needs.guard.outputs.proceed == 'true' &&
       (needs.migrations.result == 'success' || needs.migrations.result == 'skipped')
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/nexus
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -94,12 +87,14 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-          cache-dependency-path: apps/nexus/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm build
+      # Real validation via turbo from the root workspace (audit §2.1).
+      # The old `pnpm lint/typecheck/test/build` here ran the nexus
+      # package's no-op "Run from root" scripts — deploys were unvalidated.
+      - run: pnpm turbo run typecheck --filter="@nexus/*"
+      - run: pnpm turbo run test --filter="@nexus/*"
+      - run: pnpm turbo run build --filter=@nexus/nexus-api --filter=@nexus/nexus-ai
       - name: Install wrangler
         run: npm install -g wrangler@3
       - name: Deploy nexus-ai

@@ -22,12 +22,6 @@
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
   },
-  "packageManager": "pnpm@9.15.0",
-  "//workspaces": "Mirror of pnpm-workspace.yaml so bun-based tools (typecheck in sandbox CI) can resolve inner workspace deps. Source of truth remains pnpm-workspace.yaml.",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "dependencies": {
     "nanoid": "^3.3.11"
   }

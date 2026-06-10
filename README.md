@@ -39,15 +39,13 @@ workflows), the @repo runners still ship. CI proves it:
 | `ref/` | Cloned reference repos — local only, not tracked in git (do not import directly in production code) |
 | `docs/AGENT_TASKS.md` | Full build plan — one task per agent session |
 
-## Nested workspace install
+## One workspace, one lockfile
 
-`apps/nexus/` is its own pnpm workspace. The root `postinstall` script runs
-`pnpm install` inside `apps/nexus/` automatically, but if you ever see
-`Cannot find module 'react'` from `apps/nexus/apps/web`, run it manually:
-
-```bash
-cd apps/nexus && pnpm install
-```
+The repo is a single pnpm workspace rooted at the repo root — it spans
+`apps/*`, `packages/*`, `apps/nexus/apps/*` and `apps/nexus/packages/*`.
+The former nested workspace inside `apps/nexus/` (own lockfile + root
+`postinstall` hack) was removed per audit §2.1. One `pnpm install` at the
+root installs everything.
 
 ## Reference repos (`ref/`) — local only, not tracked
 
