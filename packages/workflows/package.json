@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mastra/core": "^1.40.0",
+    "@mastra/core": "^1.41.0",
     "@repo/core": "workspace:^",
     "@repo/publishers": "workspace:^",
     "@repo/tools": "workspace:^",
