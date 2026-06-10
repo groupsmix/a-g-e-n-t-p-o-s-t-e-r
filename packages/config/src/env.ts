@@ -51,6 +51,10 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
+/** All keys the schema knows about — used by check-env to detect
+ *  .env.example drift (audit #8). */
+export const envSchemaKeys = Object.keys(envSchema.shape);
+
 let cachedEnv: Env | undefined;
 
 export function validateEnv(): Env {
