@@ -11,6 +11,23 @@ const queueStatusSchema = z.enum([
   "failed",
 ]);
 
+// Audit #18: platform_targets used to accept any string, so typos like
+// "instagram" or "tikTok" sailed into the queue and only exploded later in
+// publisher-factory. This list must stay in sync with the publishers map in
+// packages/publishers/src/publisher-factory.ts.
+const publishPlatformSchema = z.enum([
+  "tiktok",
+  "instagram_feed",
+  "instagram_reels",
+  "instagram_story",
+  "youtube_shorts",
+  "youtube",
+  "twitter",
+  "pinterest",
+  "linkedin",
+  "threads",
+]);
+
 export const addToQueueTool = createTool({
   id: "add-to-content-queue",
   description: "Adds a new content item to the generation queue",
@@ -25,9 +42,10 @@ export const addToQueueTool = createTool({
     niche: z.string(),
     topic: z.string(),
     keywords: z.array(z.string()),
-    platform_targets: z.array(z.string()),
+    platform_targets: z.array(publishPlatformSchema).min(1),
     source_url: z.string().optional(),
-    scheduled_at: z.string().optional(),
+    // Audit #18: must be a real ISO-8601 timestamp, not any string.
+    scheduled_at: z.string().datetime({ offset: true }).optional(),
     metadata: z.record(z.string(), z.unknown()).optional(),
   }),
   outputSchema: z.object({
@@ -116,7 +134,20 @@ export const updateQueueItemTool = createTool({
   execute: async ({ id, status, metadata, error }) => {
     const updates: Record<string, unknown> = {};
     if (status) updates.status = status;
-    if (metadata) updates.metadata = metadata;
+    if (metadata) {
+      // Audit #19: metadata used to be replaced wholesale, so a publish step
+      // writing { publishedUrl } would wipe the videoCdnUrl/voiceoverCdnUrl
+      // written earlier in the pipeline. Merge with what's already there.
+      const { data: existing } = await getSupabase()
+        .from("content_queue")
+        .select("metadata")
+        .eq("id", id)
+        .single();
+      updates.metadata = {
+        ...((existing?.metadata as Record<string, unknown> | null) ?? {}),
+        ...metadata,
+      };
+    }
     if (error) updates.error = error;
     const { error: dbError } = await getSupabase()
       .from("content_queue")

@@ -1,6 +1,6 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import { generateText } from "ai";
+import { generateObject } from "ai";
 
 const platformRules = {
   tiktok:
@@ -39,12 +39,22 @@ const platformSchema = z.enum([
 
 const CAPTION_MODEL = "anthropic/claude-sonnet-4-5";
 
-function parseJsonFromModel<T>(text: string): T {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const jsonStr = fenced ? fenced[1].trim() : trimmed;
-  return JSON.parse(jsonStr) as T;
-}
+// Audit #20: model output used to be regex-stripped and fed to JSON.parse,
+// so a chatty preamble or a missing field crashed (or silently corrupted)
+// the pipeline. generateObject enforces these schemas at the source.
+const captionLlmSchema = z.object({
+  caption: z.string().describe("the main caption text"),
+  hashtags: z.array(z.string()),
+  callToAction: z.string().describe("the CTA text"),
+  fullPost: z.string().describe("caption + hashtags formatted for posting"),
+});
+
+const hashtagSetLlmSchema = z.object({
+  highCompetition: z.array(z.string()),
+  mediumCompetition: z.array(z.string()),
+  lowCompetition: z.array(z.string()),
+  recommended: z.array(z.string()).describe("top 10 mix"),
+});
 
 export const generateCaptionTool = createTool({
   id: "generate-caption",
@@ -80,8 +90,9 @@ export const generateCaptionTool = createTool({
   execute: async (input) => {
     const platform = input.platform as CaptionPlatform;
     const rules = platformRules[platform];
-    const { text } = await generateText({
+    const { object } = await generateObject({
       model: CAPTION_MODEL,
+      schema: captionLlmSchema,
       prompt: `Generate a ${input.platform} caption for this content:
 Topic: ${input.topic}
 Niche: ${input.niche}
@@ -89,23 +100,10 @@ Content type: ${input.contentType}
 Brand voice: ${input.brandVoice}
 ${input.affiliateLinkPlaceholder ? "Include [LINK] placeholder where the affiliate link should go." : ""}
 
-Platform rules: ${rules}
-
-Return JSON only:
-{
-  "caption": "the main caption text",
-  "hashtags": ["tag1", "tag2"],
-  "callToAction": "the CTA text",
-  "fullPost": "caption + hashtags formatted for posting"
-}`,
+Platform rules: ${rules}`,
     });
 
-    return parseJsonFromModel<{
-      caption: string;
-      hashtags: string[];
-      callToAction: string;
-      fullPost: string;
-    }>(text);
+    return object;
   },
 });
 
@@ -126,18 +124,14 @@ export const generateHashtagSetTool = createTool({
     recommended: z.array(z.string()),
   }),
   execute: async (input) => {
-    const { text } = await generateText({
+    const { object } = await generateObject({
       model: CAPTION_MODEL,
+      schema: hashtagSetLlmSchema,
       prompt: `Generate ${input.count} hashtags for ${input.platform} in the ${input.niche} niche about "${input.topic}".
 Mix: 20% high competition (1M+ posts), 50% medium (100K-1M), 30% low (under 100K).
-Return JSON only: { "highCompetition": [], "mediumCompetition": [], "lowCompetition": [], "recommended": [top 10 mix] }`,
+Put the best 10 (mixed across tiers) in "recommended".`,
     });
 
-    return parseJsonFromModel<{
-      highCompetition: string[];
-      mediumCompetition: string[];
-      lowCompetition: string[];
-      recommended: string[];
-    }>(text);
+    return object;
   },
 });

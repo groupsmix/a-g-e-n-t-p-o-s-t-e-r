@@ -116,7 +116,15 @@ const fillQueueStep = createStep({
       );
     }
 
-    return { ...inputData, queueFilled: true };
+    // Audit #17: queueFilled used to be hardcoded `true` even when the agent
+    // inserted nothing, so downstream steps "generated content" for an empty
+    // queue. Report what is actually in the queue.
+    const { count } = await getSupabase()
+      .from("content_queue")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending");
+
+    return { ...inputData, queueFilled: (count ?? 0) > 0 };
   },
 });
 
