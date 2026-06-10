@@ -27,12 +27,12 @@
     "@posteragent/orchestrator": "workspace:*",
     "@posteragent/proactivity": "workspace:*",
     "@posteragent/types": "workspace:*",
-    "hono": "^4.0.0",
+    "hono": "^4.12.25",
     "nanoid": "^3.3.11",
     "zod": "^3.22.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240117.0",
+    "@cloudflare/workers-types": "^4.20260610.1",
     "typescript": "^5.3.3",
     "vitest": "^1.2.0",
     "wrangler": "^3.0.0"
