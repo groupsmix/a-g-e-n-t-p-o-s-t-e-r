@@ -27,6 +27,10 @@ if (existsSync(envPath)) {
 const args = new Set(process.argv.slice(2))
 const skipNetwork = args.has('--env-only') || args.has('--skip-network')
 
+// Audit #8: --check-example fails when the env schema and .env.example
+// drift apart, so new schema keys can't be added without documenting them.
+const checkExample = args.has('--check-example')
+
 // Strict mode fails on any missing key. Default is lenient: print a warning
 // and continue, so a clean clone can boot the NEXUS Cloudflare stack
 // (which lives in apps/nexus/ and does NOT use this env schema at all)
@@ -35,8 +39,36 @@ const skipNetwork = args.has('--env-only') || args.has('--skip-network')
 // CI for the legacy stack passes --strict to enforce the full schema.
 const strict = args.has('--strict')
 
+async function checkExampleDrift(): Promise<void> {
+  console.log('\n0/2 Checking schema ↔ .env.example drift…')
+  const { envSchemaKeys } = await import('../packages/config/src/env.js')
+  const examplePath = resolve(process.cwd(), '.env.example')
+  if (!existsSync(examplePath)) {
+    console.error('   ✗ .env.example not found')
+    process.exit(1)
+  }
+  const { readFileSync } = await import('node:fs')
+  const documented = new Set(
+    readFileSync(examplePath, 'utf8')
+      .split('\n')
+      .map((line) => line.match(/^([A-Z][A-Z0-9_]*)=/)?.[1])
+      .filter((k): k is string => Boolean(k)),
+  )
+  const missing = envSchemaKeys.filter((k) => !documented.has(k))
+  if (missing.length) {
+    console.error(
+      `   ✗ ${missing.length} schema key(s) missing from .env.example:`,
+    )
+    console.error('     ' + missing.join(', '))
+    process.exit(1)
+  }
+  console.log(`   ✓ All ${envSchemaKeys.length} schema keys documented`)
+}
+
 async function main(): Promise<void> {
   console.log('🔍 NEXUS pre-flight check')
+
+  if (checkExample) await checkExampleDrift()
 
   // 1. Env validation
   console.log('\n1/2 Validating environment variables…')

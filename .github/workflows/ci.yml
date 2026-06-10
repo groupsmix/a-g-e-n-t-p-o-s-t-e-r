@@ -25,6 +25,11 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      # Audit #8/#9: exercise the env schema in CI and fail on
+      # schema ↔ .env.example drift. Secret *values* stay lenient here
+      # (CI has none for the legacy stack) — documentation drift is what
+      # this enforces.
+      - run: pnpm check-env --env-only --check-example
       - run: pnpm typecheck --filter=@repo/config --filter=@repo/core --filter=@repo/agents --filter=@repo/tools --filter=@repo/workflows --filter=@repo/publishers --filter=@repo/generators --filter=@repo/cms --filter=@repo/factory --filter=@repo/runner
       - run: pnpm build     --filter=@repo/config --filter=@repo/core --filter=@repo/agents --filter=@repo/tools --filter=@repo/workflows --filter=@repo/publishers --filter=@repo/generators --filter=@repo/cms --filter=@repo/factory --filter=@repo/runner
 
@@ -115,14 +120,15 @@ jobs:
       # (pages:build) with its own env, so CI builds only the workers.
       - run: pnpm turbo run build --filter=@nexus/nexus-api --filter=@nexus/nexus-ai
       # D1 migrations syntax check — runs against an ephemeral local DB
-      # so we catch broken SQL before deploy. Skips silently when wrangler
-      # isn't available in the runtime.
+      # so we catch broken SQL before deploy. Audit #13: this used to end
+      # in `|| true`, which meant broken migrations sailed through CI —
+      # wrangler is installed right here, so let failures fail.
       - name: D1 migrations dry-run
         working-directory: apps/nexus
         run: |
           npm install -g wrangler@3
           cd apps/nexus-api
-          wrangler d1 migrations list nexus-db --local || true
+          wrangler d1 migrations list nexus-db --local
       # D1 schema-drift check — applies every migration to an in-memory
       # SQLite DB and prepares every static query in the worker, failing on
       # any NEW "no such column/table" drift (the class of bug that broke
