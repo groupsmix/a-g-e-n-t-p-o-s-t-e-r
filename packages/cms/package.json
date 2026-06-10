@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@cosmicjs/sdk": "^2.0.1",
+    "@cosmicjs/sdk": "^2.1.0",
     "@repo/config": "workspace:^"
   },
   "devDependencies": {
