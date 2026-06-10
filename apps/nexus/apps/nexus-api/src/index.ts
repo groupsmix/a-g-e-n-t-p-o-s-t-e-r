@@ -33,6 +33,7 @@ import { accessGate } from './middleware/access-gate'
 import { marketingRoutes, runMarketing } from './routes/marketing'
 import { browserRoutes } from './routes/browser'
 import { backfillDeliverables } from './services/deliverable'
+import { ProductWorkflow } from './services/workflow-engine'
 import { digestRoutes } from './routes/digest'
 import { sendDailyDigest } from './services/digest'
 import { learningRoutes, runLearningSync } from './routes/learning'
@@ -277,6 +278,9 @@ export default {
     ctx.waitUntil(runRevenueTick(env).catch((err) => {
       logger.error('Revenue tick error', err instanceof Error ? err : new Error(String(err)))
     }))
+    // T1.11 — resume any runs parked in 'waiting_ai' once AI models recover.
+    ctx.waitUntil(resumeWaitingAiRuns(env, ctx))
+
     // Drain legacy job queue — up to 5 agent jobs per cron tick.
     ctx.waitUntil((async () => {
       const { dequeue } = await import('./services/job-queue')
@@ -300,6 +304,123 @@ export default {
       }),
     )
   },
+}
+
+// ------------------------------------------------------------
+// T1.11 — Wake-check + workflow resumption cron.
+//
+// Called every cron tick from the daily batch. Asks nexus-ai's /wake-check
+// endpoint whether any rate-limit cooldowns have now expired. If at least one
+// model's cooldown has expired (or no models are currently rate-limited), we
+// have spare AI capacity and should retry runs that were parked in
+// 'waiting_ai' status.
+//
+// We cap at WAKE_RESUME_LIMIT runs per tick so a large backlog doesn't flood
+// a single Worker invocation with 90-second AI timeouts all at once.
+// ------------------------------------------------------------
+const WAKE_RESUME_LIMIT = 5
+
+async function resumeWaitingAiRuns(env: Env, ctx: ExecutionContext): Promise<void> {
+  try {
+    // 1. Ask nexus-ai which model cooldowns have expired.
+    const wakeRes = await env.AI_WORKER.fetch(
+      new Request(env.NEXUS_AI_URL
+        ? env.NEXUS_AI_URL.replace('/task', '/wake-check')
+        : 'https://nexus-ai/wake-check',
+        { method: 'GET' },
+      )
+    ).catch(() => null)
+
+    if (!wakeRes?.ok) {
+      logger.warn('resumeWaitingAiRuns: wake-check unreachable, skipping resume')
+      return
+    }
+
+    const wakeData = (await wakeRes.json()) as { expired: string[]; active: string[] }
+
+    // If models are still rate-limited and none have just cleared, there is no
+    // new capacity — skip rather than immediately re-park the same runs.
+    if (wakeData.active.length > 0 && wakeData.expired.length === 0) {
+      logger.info('resumeWaitingAiRuns: models still rate-limited, skipping', {
+        active: wakeData.active.length,
+      })
+      return
+    }
+
+    // 2. Fetch up to WAKE_RESUME_LIMIT runs parked in 'waiting_ai'.
+    //    Join through products → domains/categories to recover the slugs that
+    //    ProductWorkflow.run() needs (they are not stored on workflow_runs itself).
+    const rows = await env.DB
+      .prepare(
+        `SELECT
+           wr.id          AS run_id,
+           p.id           AS product_id,
+           p.user_input,
+           d.slug         AS domain_slug,
+           cat.slug       AS category_slug
+         FROM workflow_runs wr
+         JOIN products    p   ON p.id  = wr.product_id
+         JOIN domains     d   ON d.id  = p.domain_id
+         JOIN categories  cat ON cat.id = p.category_id
+         WHERE wr.status = 'waiting_ai'
+         ORDER BY wr.created_at ASC
+         LIMIT ?`
+      )
+      .bind(WAKE_RESUME_LIMIT)
+      .all<{
+        run_id: string
+        product_id: string
+        user_input: string | null
+        domain_slug: string
+        category_slug: string
+      }>()
+
+    const parked = rows.results ?? []
+    if (parked.length === 0) {
+      logger.info('resumeWaitingAiRuns: no waiting_ai runs to resume')
+      return
+    }
+
+    logger.info('resumeWaitingAiRuns: resuming parked runs', { count: parked.length })
+
+    const now = new Date().toISOString()
+
+    for (const row of parked) {
+      // 3. Reset run + product status so the engine treats this as a fresh start.
+      await env.DB.prepare(
+        `UPDATE workflow_runs
+            SET status='queued', started_at=NULL, completed_at=NULL, error=NULL, current_step=NULL
+          WHERE id=?`
+      ).bind(row.run_id).run().catch(() => void 0)
+
+      await env.DB.prepare(
+        `UPDATE products SET status='running', updated_at=? WHERE id=?`
+      ).bind(now, row.product_id).run().catch(() => void 0)
+
+      // 4. Re-fire the full 15-step pipeline. Each run gets its own waitUntil
+      //    so a failure in one doesn't abort the others.
+      const userInput: Record<string, unknown> =
+        row.user_input ? (JSON.parse(row.user_input) as Record<string, unknown>) : {}
+
+      const engine = new ProductWorkflow(env)
+      ctx.waitUntil(
+        engine
+          .run(row.run_id, row.product_id, row.domain_slug, row.category_slug, userInput)
+          .catch((err) => {
+            logger.error(
+              'resumeWaitingAiRuns: run failed',
+              err instanceof Error ? err : new Error(String(err)),
+              { run_id: row.run_id, product_id: row.product_id },
+            )
+          })
+      )
+    }
+  } catch (err) {
+    logger.error(
+      'resumeWaitingAiRuns: unexpected error',
+      err instanceof Error ? err : new Error(String(err)),
+    )
+  }
 }
 
 // ------------------------------------------------------------

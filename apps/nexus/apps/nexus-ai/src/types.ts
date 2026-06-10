@@ -19,7 +19,21 @@ export interface AIRegistryEntry {
   isFree: boolean
   why: string
   apiModelName: string
-  costPer1MTokens?: number
+  costPer1kIn?: number
+  costPer1kOut?: number
+  maxOutputTokens: number
+  supportsJsonMode: boolean
+}
+
+export interface SearchProviderEntry {
+  id: string
+  name: string
+  provider: 'tavily' | 'exa' | 'serpapi' | 'dataforseo'
+  secretKey: string | null
+  rank: number
+  isFree: boolean
+  why: string
+  costPerSearch?: number
 }
 
 export type AIProvider =
@@ -54,6 +68,7 @@ export interface FailoverResult {
   models_tried: string[]
   tokens_used: number
   cost_usd?: number
+  source?: 'model' | 'universal' | 'offline'
 }
 
 // ============================================================
@@ -64,6 +79,7 @@ export interface FailoverOptions {
   maxRetries?: number
   timeoutMs?: number
   outputFormat?: 'text' | 'json'
+  excludeModelIds?: string[]
 }
 
 // ============================================================

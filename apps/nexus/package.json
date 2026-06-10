@@ -3,19 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "turbo dev --filter=@nexus/*",
-    "lint": "turbo lint --filter=@nexus/*",
+    "dev": "echo 'Run from root'",
+    "lint": "echo 'Run from root'",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "clean": "turbo clean && rm -rf node_modules",
-    "typecheck": "turbo typecheck --filter=@nexus/*",
-    "build": "turbo build --filter=@nexus/*",
-    "test": "turbo test --filter=@nexus/*",
+    "clean": "rm -rf node_modules",
+    "typecheck": "echo 'Run from root'",
+    "build": "echo 'Run from root'",
+    "test": "echo 'Run from root'",
     "db:migrate": "wrangler d1 migrations apply nexus-db --local"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "prettier": "^3.2.4",
-    "turbo": "^2.0.0",
+    "turbo": "^2.9.16",
     "typescript": "^5.3.3"
   },
   "engines": {
