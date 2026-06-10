@@ -72,7 +72,10 @@ async function sales(env: Env): Promise<{
   const token = await getSecret(env, 'GUMROAD_ACCESS_TOKEN')
   if (!token) return { configured: false, total_sales: 0, total_revenue: 0, best_seller: null }
   try {
-    const res = await fetch(`https://api.gumroad.com/v2/products?access_token=${encodeURIComponent(token)}`)
+    // Audit #5: token moved from query string to Authorization header.
+    const res = await fetch('https://api.gumroad.com/v2/products', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
     const data = (await res.json().catch(() => ({}))) as { success?: boolean; products?: GumroadProduct[] }
     if (!res.ok || !data.success) return { configured: true, total_sales: 0, total_revenue: 0, best_seller: null }
     const products = (data.products || []).map((p) => ({

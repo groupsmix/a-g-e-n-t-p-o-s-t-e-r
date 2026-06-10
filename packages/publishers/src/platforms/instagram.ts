@@ -109,8 +109,10 @@ export class InstagramPublisher extends BasePlatformPublisher {
     token: string,
   ): Promise<void> {
     for (let i = 0; i < 30; i++) {
+      // Audit #5: token moved from query string to Authorization header.
       const res = await fetch(
-        `https://graph.facebook.com/v19.0/${containerId}?fields=status_code&access_token=${token}`,
+        `https://graph.facebook.com/v19.0/${containerId}?fields=status_code`,
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       const data = (await res.json()) as { status_code?: string };
       if (data.status_code === "FINISHED") return;
