@@ -17,8 +17,9 @@ identity, proactivity, agent journals — not the money/ops dashboard. See
 | Brain Cockpit | `apps/dashboard`, `@posteragent/memory \| identity \| proactivity` | Next.js on port 3030 | Brain-layer UI: memory, identity, journals, agent status. No money/ops data. |
 | NEXUS / @posteragent | `apps/nexus/*`, `@posteragent/agent-*` | Cloudflare Workers + Pages (D1 / KV / R2) | **Canonical dashboard.** Revenue, products, publish queue, autopilot, observability, freelance, learning loop. |
 
-Until the legacy cron is formally retired (jobs migrated into NEXUS
-workflows), the @repo runners still ship. CI proves it:
+**The legacy stack has a retirement date: 2026-06-22** (after a one-week
+parallel-run — see `docs/runbooks/legacy-cron-retirement.md`). Until then,
+the `@repo` runners still ship. CI proves it:
 
 ```
 .github/workflows/daily-run.yml      → @repo/runner
