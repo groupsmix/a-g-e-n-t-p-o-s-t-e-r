@@ -43,6 +43,9 @@ const envSchema = z.object({
   /** LibSQL / SQLite URL for local Mastra storage when DATABASE_URL is unset */
   MASTRA_STORAGE_URL: z.string().default("file:.mastra/storage.db"),
 
+  /** IANA timezone used for daily report boundaries (audit #49) */
+  REPORT_TIMEZONE: z.string().default("UTC"),
+
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 });
 
