@@ -81,4 +81,11 @@ export interface Env {
   // production to the dashboard origin(s), e.g.
   //   "https://nexus-web-cl2.pages.dev,https://nexus.example.com".
   ALLOWED_ORIGINS?: string
+
+  // Cloudflare Access (Zero Trust) verification — audit #4. When BOTH are
+  // set, the cf-access middleware enforces a valid CF-Access-Jwt-Assertion
+  // on every non-bypassed route. Leave unset to keep the gate inert.
+  // Setup steps are documented in middleware/cf-access.ts.
+  CF_ACCESS_AUD?: string
+  CF_ACCESS_TEAM_DOMAIN?: string
 }
