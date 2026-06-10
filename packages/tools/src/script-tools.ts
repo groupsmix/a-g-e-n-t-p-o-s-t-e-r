@@ -1,6 +1,6 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import { generateText } from "ai";
+import { generateObject } from "ai";
 
 const SCRIPT_MODEL = "anthropic/claude-sonnet-4-5";
 
@@ -18,13 +18,6 @@ const scriptOutputSchema = z.object({
   estimatedDurationSeconds: z.number(),
   compositionId: z.string(),
 });
-
-function parseJsonFromModel<T>(text: string): T {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const jsonStr = fenced ? fenced[1].trim() : trimmed;
-  return JSON.parse(jsonStr) as T;
-}
 
 export const generateVideoScriptTool = createTool({
   id: "generate-video-script",
@@ -49,38 +42,26 @@ export const generateVideoScriptTool = createTool({
   outputSchema: scriptOutputSchema,
   execute: async (input) => {
     const targetDurationSeconds = input.targetDurationSeconds ?? 30;
-    const { text } = await generateText({
+    // Audit #20: schema-enforced output instead of regex + JSON.parse.
+    const { object } = await generateObject({
       model: SCRIPT_MODEL,
+      schema: scriptOutputSchema,
       prompt: `Create a ${input.format} short-form video script for this topic: "${input.topic}" in the ${input.niche} niche.
 
 Target duration: ${input.targetDurationSeconds} seconds at 30fps.
 ${input.includeHook ? "Start with a 3-second attention hook that creates curiosity or shock." : ""}
 ${input.includeCTA ? `End with a CTA pointing to: ${input.ctaTarget}` : ""}
 
-Return JSON only:
-{
-  "script": [
-    {
-      "text": "display text on screen (short, punchy)",
-      "startFrame": 0,
-      "durationFrames": 90,
-      "style": "headline",
-      "voiceText": "what the AI voice says (can be longer than display text)"
-    }
-  ],
-  "fullVoiceoverText": "complete voiceover script as one string",
-  "estimatedDurationSeconds": 30,
-  "compositionId": "ShortVideo"
-}
-
 Rules:
-- Each text card max 8 words on screen
-- Voice text can be 1-2 sentences
+- "text" is the display text on screen — each card max 8 words, short and punchy
+- "voiceText" is what the AI voice says — can be 1-2 sentences per card
+- "fullVoiceoverText" is the complete voiceover script as one string
 - Use ${targetDurationSeconds * 30} total frames
 - Hook = first 3 seconds (90 frames)
-- CTA = last 3 seconds`,
+- CTA = last 3 seconds
+- "compositionId" is "ShortVideo"`,
     });
 
-    return parseJsonFromModel<z.infer<typeof scriptOutputSchema>>(text);
+    return object;
   },
 });

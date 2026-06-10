@@ -1,17 +1,28 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import { generateText } from "ai";
+import { generateObject } from "ai";
 import { createCosmicObject, OBJECT_TYPES } from "@repo/cms";
 import { replaceAffiliateLinks } from "@repo/generators";
 
 const SEO_MODEL = "anthropic/claude-sonnet-4-5";
 
-function parseJsonFromModel<T>(text: string): T {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const jsonStr = fenced ? fenced[1].trim() : trimmed;
-  return JSON.parse(jsonStr) as T;
-}
+// Audit #20: schema-enforced model output instead of regex + JSON.parse.
+const blogPostLlmSchema = z.object({
+  title: z.string().describe("H1 title"),
+  slug: z.string().describe("url-slug"),
+  content: z.string().describe("full markdown content"),
+  seoTitle: z.string().describe("60-char SEO title"),
+  seoDescription: z
+    .string()
+    .describe("160-char meta description with primary keyword"),
+});
+
+const productReviewLlmSchema = z.object({
+  title: z.string(),
+  slug: z.string().describe("url-slug"),
+  content: z.string().describe("full markdown content"),
+  rating: z.number().describe("1-5 with one decimal, e.g. 4.2"),
+});
 
 export const generateBlogPostTool = createTool({
   id: "generate-blog-post",
@@ -39,8 +50,9 @@ export const generateBlogPostTool = createTool({
     const targetWordCount = input.targetWordCount ?? 1500;
     const secondaryKeywords = input.secondaryKeywords ?? [];
 
-    const { text } = await generateText({
+    const { object } = await generateObject({
       model: SEO_MODEL,
+      schema: blogPostLlmSchema,
       prompt: `Write a ${targetWordCount}-word SEO blog post for the ${input.niche} niche.
 
 Topic: "${input.topic}"
@@ -57,25 +69,10 @@ Structure:
 - FAQ section (5 questions)
 - Conclusion with CTA
 
-Write in a helpful, expert tone. Include specific numbers/facts. Internal linking: add [INTERNAL_LINK: related topic] placeholders.
-
-Return JSON only:
-{
-  "title": "H1 title",
-  "slug": "url-slug",
-  "content": "full markdown content",
-  "seoTitle": "60-char SEO title",
-  "seoDescription": "160-char meta description with primary keyword"
-}`,
+Write in a helpful, expert tone. Include specific numbers/facts. Internal linking: add [INTERNAL_LINK: related topic] placeholders.`,
     });
 
-    const parsed = parseJsonFromModel<{
-      title: string;
-      slug: string;
-      content: string;
-      seoTitle: string;
-      seoDescription: string;
-    }>(text);
+    const parsed = object;
 
     const contentWithLinks = await replaceAffiliateLinks(
       parsed.content,
@@ -131,8 +128,9 @@ export const generateProductReviewTool = createTool({
     cosmicObjectId: z.string(),
   }),
   execute: async (input) => {
-    const { text } = await generateText({
+    const { object } = await generateObject({
       model: SEO_MODEL,
+      schema: productReviewLlmSchema,
       prompt: `Write a comprehensive, honest product review for "${input.productName}" for the ${input.niche} niche.
 Target keyword: "${input.targetKeyword}"
 Affiliate URL: ${input.affiliateUrl}
@@ -143,17 +141,10 @@ Include:
 - Who it's for / who it's not for
 - Comparison to 2 alternatives
 - FAQ (5 questions)
-- Clear CTA with affiliate link as [BUY_LINK]
-
-Return JSON only: { "title": "", "slug": "", "content": "", "rating": 4.2 }`,
+- Clear CTA with affiliate link as [BUY_LINK]`,
     });
 
-    const parsed = parseJsonFromModel<{
-      title: string;
-      slug: string;
-      content: string;
-      rating: number;
-    }>(text);
+    const parsed = object;
 
     let content = parsed.content.replace(
       /\[BUY_LINK\]/g,
