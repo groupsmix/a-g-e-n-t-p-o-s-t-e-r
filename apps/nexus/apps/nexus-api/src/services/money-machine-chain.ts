@@ -36,7 +36,7 @@ import { runAgentTask } from '@posteragent/orchestrator'
 import type { AgentTaskType } from '@posteragent/types'
 import type { IdentityLayer } from '@posteragent/identity'
 
-import { buildIdentityLayer, getWiredRegistry } from './orchestrator-bridge'
+import { buildBudgetGuard, buildIdentityLayer, getWiredRegistry } from './orchestrator-bridge'
 
 const logger = createLogger({ service: 'money-machine-chain' })
 
@@ -366,6 +366,8 @@ async function enqueueAndRun(
       registry,
       identity,
       log: logger as never,
+      // Audit #44: chain steps spend real money — same caps as queue runs.
+      budget: buildBudgetGuard(env),
     })
     return {
       taskId: id,

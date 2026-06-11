@@ -5,6 +5,7 @@
 // Each returns a pass/fail verdict with specific issues.
 
 import { scoreProduct, scoreNiche, type NicheScore } from './product-scorer'
+import { flagsToIssues, screenFields } from './brand-safety'
 
 export interface QualityResult {
   pass: boolean
@@ -116,6 +117,19 @@ export function checkPrePublish(product: PrePublishProduct): QualityResult {
 
   // Reject filter: brackets / Untitled / doubled words (T4).
   issues.push(...detectSlop(product))
+
+  // Audit #45: brand-safety / moderation screen. LLM-generated copy can
+  // hallucinate medical cures, guaranteed-income pitches, or worse —
+  // those must never reach a storefront under the owner's name.
+  issues.push(
+    ...flagsToIssues(
+      screenFields({
+        name: product.name,
+        description: product.description,
+        tags: product.tags ?? undefined,
+      }),
+    ),
+  )
 
   const pass = issues.length === 0
   return { pass, issues, score: productScore.total }

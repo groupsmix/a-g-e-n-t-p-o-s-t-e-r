@@ -11,6 +11,7 @@
 // locally, `wrangler secret put` in production).
 
 import type { Env } from '../env'
+import { flagsToIssues, screenFields } from './brand-safety'
 
 export interface ListingPayload {
   productId: string
@@ -170,6 +171,17 @@ const AYRSHARE_PLATFORM: Record<string, string> = {
 }
 
 export async function postToSocial(p: SocialPayload, env: Env): Promise<PublishOutcome> {
+  // Audit #45: last-line brand-safety gate. The quality gate screens
+  // earlier, but content can also reach here via direct API routes —
+  // nothing leaves the system without passing this check.
+  const safety = screenFields({ content: p.content })
+  if (!safety.pass) {
+    return {
+      status: 'failed',
+      error: `Blocked by brand-safety gate: ${flagsToIssues(safety).join('; ')}`,
+    }
+  }
+
   const key = await getSecret(env, 'AYRSHARE_API_KEY')
   if (!key) {
     // Fall back to a generic webhook if configured.
@@ -214,6 +226,15 @@ export async function postToSocial(p: SocialPayload, env: Env): Promise<PublishO
 // ============================================================
 
 export async function publishToPlatform(p: ListingPayload, env: Env): Promise<PublishOutcome> {
+  // Audit #45: last-line brand-safety gate (see postToSocial).
+  const safety = screenFields({ title: p.title, description: p.description, tags: p.tags })
+  if (!safety.pass) {
+    return {
+      status: 'failed',
+      error: `Blocked by brand-safety gate: ${flagsToIssues(safety).join('; ')}`,
+    }
+  }
+
   switch (p.platformSlug) {
     case 'gumroad':
     case 'gumroad-plus':
