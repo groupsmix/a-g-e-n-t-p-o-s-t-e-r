@@ -15,7 +15,7 @@ export const browserAgentRoutes = new Hono<{ Bindings: Env }>()
 // generator naturally tears down the Chromium session in its `finally`.
 // ---------------------------------------------------------------------------
 
-browserAgentRoutes.post('/run', async (c) => {
+  .post('/run', async (c) => {
   const body = await c.req
     .json<{ goal?: string; startUrl?: string; maxSteps?: number; liveMode?: boolean }>()
     .catch(() => ({} as { goal?: string; startUrl?: string; maxSteps?: number; liveMode?: boolean }))

@@ -21,9 +21,21 @@ import {
   runAutonome,
 } from '@posteragent/agent-autonome'
 
+
+export async function runAutonomeTick(env: Env): Promise<void> {
+  const goals = new D1GoalSource(env.DB)
+  const progress = new D1ProgressSource(env.DB)
+  const enqueuer = new D1TaskEnqueuer(env.DB)
+  const planner = new DefaultPlanner()
+  const notifier = new ConsoleNotificationSink()
+  const store = new D1AutonomeRunStore(env.DB)
+  const result = await runAutonome({ goals, progress, planner, enqueuer, notifier })
+  await store.record({ generated_at: result.generated_at, result }).catch(() => undefined)
+}
+
 export const autonomeRoutes = new Hono<{ Bindings: Env }>()
 
-autonomeRoutes.get('/goals', async (c) => {
+  .get('/goals', async (c) => {
   try {
     const src = new D1GoalSource(c.env.DB)
     const goals = await src.list()
@@ -37,7 +49,8 @@ autonomeRoutes.get('/goals', async (c) => {
   }
 })
 
-autonomeRoutes.post('/goals', async (c) => {
+
+  .post('/goals', async (c) => {
   try {
     const body = (await c.req.json()) as {
       id?: string
@@ -73,7 +86,8 @@ autonomeRoutes.post('/goals', async (c) => {
   }
 })
 
-autonomeRoutes.delete('/goals/:id', async (c) => {
+
+  .delete('/goals/:id', async (c) => {
   try {
     await c.env.DB.prepare(`UPDATE goals SET enabled = 0, updated_at = datetime('now') WHERE id = ?`)
       .bind(c.req.param('id'))
@@ -84,7 +98,8 @@ autonomeRoutes.delete('/goals/:id', async (c) => {
   }
 })
 
-autonomeRoutes.get('/runs', async (c) => {
+
+  .get('/runs', async (c) => {
   const limit = Math.min(parseInt(c.req.query('limit') ?? '20', 10) || 20, 100)
   try {
     const rows = await c.env.DB.prepare(
@@ -104,18 +119,8 @@ autonomeRoutes.get('/runs', async (c) => {
   }
 })
 
-export async function runAutonomeTick(env: Env): Promise<void> {
-  const goals = new D1GoalSource(env.DB)
-  const progress = new D1ProgressSource(env.DB)
-  const enqueuer = new D1TaskEnqueuer(env.DB)
-  const planner = new DefaultPlanner()
-  const notifier = new ConsoleNotificationSink()
-  const store = new D1AutonomeRunStore(env.DB)
-  const result = await runAutonome({ goals, progress, planner, enqueuer, notifier })
-  await store.record({ generated_at: result.generated_at, result }).catch(() => undefined)
-}
 
-autonomeRoutes.post('/run', async (c) => {
+  .post('/run', async (c) => {
   try {
     await runAutonomeTick(c.env)
     return c.json({ ok: true })

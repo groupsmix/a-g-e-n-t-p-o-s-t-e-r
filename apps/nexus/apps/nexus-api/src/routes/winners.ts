@@ -4,7 +4,7 @@ import type { Env } from '../env'
 export const winnerRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /winners - List winner patterns
-winnerRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const limit = parseInt(c.req.query('limit') || '50')
     const offset = parseInt(c.req.query('offset') || '0')
@@ -23,8 +23,9 @@ winnerRoutes.get('/', async (c) => {
   }
 })
 
+
 // GET /winners/:id - Get winner pattern detail
-winnerRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const pattern = await c.env.DB.prepare('SELECT * FROM winner_patterns WHERE id = ?').bind(id).first()

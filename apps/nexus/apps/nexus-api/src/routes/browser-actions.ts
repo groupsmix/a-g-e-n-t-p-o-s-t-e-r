@@ -16,20 +16,6 @@ import {
   getSupportedPlatforms,
 } from '../services/multi-platform'
 
-export const browserActionRoutes = new Hono<{ Bindings: Env }>()
-
-// ---------------------------------------------------------------------------
-// POST /browser/actions — execute a raw sequence of browser actions
-// ---------------------------------------------------------------------------
-browserActionRoutes.post('/actions', async (c) => {
-  const body = await c.req.json<{ actions?: BrowserAction[] }>().catch(() => ({} as { actions?: BrowserAction[] }))
-  if (!body.actions || !Array.isArray(body.actions) || body.actions.length === 0) {
-    return c.json({ error: 'actions array is required and must not be empty' }, 400)
-  }
-
-  const result = await executeBrowserActions(c.env, body.actions)
-  return c.json(result, result.ok ? 200 : 502)
-})
 
 // ---------------------------------------------------------------------------
 // GET /browser/flows — list available pre-built flows
@@ -41,7 +27,23 @@ const FLOW_BUILDERS: Record<string, (product: Record<string, string>) => MultiSt
   'check-gumroad-sales': () => checkGumroadSales(),
 }
 
-browserActionRoutes.get('/flows', (c) => {
+export const browserActionRoutes = new Hono<{ Bindings: Env }>()
+
+// ---------------------------------------------------------------------------
+// POST /browser/actions — execute a raw sequence of browser actions
+// ---------------------------------------------------------------------------
+  .post('/actions', async (c) => {
+  const body = await c.req.json<{ actions?: BrowserAction[] }>().catch(() => ({} as { actions?: BrowserAction[] }))
+  if (!body.actions || !Array.isArray(body.actions) || body.actions.length === 0) {
+    return c.json({ error: 'actions array is required and must not be empty' }, 400)
+  }
+
+  const result = await executeBrowserActions(c.env, body.actions)
+  return c.json(result, result.ok ? 200 : 502)
+})
+
+
+  .get('/flows', (c) => {
   const flows = Object.entries(FLOW_BUILDERS).map(([name, builder]) => {
     const sample = builder({})
     return {
@@ -54,10 +56,11 @@ browserActionRoutes.get('/flows', (c) => {
   return c.json({ flows })
 })
 
+
 // ---------------------------------------------------------------------------
 // POST /browser/flows/:name/execute — execute a named flow with variables
 // ---------------------------------------------------------------------------
-browserActionRoutes.post('/flows/:name/execute', async (c) => {
+  .post('/flows/:name/execute', async (c) => {
   const name = c.req.param('name')
   const builder = FLOW_BUILDERS[name]
   if (!builder) {
@@ -72,18 +75,20 @@ browserActionRoutes.post('/flows/:name/execute', async (c) => {
   return c.json({ flow: flow.name, platform: flow.platform, ...result }, result.ok ? 200 : 502)
 })
 
+
 // ---------------------------------------------------------------------------
 // GET /platforms/status — get status of all configured platforms
 // ---------------------------------------------------------------------------
-browserActionRoutes.get('/platforms/status', async (c) => {
+  .get('/platforms/status', async (c) => {
   const statuses = await getPlatformStatus(c.env)
   return c.json({ platforms: statuses })
 })
 
+
 // ---------------------------------------------------------------------------
 // POST /platforms/:name/list — list a product on a specific platform
 // ---------------------------------------------------------------------------
-browserActionRoutes.post('/platforms/:name/list', async (c) => {
+  .post('/platforms/:name/list', async (c) => {
   const platformName = c.req.param('name')
   const platforms = getSupportedPlatforms()
   if (!platforms[platformName]) {
@@ -99,10 +104,11 @@ browserActionRoutes.post('/platforms/:name/list', async (c) => {
   return c.json(result, result.ok ? 200 : 502)
 })
 
+
 // ---------------------------------------------------------------------------
 // POST /platforms/list-all — list a product on multiple platforms
 // ---------------------------------------------------------------------------
-browserActionRoutes.post('/platforms/list-all', async (c) => {
+  .post('/platforms/list-all', async (c) => {
   const body = await c.req.json<{ product?: Record<string, string>; platforms?: string[] }>().catch(() => ({} as { product?: Record<string, string>; platforms?: string[] }))
   if (!body.product) {
     return c.json({ error: 'product object is required' }, 400)
@@ -112,10 +118,11 @@ browserActionRoutes.post('/platforms/list-all', async (c) => {
   return c.json({ results })
 })
 
+
 // ---------------------------------------------------------------------------
 // GET /platforms/listings — get listing history from D1
 // ---------------------------------------------------------------------------
-browserActionRoutes.get('/platforms/listings', async (c) => {
+  .get('/platforms/listings', async (c) => {
   const productId = c.req.query('product_id')
   let query = 'SELECT * FROM platform_listings ORDER BY created_at DESC LIMIT 100'
   const binds: string[] = []

@@ -3,16 +3,34 @@ import type { Env } from '../env'
 import { browse } from '../services/browser'
 import { executeBrowserActions, type BrowserAction } from '../services/browser-actions'
 
+
+// ---------------------------------------------------------------------------
+// POST /browser/assist — natural-language → browser plan → execute → answer.
+// The AI translates the goal into a sequence of BrowserActions, we run them in
+// a real headless browser, then optionally summarize the final page against
+// the goal. This is what powers the "AI Assistant" tab in the dashboard.
+// ---------------------------------------------------------------------------
+
+type AssistAction = BrowserAction & { rationale?: string }
+
+
+interface AssistPlan {
+  rationale: string
+  actions: AssistAction[]
+  finalQuestion?: string
+}
+
 export const browserRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /browser/status — whether the headless browser is available.
-browserRoutes.get('/status', (c) => {
+  .get('/status', (c) => {
   return c.json({ enabled: !!c.env.BROWSER })
 })
 
+
 // POST /browser/run — open a URL in a real headless browser, read it, and
 // capture a screenshot. Optionally summarize the page toward a goal via the AI.
-browserRoutes.post('/run', async (c) => {
+  .post('/run', async (c) => {
   const body = await c.req.json<{ url?: string; instruction?: string }>().catch(
     () => ({}) as { url?: string; instruction?: string }
   )
@@ -66,22 +84,8 @@ Answer concisely in plain language.`
   })
 })
 
-// ---------------------------------------------------------------------------
-// POST /browser/assist — natural-language → browser plan → execute → answer.
-// The AI translates the goal into a sequence of BrowserActions, we run them in
-// a real headless browser, then optionally summarize the final page against
-// the goal. This is what powers the "AI Assistant" tab in the dashboard.
-// ---------------------------------------------------------------------------
 
-type AssistAction = BrowserAction & { rationale?: string }
-
-interface AssistPlan {
-  rationale: string
-  actions: AssistAction[]
-  finalQuestion?: string
-}
-
-browserRoutes.post('/assist', async (c) => {
+  .post('/assist', async (c) => {
   if (!c.env.BROWSER) {
     return c.json({
       ok: false,
@@ -174,6 +178,7 @@ Answer concisely in plain language, citing only what's in the page text.`
   })
 })
 
+
 function buildPlanPrompt(goal: string, startUrl: string): string {
   return `You are an AI browser operator. Translate the user's goal into a short JSON plan that a headless Chromium can execute.
 
@@ -206,6 +211,7 @@ Respond ONLY with a JSON object of this shape — no prose, no markdown fences:
 }`
 }
 
+
 async function requestPlan(env: Env, prompt: string): Promise<AssistPlan | null> {
   try {
     const req = new Request('https://nexus-ai/task', {
@@ -230,6 +236,7 @@ async function requestPlan(env: Env, prompt: string): Promise<AssistPlan | null>
     return null
   }
 }
+
 
 function safeParsePlan(raw: string): AssistPlan | null {
   // Strip ``` fences if the model added them.

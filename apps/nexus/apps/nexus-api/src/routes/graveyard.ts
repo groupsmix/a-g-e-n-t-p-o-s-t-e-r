@@ -4,7 +4,7 @@ import type { Env } from '../env'
 export const graveyardRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /graveyard - List products in graveyard
-graveyardRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const limit = parseInt(c.req.query('limit') || '50')
     const offset = parseInt(c.req.query('offset') || '0')
@@ -29,8 +29,9 @@ graveyardRoutes.get('/', async (c) => {
   }
 })
 
+
 // POST /graveyard/:productId/move - Move product to graveyard
-graveyardRoutes.post('/:productId/move', async (c) => {
+  .post('/:productId/move', async (c) => {
   try {
     const productId = c.req.param('productId')
     const { reason, resurface_at } = await c.req.json()
@@ -59,8 +60,9 @@ graveyardRoutes.post('/:productId/move', async (c) => {
   }
 })
 
+
 // POST /graveyard/:productId/restore - Restore product from graveyard
-graveyardRoutes.post('/:productId/restore', async (c) => {
+  .post('/:productId/restore', async (c) => {
   try {
     const productId = c.req.param('productId')
     const now = new Date().toISOString()
@@ -88,8 +90,9 @@ graveyardRoutes.post('/:productId/restore', async (c) => {
   }
 })
 
+
 // GET /graveyard/due - List products due for re-analysis
-graveyardRoutes.get('/due', async (c) => {
+  .get('/due', async (c) => {
   try {
     const now = new Date().toISOString()
     

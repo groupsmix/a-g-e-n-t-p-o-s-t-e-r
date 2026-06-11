@@ -12,12 +12,14 @@ import { callAISimple, getSetting, setSetting } from '../services/shared'
 // of the loop: autopilot builds, marketing promotes.
 // ============================================================
 
-export const marketingRoutes = new Hono<{ Bindings: Env }>()
 
 interface MarketingExecCtx { waitUntil(p: Promise<unknown>): void }
 
+
 const PROMO_COOLDOWN_MS = 3 * 24 * 3600_000 // don't re-promote a product within 3 days
+
 const MAX_CHANNELS_PER_PRODUCT = 4
+
 
 async function ensureTable(env: Env): Promise<void> {
   await env.DB.prepare(
@@ -26,6 +28,7 @@ async function ensureTable(env: Env): Promise<void> {
        status TEXT NOT NULL, note TEXT, created_at TEXT NOT NULL)`,
   ).run().catch(() => void 0)
 }
+
 
 async function logMarketing(
   env: Env,
@@ -40,6 +43,7 @@ async function logMarketing(
   ).run().catch(() => void 0)
 }
 
+
 // Whether anything can actually be posted (Ayrshare key or a webhook).
 async function deliveryConfigured(env: Env): Promise<boolean> {
   const ayr = await getSecret(env, 'AYRSHARE_API_KEY')
@@ -47,8 +51,10 @@ async function deliveryConfigured(env: Env): Promise<boolean> {
   return Boolean(ayr || hook)
 }
 
+export const marketingRoutes = new Hono<{ Bindings: Env }>()
+
 // --- Status: toggle + stats + recent promotions + channels -------------
-marketingRoutes.get('/status', async (c) => {
+  .get('/status', async (c) => {
   await ensureTable(c.env)
   const enabled = (await getSetting(c.env, 'marketing_enabled')) === 'true'
   const perRun = Number((await getSetting(c.env, 'marketing_per_run')) || '2') || 2
@@ -77,8 +83,9 @@ marketingRoutes.get('/status', async (c) => {
   })
 })
 
+
 // --- Toggle on/off + throughput ----------------------------------------
-marketingRoutes.post('/toggle', async (c) => {
+  .post('/toggle', async (c) => {
   const b = await c.req.json().catch(() => ({})) as Record<string, unknown>
   if (typeof b.enabled === 'boolean') await setSetting(c.env, 'marketing_enabled', b.enabled ? 'true' : 'false')
   if (typeof b.per_run === 'number' && b.per_run >= 1 && b.per_run <= 10) {
@@ -88,12 +95,14 @@ marketingRoutes.post('/toggle', async (c) => {
   return c.json({ ok: true, enabled })
 })
 
+
 // --- Run one marketing cycle now (test without waiting for cron) -------
-marketingRoutes.post('/run', async (c) => {
+  .post('/run', async (c) => {
   await ensureTable(c.env)
   const sent = await runMarketing(c.env, c.executionCtx, undefined, true)
   return c.json({ ok: true, promoted: sent })
 })
+
 
 // ============================================================
 // The crew
@@ -105,6 +114,7 @@ async function callAI(env: Env, prompt: string, taskType = 'social_adaptation'):
   } catch { return '' }
 }
 
+
 interface PromoProduct {
   id: string
   name: string
@@ -115,6 +125,7 @@ interface PromoProduct {
   currency: string | null
   published_url: string | null
 }
+
 
 // Pick live products that haven't been promoted recently.
 async function pickProductsToPromote(env: Env, limit: number): Promise<PromoProduct[]> {
@@ -137,6 +148,7 @@ async function pickProductsToPromote(env: Env, limit: number): Promise<PromoProd
   })
   return eligible.slice(0, limit)
 }
+
 
 // Promote `count` products (defaults to the configured per_run). Returns how
 // many channel posts were actually sent. When `force` we ignore the on/off

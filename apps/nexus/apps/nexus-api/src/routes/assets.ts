@@ -4,7 +4,7 @@ import type { Env } from '../env'
 export const assetRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /assets - List assets (optionally filtered by product)
-assetRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const productId = c.req.query('product_id')
     const assetType = c.req.query('type')
@@ -41,9 +41,10 @@ assetRoutes.get('/', async (c) => {
   }
 })
 
+
 // GET /assets/r2/<key> - Serve raw bytes from R2 (e.g. generated hero images).
 // Registered before /:id so multi-segment keys resolve here.
-assetRoutes.get('/r2/:key{.+}', async (c) => {
+  .get('/r2/:key{.+}', async (c) => {
   try {
     const key = c.req.param('key')
     const obj = await c.env.ASSETS.get(key)
@@ -58,8 +59,9 @@ assetRoutes.get('/r2/:key{.+}', async (c) => {
   }
 })
 
+
 // GET /assets/:id - Get asset
-assetRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const asset = await c.env.DB.prepare('SELECT * FROM assets WHERE id = ?').bind(id).first()
@@ -75,8 +77,9 @@ assetRoutes.get('/:id', async (c) => {
   }
 })
 
+
 // DELETE /assets/:id - Delete asset
-assetRoutes.delete('/:id', async (c) => {
+  .delete('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     
@@ -112,8 +115,9 @@ assetRoutes.delete('/:id', async (c) => {
   }
 })
 
+
 // GET /assets/:id/download - Get signed download URL
-assetRoutes.get('/:id/download', async (c) => {
+  .get('/:id/download', async (c) => {
   try {
     const id = c.req.param('id')
     const asset = await c.env.DB.prepare('SELECT * FROM assets WHERE id = ?').bind(id).first() as any

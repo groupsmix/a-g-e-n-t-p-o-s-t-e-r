@@ -17,7 +17,7 @@ export const portfolioRoutes = new Hono<{ Bindings: Env }>()
 // ============================================================
 
 // GET /api/portfolio/signals - List signals with optional filtering
-portfolioRoutes.get('/signals', async (c) => {
+  .get('/signals', async (c) => {
   const filters: SignalFilters = {
     status: c.req.query('status') as any,
     source_type: c.req.query('source_type') as any,
@@ -61,8 +61,9 @@ portfolioRoutes.get('/signals', async (c) => {
   })
 })
 
+
 // GET /api/portfolio/signals/:id - Get a single signal
-portfolioRoutes.get('/signals/:id', async (c) => {
+  .get('/signals/:id', async (c) => {
   const id = c.req.param('id')
   const signal = await c.env.DB.prepare('SELECT * FROM signals WHERE id = ?')
     .bind(id)
@@ -75,8 +76,9 @@ portfolioRoutes.get('/signals/:id', async (c) => {
   return c.json({ signal })
 })
 
+
 // POST /api/portfolio/signals - Create a new signal
-portfolioRoutes.post('/signals', async (c) => {
+  .post('/signals', async (c) => {
   const input = await c.req.json<CreateSignalInput>()
   
   const id = crypto.randomUUID()
@@ -108,8 +110,9 @@ portfolioRoutes.post('/signals', async (c) => {
   return c.json({ signal }, 201)
 })
 
+
 // PUT /api/portfolio/signals/:id - Update a signal
-portfolioRoutes.put('/signals/:id', async (c) => {
+  .put('/signals/:id', async (c) => {
   const id = c.req.param('id')
   const input = await c.req.json<Partial<CreateSignalInput & { status?: string }>>()
   
@@ -163,12 +166,13 @@ portfolioRoutes.put('/signals/:id', async (c) => {
   return c.json({ signal })
 })
 
+
 // ============================================================
 // VENTURES
 // ============================================================
 
 // GET /api/portfolio/ventures - List ventures with optional filtering
-portfolioRoutes.get('/ventures', async (c) => {
+  .get('/ventures', async (c) => {
   const filters: VentureFilters = {
     opportunity_id: c.req.query('opportunity_id'),
     vertical: c.req.query('vertical') as any,
@@ -210,8 +214,9 @@ portfolioRoutes.get('/ventures', async (c) => {
   })
 })
 
+
 // GET /api/portfolio/ventures/:id - Get a single venture
-portfolioRoutes.get('/ventures/:id', async (c) => {
+  .get('/ventures/:id', async (c) => {
   const id = c.req.param('id')
   const venture = await c.env.DB.prepare('SELECT * FROM ventures WHERE id = ?')
     .bind(id)
@@ -224,8 +229,9 @@ portfolioRoutes.get('/ventures/:id', async (c) => {
   return c.json({ venture })
 })
 
+
 // POST /api/portfolio/ventures - Create a new venture
-portfolioRoutes.post('/ventures', async (c) => {
+  .post('/ventures', async (c) => {
   const input = await c.req.json<CreateVentureInput>()
   
   const id = crypto.randomUUID()
@@ -259,8 +265,9 @@ portfolioRoutes.post('/ventures', async (c) => {
   return c.json({ venture }, 201)
 })
 
+
 // PUT /api/portfolio/ventures/:id - Update a venture
-portfolioRoutes.put('/ventures/:id', async (c) => {
+  .put('/ventures/:id', async (c) => {
   const id = c.req.param('id')
   const input = await c.req.json<Partial<CreateVentureInput & { status?: string; budget_cap_cents?: number; revenue_cents?: number; profit_cents?: number }>>()
   
@@ -306,12 +313,13 @@ portfolioRoutes.put('/ventures/:id', async (c) => {
   return c.json({ venture })
 })
 
+
 // ============================================================
 // OFFERS
 // ============================================================
 
 // GET /api/portfolio/offers - List offers with optional filtering
-portfolioRoutes.get('/offers', async (c) => {
+  .get('/offers', async (c) => {
   const filters: OfferFilters = {
     venture_id: c.req.query('venture_id'),
     platform_id: c.req.query('platform_id'),
@@ -348,8 +356,9 @@ portfolioRoutes.get('/offers', async (c) => {
   })
 })
 
+
 // GET /api/portfolio/offers/:id - Get a single offer
-portfolioRoutes.get('/offers/:id', async (c) => {
+  .get('/offers/:id', async (c) => {
   const id = c.req.param('id')
   const offer = await c.env.DB.prepare('SELECT * FROM offers WHERE id = ?')
     .bind(id)
@@ -362,8 +371,9 @@ portfolioRoutes.get('/offers/:id', async (c) => {
   return c.json({ offer })
 })
 
+
 // POST /api/portfolio/offers - Create a new offer
-portfolioRoutes.post('/offers', async (c) => {
+  .post('/offers', async (c) => {
   const input = await c.req.json<CreateOfferInput>()
   
   const id = crypto.randomUUID()
@@ -397,8 +407,9 @@ portfolioRoutes.post('/offers', async (c) => {
   return c.json({ offer }, 201)
 })
 
+
 // PUT /api/portfolio/offers/:id - Update an offer
-portfolioRoutes.put('/offers/:id', async (c) => {
+  .put('/offers/:id', async (c) => {
   const id = c.req.param('id')
   const input = await c.req.json<Partial<CreateOfferInput & { status?: string; external_listing_id?: string; external_url?: string }>>()
   
@@ -452,12 +463,13 @@ portfolioRoutes.put('/offers/:id', async (c) => {
   return c.json({ offer })
 })
 
+
 // ============================================================
 // TRACKED LINKS
 // ============================================================
 
 // GET /api/portfolio/tracked-links - List tracked links for an offer
-portfolioRoutes.get('/tracked-links', async (c) => {
+  .get('/tracked-links', async (c) => {
   const offerId = c.req.query('offer_id')
   if (!offerId) {
     return c.json({ error: 'offer_id is required' }, 400)
@@ -470,8 +482,9 @@ portfolioRoutes.get('/tracked-links', async (c) => {
   return c.json({ tracked_links: result.results || [] })
 })
 
+
 // POST /api/portfolio/tracked-links - Create a tracked link
-portfolioRoutes.post('/tracked-links', async (c) => {
+  .post('/tracked-links', async (c) => {
   const input = await c.req.json<CreateTrackedLinkInput>()
   
   const id = crypto.randomUUID()
@@ -502,12 +515,13 @@ portfolioRoutes.post('/tracked-links', async (c) => {
   return c.json({ tracked_link: link }, 201)
 })
 
+
 // ============================================================
 // ECONOMIC EVENTS
 // ============================================================
 
 // GET /api/portfolio/economic-events - List economic events with filtering
-portfolioRoutes.get('/economic-events', async (c) => {
+  .get('/economic-events', async (c) => {
   const filters: EconomicEventFilters = {
     offer_id: c.req.query('offer_id'),
     tracked_link_id: c.req.query('tracked_link_id'),
@@ -559,8 +573,9 @@ portfolioRoutes.get('/economic-events', async (c) => {
   })
 })
 
+
 // POST /api/portfolio/economic-events - Record an economic event
-portfolioRoutes.post('/economic-events', async (c) => {
+  .post('/economic-events', async (c) => {
   const input = await c.req.json<CreateEconomicEventInput>()
   
   const id = crypto.randomUUID()
@@ -595,12 +610,13 @@ portfolioRoutes.post('/economic-events', async (c) => {
   return c.json({ economic_event: event }, 201)
 })
 
+
 // ============================================================
 // ASSET LIBRARY
 // ============================================================
 
 // GET /api/portfolio/asset-library - List asset library items
-portfolioRoutes.get('/asset-library', async (c) => {
+  .get('/asset-library', async (c) => {
   const filters: AssetLibraryFilters = {
     venture_id: c.req.query('venture_id'),
     offer_id: c.req.query('offer_id'),
@@ -642,8 +658,9 @@ portfolioRoutes.get('/asset-library', async (c) => {
   })
 })
 
+
 // POST /api/portfolio/asset-library - Add an asset to the library
-portfolioRoutes.post('/asset-library', async (c) => {
+  .post('/asset-library', async (c) => {
   const input = await c.req.json<CreateAssetLibraryItemInput>()
   
   const id = crypto.randomUUID()
@@ -678,12 +695,13 @@ portfolioRoutes.post('/asset-library', async (c) => {
   return c.json({ asset }, 201)
 })
 
+
 // ============================================================
 // ALLOCATOR ACTIONS
 // ============================================================
 
 // GET /api/portfolio/allocator-actions - List allocator actions for a venture
-portfolioRoutes.get('/allocator-actions', async (c) => {
+  .get('/allocator-actions', async (c) => {
   const ventureId = c.req.query('venture_id')
   if (!ventureId) {
     return c.json({ error: 'venture_id is required' }, 400)
@@ -696,8 +714,9 @@ portfolioRoutes.get('/allocator-actions', async (c) => {
   return c.json({ allocator_actions: result.results || [] })
 })
 
+
 // POST /api/portfolio/allocator-actions - Record an allocator action
-portfolioRoutes.post('/allocator-actions', async (c) => {
+  .post('/allocator-actions', async (c) => {
   const input = await c.req.json<CreateAllocatorActionInput>()
   
   const id = crypto.randomUUID()
@@ -725,12 +744,13 @@ portfolioRoutes.post('/allocator-actions', async (c) => {
   return c.json({ allocator_action: action }, 201)
 })
 
+
 // ============================================================
 // PORTFOLIO SCOREBOARD (NXM-012)
 // ============================================================
 
 // GET /api/portfolio/scoreboard - Full portfolio state for dashboard
-portfolioRoutes.get('/scoreboard', async (c) => {
+  .get('/scoreboard', async (c) => {
   // Cashflow summary
   const cashflowResult = await c.env.DB.prepare(`
     SELECT 
@@ -881,8 +901,9 @@ portfolioRoutes.get('/scoreboard', async (c) => {
   })
 })
 
+
 // GET /api/portfolio/allocation - Allocator's last decisions
-portfolioRoutes.get('/allocation', async (c) => {
+  .get('/allocation', async (c) => {
   const result = await c.env.DB.prepare(`
     SELECT 
       aa.*,
@@ -899,8 +920,9 @@ portfolioRoutes.get('/allocation', async (c) => {
   return c.json({ allocations: result.results ?? [] })
 })
 
+
 // GET /api/portfolio/cashflow - Time-series cashflow data
-portfolioRoutes.get('/cashflow', async (c) => {
+  .get('/cashflow', async (c) => {
   const period = c.req.query('period') || '7d'
   const days = period === '30d' ? 30 : period === '90d' ? 90 : 7
 
@@ -930,6 +952,7 @@ portfolioRoutes.get('/cashflow', async (c) => {
 
   return c.json({ cashflow, period })
 })
+
 
 // Helper: Get profit for a time period in days
 async function getProfitForPeriod(db: D1Database, days: number): Promise<number> {

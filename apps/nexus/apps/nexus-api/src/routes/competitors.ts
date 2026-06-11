@@ -4,7 +4,7 @@ import type { Env } from '../env'
 export const competitorRoutes = new Hono<{ Bindings: Env }>()
 
 // POST / — add competitor to track
-competitorRoutes.post('/', async (c) => {
+  .post('/', async (c) => {
   try {
     const body = await c.req.json<{
       name: string
@@ -32,8 +32,9 @@ competitorRoutes.post('/', async (c) => {
   }
 })
 
+
 // GET / — list tracked competitors
-competitorRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const result = await c.env.DB.prepare(
       `SELECT id, name, platform, url, niche, last_checked_at, created_at
@@ -47,8 +48,9 @@ competitorRoutes.get('/', async (c) => {
   }
 })
 
+
 // DELETE /:id — stop tracking
-competitorRoutes.delete('/:id', async (c) => {
+  .delete('/:id', async (c) => {
   try {
     const id = c.req.param('id')
 
@@ -67,8 +69,9 @@ competitorRoutes.delete('/:id', async (c) => {
   }
 })
 
+
 // POST /:id/scan — scan competitor store page
-competitorRoutes.post('/:id/scan', async (c) => {
+  .post('/:id/scan', async (c) => {
   try {
     const id = c.req.param('id')
 
@@ -138,8 +141,9 @@ Only return valid JSON.`
   }
 })
 
+
 // GET /insights — AI-generated insights
-competitorRoutes.get('/insights', async (c) => {
+  .get('/insights', async (c) => {
   try {
     // Fetch all competitors and their products
     const competitors = await c.env.DB.prepare(

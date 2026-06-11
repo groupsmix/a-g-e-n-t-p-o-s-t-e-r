@@ -28,7 +28,6 @@ import {
 } from '@posteragent/agent-analytics'
 import { getSecret } from '../services/publishers'
 
-export const analyticsRoutes = new Hono<{ Bindings: Env }>()
 
 export async function buildAdapters(env: Env): Promise<Partial<Record<Platform, AnalyticsAdapter>>> {
   const adapters: Partial<Record<Platform, AnalyticsAdapter>> = {}
@@ -48,7 +47,9 @@ export async function buildAdapters(env: Env): Promise<Partial<Record<Platform, 
   return adapters
 }
 
-analyticsRoutes.get('/summary', async (c) => {
+export const analyticsRoutes = new Hono<{ Bindings: Env }>()
+
+  .get('/summary', async (c) => {
   try {
     const store = new D1SnapshotStore(c.env.DB)
     const days = Math.min(Math.max(parseInt(c.req.query('days') ?? '7', 10) || 7, 1), 90)
@@ -63,7 +64,8 @@ analyticsRoutes.get('/summary', async (c) => {
   }
 })
 
-analyticsRoutes.get('/posts/:platform', async (c) => {
+
+  .get('/posts/:platform', async (c) => {
   const platform = c.req.param('platform') as Platform
   const days = Math.min(Math.max(parseInt(c.req.query('days') ?? '7', 10) || 7, 1), 90)
   try {
@@ -76,7 +78,8 @@ analyticsRoutes.get('/posts/:platform', async (c) => {
   }
 })
 
-analyticsRoutes.post('/collect', async (c) => {
+
+  .post('/collect', async (c) => {
   try {
     const store = new D1SnapshotStore(c.env.DB)
     const posts = await loadPublishedPostsFromD1(c.env.DB, { windowDays: 30 })

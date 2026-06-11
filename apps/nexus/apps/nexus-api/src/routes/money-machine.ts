@@ -37,7 +37,6 @@ import {
 
 const logger = createLogger({ service: 'route:money-machine' })
 
-const moneyMachineRoutes = new Hono<{ Bindings: Env }>()
 
 // ─── Auth gate ────────────────────────────────────────────────────────────
 //
@@ -54,7 +53,9 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0
 }
 
-moneyMachineRoutes.use('*', async (c, next) => {
+const moneyMachineRoutes = new Hono<{ Bindings: Env }>()
+
+  .use('*', async (c, next) => {
   const expected = c.env.MONEY_MACHINE_TOKEN
   if (!expected) {
     // Fail closed. Without the token configured, the routes do nothing.
@@ -75,7 +76,8 @@ moneyMachineRoutes.use('*', async (c, next) => {
   return next()
 })
 
-moneyMachineRoutes.post('/run', async (c) => {
+
+  .post('/run', async (c) => {
   const body = await c.req.json<MoneyMachineChainInput>().catch(() => null)
   if (!body) {
     return c.json({ error: 'invalid_json' }, 400)
@@ -99,7 +101,8 @@ moneyMachineRoutes.post('/run', async (c) => {
   }
 })
 
-moneyMachineRoutes.post('/queue', async (c) => {
+
+  .post('/queue', async (c) => {
   const body = await c.req.json<MoneyMachineChainInput>().catch(() => null)
   if (!body) {
     return c.json({ error: 'invalid_json' }, 400)
@@ -120,7 +123,8 @@ moneyMachineRoutes.post('/queue', async (c) => {
   }
 })
 
-moneyMachineRoutes.get('/:id', async (c) => {
+
+  .get('/:id', async (c) => {
   const chainId = c.req.param('id')
   try {
     const tasks = await c.env.DB
@@ -143,5 +147,6 @@ moneyMachineRoutes.get('/:id', async (c) => {
     return c.json({ error: 'lookup_failed' }, 500)
   }
 })
+
 
 export { moneyMachineRoutes }

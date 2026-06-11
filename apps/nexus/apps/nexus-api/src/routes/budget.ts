@@ -20,7 +20,7 @@ import {
 
 export const budgetRoutes = new Hono<{ Bindings: Env }>()
 
-budgetRoutes.get('/caps', async (c) => {
+  .get('/caps', async (c) => {
   try {
     const store = new D1BudgetStore(c.env.DB)
     return c.json({ source: 'live' as const, caps: await store.caps() })
@@ -29,7 +29,8 @@ budgetRoutes.get('/caps', async (c) => {
   }
 })
 
-budgetRoutes.post('/caps', async (c) => {
+
+  .post('/caps', async (c) => {
   try {
     const body = (await c.req.json()) as {
       scope: 'global' | 'task_type' | 'model'
@@ -54,7 +55,8 @@ budgetRoutes.post('/caps', async (c) => {
   }
 })
 
-budgetRoutes.get('/usage', async (c) => {
+
+  .get('/usage', async (c) => {
   const since = c.req.query('since') ?? new Date(Date.now() - 7 * 86_400_000).toISOString()
   const until = c.req.query('until') ?? new Date().toISOString()
   const model = c.req.query('model')
@@ -68,7 +70,8 @@ budgetRoutes.get('/usage', async (c) => {
   }
 })
 
-budgetRoutes.get('/summary', async (c) => {
+
+  .get('/summary', async (c) => {
   const period = c.req.query('period') ?? 'day'
   try {
     const store = new D1BudgetStore(c.env.DB)
@@ -107,7 +110,8 @@ budgetRoutes.get('/summary', async (c) => {
   }
 })
 
-budgetRoutes.post('/approve', async (c) => {
+
+  .post('/approve', async (c) => {
   try {
     const body = (await c.req.json()) as { task_type: string; model?: string; input_tokens?: number; output_tokens?: number }
     const store = new D1BudgetStore(c.env.DB)
@@ -118,7 +122,8 @@ budgetRoutes.post('/approve', async (c) => {
   }
 })
 
-budgetRoutes.post('/usage', async (c) => {
+
+  .post('/usage', async (c) => {
   try {
     const body = (await c.req.json()) as {
       task_id: string; task_type: string; model: string;
@@ -133,8 +138,9 @@ budgetRoutes.post('/usage', async (c) => {
   }
 })
 
+
 // Convenience: stateless estimate that doesn't touch D1.
-budgetRoutes.post('/estimate', async (c) => {
+  .post('/estimate', async (c) => {
   try {
     const body = (await c.req.json()) as { task_type: string; model?: string; input_tokens?: number; output_tokens?: number }
     return c.json(estimateCost(body))

@@ -15,12 +15,12 @@ import { checkNiche } from '../services/niche-dedup'
 // them, and reports back. Powered by the same free Groq/failover engine.
 // ============================================================
 
-export const agentRoutes = new Hono<{ Bindings: Env }>()
 
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
 }
+
 
 interface AgentStep {
   tool: string
@@ -31,13 +31,17 @@ interface AgentStep {
   screenshot_url?: string
 }
 
+
 const MAX_TURNS = 6
 
+
 const jsonFromModel = safeJson
+
 
 async function callAI(env: Env, prompt: string, outputFormat: 'json' | 'text' = 'json'): Promise<string> {
   return callAISimple(env, prompt, { taskType: 'manager_plan', outputFormat })
 }
+
 
 // Final pass: turn whatever the CEO gathered/did this turn into a warm,
 // well-formatted written answer. This runs when the model called tools but
@@ -74,6 +78,7 @@ Now write your final reply to the owner:`
   return (out || '').trim()
 }
 
+
 async function getCatalog(env: Env) {
   const cats = await env.DB.prepare(`
     SELECT c.slug AS category_slug, c.name AS category_name,
@@ -84,6 +89,7 @@ async function getCatalog(env: Env) {
   `).all<any>()
   return cats.results || []
 }
+
 
 async function getOverview(env: Env): Promise<{ summary: string; totalProducts: number }> {
   const counts = await env.DB.prepare(`
@@ -103,6 +109,7 @@ async function getOverview(env: Env): Promise<{ summary: string; totalProducts: 
     totalProducts,
   }
 }
+
 
 // T14: when the database is empty, certain "read" questions ("what sold
 // best?", "show my products", "how am I doing?") have a deterministic
@@ -125,6 +132,7 @@ const EMPTY_DATA_READ_PATTERNS: RegExp[] = [
   /\b(this|last)\s+(week|month|day|year)\b/i,
 ]
 
+
 // "Build / create / make / dispatch ..." — clearly asks the agent to do
 // work, so even if the DB is empty we should not short-circuit.
 const ACTION_PATTERNS: RegExp[] = [
@@ -134,11 +142,13 @@ const ACTION_PATTERNS: RegExp[] = [
   /\b(change|update|set|configure|toggle|switch)\b/i,
 ]
 
+
 function shouldShortCircuitOnEmpty(message: string, totalProducts: number): boolean {
   if (totalProducts > 0) return false
   if (ACTION_PATTERNS.some((re) => re.test(message))) return false
   return EMPTY_DATA_READ_PATTERNS.some((re) => re.test(message))
 }
+
 
 function emptyDataReply(): string {
   return [
@@ -154,7 +164,9 @@ function emptyDataReply(): string {
   ].join('\n')
 }
 
+
 const KEY_NAMES = ['GROQ_API_KEY', 'OPENAI_API_KEY', 'FAL_KEY', 'GUMROAD_ACCESS_TOKEN', 'SHOPIFY_STORE', 'SHOPIFY_ADMIN_TOKEN', 'PUBLISH_WEBHOOK_URL']
+
 async function getKeyStatus(env: Env): Promise<string> {
   const out: string[] = []
   for (const k of KEY_NAMES) {
@@ -170,6 +182,7 @@ async function getKeyStatus(env: Env): Promise<string> {
   return `${out.join(', ')}. Note: AI text + images already run for free on the built-in engine (Groq + Cloudflare Workers AI) even with no keys set; these keys only add optional providers and real store/social publishing.`
 }
 
+
 // Resolve a loose product reference (full id, 8-char prefix, or name) to a row.
 async function resolveProduct(env: Env, ref: string): Promise<any | null> {
   const r = (ref || '').trim()
@@ -181,6 +194,7 @@ async function resolveProduct(env: Env, ref: string): Promise<any | null> {
   const byName = await env.DB.prepare('SELECT id, name, status FROM products WHERE name LIKE ? ORDER BY created_at DESC LIMIT 1').bind(`%${r}%`).first<any>()
   return byName || null
 }
+
 
 async function createOneProduct(env: Env, ctx: ExecutionContext, p: any, validSlugs: Set<string>): Promise<AgentStep> {
   const domain_slug = (p.domain_slug || '').trim()
@@ -215,6 +229,7 @@ async function createOneProduct(env: Env, ctx: ExecutionContext, p: any, validSl
   }
 }
 
+
 async function rerunWorkflow(env: Env, ctx: ExecutionContext, prod: any): Promise<AgentStep> {
   const full = await env.DB.prepare(`
     SELECT p.id, p.name, p.niche, p.user_input, d.slug AS domain_slug, c.slug AS category_slug
@@ -232,6 +247,7 @@ async function rerunWorkflow(env: Env, ctx: ExecutionContext, prod: any): Promis
   ctx.waitUntil(engine.run(runId, full.id, full.domain_slug, full.category_slug, userInput))
   return { tool: 'run_workflow', args: { product: full.id }, ok: true, product_id: full.id, summary: `Re-running the 15-step team on "${full.name || 'Untitled'}".` }
 }
+
 
 async function publishProduct(env: Env, prod: any): Promise<AgentStep> {
   const variants = await env.DB.prepare(`
@@ -268,7 +284,9 @@ async function publishProduct(env: Env, prod: any): Promise<AgentStep> {
   return { tool: 'publish_product', args: { product: prod.id }, ok: published > 0, summary: `Publish attempt for "${prod.name || 'Untitled'}": ${results.join('; ')}` }
 }
 
-agentRoutes.post('/agent', async (c) => {
+export const agentRoutes = new Hono<{ Bindings: Env }>()
+
+  .post('/agent', async (c) => {
   const body = await c.req.json<{ message?: string; history?: ChatMessage[] }>()
   const message = (body.message || '').trim()
   const history = Array.isArray(body.history) ? body.history.slice(-8) : []

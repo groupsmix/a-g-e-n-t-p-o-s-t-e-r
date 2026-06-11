@@ -13,13 +13,14 @@ import { runJob } from '../services/agents'
 export const queueRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /api/queue/stats — dashboard counts by status
-queueRoutes.get('/stats', async (c) => {
+  .get('/stats', async (c) => {
   const stats = await queueStats(c.env)
   return c.json({ stats })
 })
 
+
 // GET /api/queue/jobs — list jobs (filterable)
-queueRoutes.get('/jobs', async (c) => {
+  .get('/jobs', async (c) => {
   const status   = c.req.query('status')   || undefined
   const stepName = c.req.query('step')     || undefined
   const limit    = Math.min(Number(c.req.query('limit')  || '50'), 200)
@@ -29,8 +30,9 @@ queueRoutes.get('/jobs', async (c) => {
   return c.json({ jobs, total })
 })
 
+
 // GET /api/queue/jobs/:id — job detail (includes result JSON)
-queueRoutes.get('/jobs/:id', async (c) => {
+  .get('/jobs/:id', async (c) => {
   const jobId = c.req.param('id')
   const job = await c.env.DB
     .prepare(`SELECT * FROM automation_jobs WHERE job_id = ?`)
@@ -50,8 +52,9 @@ queueRoutes.get('/jobs/:id', async (c) => {
   return c.json({ job, agent_output: output })
 })
 
+
 // POST /api/queue/jobs — manually enqueue a job
-queueRoutes.post('/jobs', async (c) => {
+  .post('/jobs', async (c) => {
   const body = await c.req.json<{
     step_name:       string
     payload?:        Record<string, unknown>
@@ -74,15 +77,17 @@ queueRoutes.post('/jobs', async (c) => {
   return c.json({ ok: true, job_id: jobId })
 })
 
+
 // POST /api/queue/jobs/:id/requeue — re-queue a dead/failed job
-queueRoutes.post('/jobs/:id/requeue', async (c) => {
+  .post('/jobs/:id/requeue', async (c) => {
   const jobId = c.req.param('id')
   await requeue(c.env, jobId)
   return c.json({ ok: true })
 })
 
+
 // DELETE /api/queue/jobs/:id — cancel a pending job
-queueRoutes.delete('/jobs/:id', async (c) => {
+  .delete('/jobs/:id', async (c) => {
   const jobId = c.req.param('id')
   const result = await c.env.DB
     .prepare(`UPDATE automation_jobs SET status = 'dead', last_error = 'Cancelled by user' WHERE job_id = ? AND status = 'pending'`)
@@ -94,9 +99,10 @@ queueRoutes.delete('/jobs/:id', async (c) => {
   return c.json({ ok: true })
 })
 
+
 // POST /api/queue/run-next — dequeue and execute the next pending job immediately
 // (useful for testing without waiting for cron)
-queueRoutes.post('/run-next', async (c) => {
+  .post('/run-next', async (c) => {
   const stepName = (c.req.query('step') || undefined) as JobType | undefined
   const job = await dequeue(c.env, stepName)
 
@@ -107,8 +113,9 @@ queueRoutes.post('/run-next', async (c) => {
   return c.json({ ok: true, job_id: job.job_id, step_name: job.step_name })
 })
 
+
 // POST /api/queue/requeue-all-failed — bulk re-queue all failed/dead jobs
-queueRoutes.post('/requeue-all-failed', async (c) => {
+  .post('/requeue-all-failed', async (c) => {
   const result = await c.env.DB
     .prepare(`
       UPDATE automation_jobs
@@ -122,7 +129,8 @@ queueRoutes.post('/requeue-all-failed', async (c) => {
   return c.json({ ok: true, requeued: result?.meta?.changes ?? 0 })
 })
 
+
 // GET /api/queue/types — list valid job types
-queueRoutes.get('/types', (c) => {
+  .get('/types', (c) => {
   return c.json({ types: Object.values(JOB_TYPES) })
 })

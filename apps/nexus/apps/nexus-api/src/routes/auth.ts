@@ -296,13 +296,14 @@ function clientIp(headers: { get(name: string): string | null }): string {
 export const authRoutes = new Hono<{ Bindings: Env }>()
 
 // Whether a password has been set (so the UI knows to show login vs setup).
-authRoutes.get('/status', async (c) => {
+  .get('/status', async (c) => {
   const hash = await getAccessHash(c.env)
   return c.json({ protected: Boolean(hash) })
 })
 
+
 // Exchange a password for a session token.
-authRoutes.post('/login', async (c) => {
+  .post('/login', async (c) => {
   const ip = clientIp(c.req.raw.headers)
   if (!(await checkRateLimit(c.env, ip))) {
     return c.json({ error: 'Too many attempts. Try again in a minute.' }, 429)
@@ -326,10 +327,11 @@ authRoutes.post('/login', async (c) => {
   return c.json({ token })
 })
 
+
 // Revoke EVERY outstanding session (including this one) by bumping the
 // generation counter. Requires a currently-valid bearer token — the gate
 // keeps /api/auth/* open, so this route authenticates itself.
-authRoutes.post('/logout-all', async (c) => {
+  .post('/logout-all', async (c) => {
   const auth = c.req.header('Authorization') || ''
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
   if (!token || !(await validateSessionToken(c.env, token))) {
@@ -338,6 +340,7 @@ authRoutes.post('/logout-all', async (c) => {
   await bumpSessionGeneration(c.env)
   return c.json({ ok: true })
 })
+
 
 // Set (first time) or change the password.
 // - First time: requires the MONEY_MACHINE_TOKEN bearer (bootstrap gate) so
@@ -350,7 +353,7 @@ authRoutes.post('/logout-all', async (c) => {
 // - Change: must present the current password (no token needed). A
 //   successful change bumps the session generation, so every session minted
 //   under the old password dies immediately (audit 1.5).
-authRoutes.post('/setup', async (c) => {
+  .post('/setup', async (c) => {
   const ip = clientIp(c.req.raw.headers)
   if (!(await checkRateLimit(c.env, ip))) {
     return c.json({ error: 'Too many attempts. Try again in a minute.' }, 429)
@@ -429,9 +432,3 @@ authRoutes.post('/setup', async (c) => {
   const token = await createSession(c.env, ip)
   return c.json({ ok: true, token })
 })
-
-// FIX #2 — /auth/disable is permanently removed.
-// Allowing the gate to be disabled in production creates a route that can be
-// social-engineered or accidentally triggered. Remove it entirely; if you ever
-// need to reset the gate, delete the KV key directly from the Cloudflare
-// dashboard (Workers → KV → CONFIG → delete "access_hash").

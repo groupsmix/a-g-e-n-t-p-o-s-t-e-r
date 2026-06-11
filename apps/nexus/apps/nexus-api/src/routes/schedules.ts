@@ -11,7 +11,6 @@ import { checkNiche } from '../services/niche-dedup'
 // so it reaches you. Runs from the daily cron in index.ts.
 // ============================================================
 
-export const scheduleRoutes = new Hono<{ Bindings: Env }>()
 
 interface ScheduleRow {
   id: string
@@ -28,16 +27,19 @@ interface ScheduleRow {
   email: string | null
 }
 
+export const scheduleRoutes = new Hono<{ Bindings: Env }>()
+
 // --- List schedules -----------------------------------------------------
-scheduleRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   const rows = await c.env.DB.prepare(
     'SELECT * FROM schedules ORDER BY created_at DESC',
   ).all<ScheduleRow>()
   return c.json({ schedules: rows.results ?? [] })
 })
 
+
 // --- Create a schedule --------------------------------------------------
-scheduleRoutes.post('/', async (c) => {
+  .post('/', async (c) => {
   const b = await c.req.json().catch(() => ({})) as Record<string, unknown>
   const name = typeof b.name === 'string' && b.name.trim() ? b.name.trim() : null
   if (!name) return c.json({ error: 'name is required' }, 400)
@@ -60,8 +62,9 @@ scheduleRoutes.post('/', async (c) => {
   return c.json({ id, ok: true })
 })
 
+
 // --- Toggle active / delete --------------------------------------------
-scheduleRoutes.patch('/:id', async (c) => {
+  .patch('/:id', async (c) => {
   const id = c.req.param('id')
   const b = await c.req.json().catch(() => ({})) as Record<string, unknown>
   if (typeof b.active === 'boolean') {
@@ -70,13 +73,15 @@ scheduleRoutes.patch('/:id', async (c) => {
   return c.json({ ok: true })
 })
 
-scheduleRoutes.delete('/:id', async (c) => {
+
+  .delete('/:id', async (c) => {
   await c.env.DB.prepare('DELETE FROM schedules WHERE id = ?').bind(c.req.param('id')).run()
   return c.json({ ok: true })
 })
 
+
 // --- Run a schedule now (test without waiting for cron) ----------------
-scheduleRoutes.post('/:id/run', async (c) => {
+  .post('/:id/run', async (c) => {
   const row = await c.env.DB.prepare('SELECT * FROM schedules WHERE id = ?')
     .bind(c.req.param('id')).first<ScheduleRow>()
   if (!row) return c.json({ error: 'not found' }, 404)
@@ -84,20 +89,23 @@ scheduleRoutes.post('/:id/run', async (c) => {
   return c.json({ ok: true, delivery })
 })
 
+
 // --- Deliveries inbox ---------------------------------------------------
-scheduleRoutes.get('/deliveries/list', async (c) => {
+  .get('/deliveries/list', async (c) => {
   const rows = await c.env.DB.prepare(
     'SELECT id, schedule_id, title, kind, product_id, webhook_status, email_status, created_at FROM deliveries ORDER BY created_at DESC LIMIT 100',
   ).all()
   return c.json({ deliveries: rows.results ?? [] })
 })
 
-scheduleRoutes.get('/deliveries/:id', async (c) => {
+
+  .get('/deliveries/:id', async (c) => {
   const row = await c.env.DB.prepare('SELECT * FROM deliveries WHERE id = ?')
     .bind(c.req.param('id')).first()
   if (!row) return c.json({ error: 'not found' }, 404)
   return c.json({ delivery: row })
 })
+
 
 // ============================================================
 // Execution
@@ -105,9 +113,11 @@ scheduleRoutes.get('/deliveries/:id', async (c) => {
 
 interface ScheduleExecCtx { waitUntil(p: Promise<unknown>): void }
 
+
 async function callAI(env: Env, prompt: string, outputFormat: 'text' | 'json' = 'text'): Promise<string> {
   return callAISimple(env, prompt, { taskType: 'generate_long_form', outputFormat, timeoutMs: 90000 })
 }
+
 
 async function postWebhook(env: Env, payload: Record<string, unknown>): Promise<string> {
   let url: string | null = null
@@ -125,6 +135,7 @@ async function postWebhook(env: Env, payload: Record<string, unknown>): Promise<
   }
 }
 
+
 async function getSecret(env: Env, name: string): Promise<string | null> {
   try {
     const v = await env.CONFIG.get(`secret:${name}`)
@@ -134,6 +145,7 @@ async function getSecret(env: Env, name: string): Promise<string | null> {
   return typeof envVal === 'string' && envVal ? envVal : null
 }
 
+
 // Minimal, safe Markdown → HTML for the email body. Handles headings, bold,
 // links, and lists — enough to make the blog post readable in an inbox.
 export function mdToHtml(md: string): string {
@@ -141,8 +153,11 @@ export function mdToHtml(md: string): string {
   const inline = (s: string) => esc(s)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2">$1</a>')
+
   const out: string[] = []
+
   let inList = false
+
   for (const raw of md.replace(/\r\n/g, '\n').split('\n')) {
     const line = raw.trimEnd()
     const h = /^(#{1,4})\s+(.*)$/.exec(line)
@@ -162,9 +177,13 @@ export function mdToHtml(md: string): string {
       out.push(`<p>${inline(line)}</p>`)
     }
   }
+
   if (inList) out.push('</ul>')
+
   return `<div style="font-family:system-ui,Segoe UI,Arial,sans-serif;font-size:15px;line-height:1.6;color:#1a1a1a;max-width:640px">${out.join('\n')}</div>`
+
 }
+
 
 // Send the delivery by email via Resend (free tier). Returns a status string
 // stored on the delivery. Honest: if no key/recipient is configured, it says
@@ -190,6 +209,7 @@ export async function sendEmail(env: Env, to: string | null, subject: string, ma
     return 'error'
   }
 }
+
 
 // Run a single schedule: generate the deliverable, store it in the inbox,
 // push to the webhook, and stamp last_run_at.
@@ -261,6 +281,7 @@ Return the post in Markdown: a strong H1 title, a short intro, 3-5 H2 sections, 
   await env.DB.prepare('UPDATE schedules SET last_run_at = ? WHERE id = ?').bind(now, row.id).run()
   return { id: deliveryId, title, kind: 'blog' }
 }
+
 
 // Find and run every schedule that is due. Called by the daily cron.
 export async function runDueSchedules(env: Env, ctx: ScheduleExecCtx): Promise<void> {

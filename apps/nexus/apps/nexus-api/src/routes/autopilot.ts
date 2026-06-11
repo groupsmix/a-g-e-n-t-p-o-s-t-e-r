@@ -16,9 +16,9 @@ import { isNearDuplicate, isGeneric, fetchLiveNiches } from '../services/niche-d
 // A dashboard shows the pipeline, what's been built, and revenue estimates.
 // ============================================================
 
-export const autopilotRoutes = new Hono<{ Bindings: Env }>()
 
 interface AutopilotExecCtx { waitUntil(p: Promise<unknown>): void }
+
 
 // ── LLM key gate ──────────────────────────────────────────────────────────
 //
@@ -42,6 +42,7 @@ const AI_PROVIDER_ENV_VARS = [
   'MISTRAL_API_KEY',
 ] as const
 
+
 async function getAiProviderSource(
   env: Env,
 ): Promise<{ key: string; source: 'kv' | 'worker_secret' } | null> {
@@ -58,6 +59,7 @@ async function getAiProviderSource(
   return null
 }
 
+
 async function log(env: Env, action: string, fields: { product_id?: string; niche?: string; domain_slug?: string; note?: string }) {
   await env.DB.prepare(
     `INSERT INTO autopilot_log (id, action, product_id, niche, domain_slug, note, created_at)
@@ -69,8 +71,10 @@ async function log(env: Env, action: string, fields: { product_id?: string; nich
   ).run().catch(() => void 0)
 }
 
+export const autopilotRoutes = new Hono<{ Bindings: Env }>()
+
 // --- Status: toggle state + stats + recent activity + winners ----------
-autopilotRoutes.get('/status', async (c) => {
+  .get('/status', async (c) => {
   const enabled = (await getSetting(c.env, 'autopilot_enabled')) === 'true'
   const perRun = Number((await getSetting(c.env, 'autopilot_per_run')) || '1') || 1
   const autoApprove = (await getSetting(c.env, 'autopilot_auto_approve')) === 'true'
@@ -150,8 +154,9 @@ autopilotRoutes.get('/status', async (c) => {
   })
 })
 
+
 // --- Toggle on/off + set throughput ------------------------------------
-autopilotRoutes.post('/toggle', async (c) => {
+  .post('/toggle', async (c) => {
   const b = await c.req.json().catch(() => ({})) as Record<string, unknown>
   // Refuse to flip the engine ON when no LLM provider is reachable. Without
   // this, the autopilot loops forever producing $0 "completed" runs with
@@ -189,8 +194,9 @@ autopilotRoutes.post('/toggle', async (c) => {
   return c.json({ ok: true, enabled })
 })
 
+
 // --- Run one cycle now (test without waiting for cron) -----------------
-autopilotRoutes.post('/run', async (c) => {
+  .post('/run', async (c) => {
   const aiProvider = await getAiProviderSource(c.env)
   if (!aiProvider) {
     return c.json(
@@ -206,6 +212,7 @@ autopilotRoutes.post('/run', async (c) => {
   const built = await runCycle(c.env, c.executionCtx, 1)
   return c.json({ ok: true, built })
 })
+
 
 // ============================================================
 // The loop
@@ -223,6 +230,7 @@ async function callAIJson(env: Env, prompt: string, taskType = 'research_market'
     return safeJson(data.output ?? '')
   } catch { return null }
 }
+
 
 // Niche dedup + generic detection moved to `services/niche-dedup.ts` so
 // schedules / manager / agent / trend-promote / workflow all share the
@@ -302,12 +310,14 @@ async function pickNiche(env: Env): Promise<{ domainSlug: string; categorySlug: 
   return null
 }
 
+
 async function finishPick(env: Env, domainSlug: string, niche: string) {
   const cat = await env.DB.prepare(
     `SELECT c.slug FROM categories c JOIN domains d ON d.id = c.domain_id WHERE d.slug = ? ORDER BY RANDOM() LIMIT 1`,
   ).bind(domainSlug).first<{ slug: string }>().catch(() => null)
   return { domainSlug, categorySlug: cat?.slug || 'templates', niche }
 }
+
 
 // Harvest finished autopilot products: auto-approve those scoring >= the
 // threshold, and (if enabled + a store token exists) attempt to list them.
@@ -383,6 +393,7 @@ async function harvest(env: Env): Promise<void> {
   }
 }
 
+
 // Build `count` products autonomously. Returns the number dispatched.
 export async function runCycle(env: Env, ctx: AutopilotExecCtx, count: number): Promise<number> {
   await harvest(env)
@@ -414,6 +425,7 @@ export async function runCycle(env: Env, ctx: AutopilotExecCtx, count: number): 
   }
   return built
 }
+
 
 // Called by the daily cron — only runs when autopilot is ON.
 export async function runAutopilot(env: Env, ctx: AutopilotExecCtx): Promise<void> {

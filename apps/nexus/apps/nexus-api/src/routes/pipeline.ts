@@ -11,7 +11,7 @@ import { getSetting } from '../services/shared'
 
 export const pipelineRoutes = new Hono<{ Bindings: Env }>()
 
-pipelineRoutes.get('/summary', async (c) => {
+  .get('/summary', async (c) => {
   const db = c.env.DB
 
   const safeFirst = async <T>(stmt: D1PreparedStatement, fallback: T): Promise<T> => {
@@ -178,10 +178,11 @@ pipelineRoutes.get('/summary', async (c) => {
   })
 })
 
+
 // Seed recommended starting settings for a safe first night.
 // POST /api/pipeline/seed-defaults
 // Call this once after setup to apply conservative starting values.
-pipelineRoutes.post('/seed-defaults', async (c) => {
+  .post('/seed-defaults', async (c) => {
   const { setSetting } = await import('../services/shared')
   const defaults: [string, string][] = [
     ['autopilot_enabled',      'true'],

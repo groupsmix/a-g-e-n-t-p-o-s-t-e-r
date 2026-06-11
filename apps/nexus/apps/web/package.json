@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "pages:build": "NEXT_PUBLIC_BUILD_SHA=${CF_PAGES_COMMIT_SHA:-$(git rev-parse HEAD 2>/dev/null || echo dev)} NEXT_PUBLIC_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://nexus-api.professional-inbox-simo.workers.dev} next-on-pages",
+    "pages:build": "pnpm --filter @nexus/nexus-api build && NEXT_PUBLIC_BUILD_SHA=${CF_PAGES_COMMIT_SHA:-$(git rev-parse HEAD 2>/dev/null || echo dev)} NEXT_PUBLIC_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://nexus-api.professional-inbox-simo.workers.dev} next-on-pages",
     "pages:deploy": "wrangler pages deploy .vercel/output/static --project-name nexus-web --branch main --commit-dirty=true",
     "pages:ship": "pnpm pages:build && pnpm pages:deploy"
   },
@@ -22,7 +22,8 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tailwind-merge": "^2.2.1",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "hono": "^4.12.25"
   },
   "devDependencies": {
     "@cloudflare/next-on-pages": "^1.13.16",
@@ -34,6 +35,7 @@
     "eslint-config-next": "14.2.35",
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "@nexus/nexus-api": "workspace:*"
   }
 }

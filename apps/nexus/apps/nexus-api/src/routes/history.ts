@@ -5,7 +5,7 @@ import { sweepStaleRuns } from '../services/sweep'
 export const historyRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /history - List workflow run history
-historyRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     // Auto-recover any run stuck 'running' (evicted worker) before listing,
     // so the health view never shows a permanently-spinning run.
@@ -55,8 +55,9 @@ historyRoutes.get('/', async (c) => {
   }
 })
 
+
 // GET /history/:id - Get workflow run with steps
-historyRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   try {
     const runId = c.req.param('id')
     
@@ -85,8 +86,9 @@ historyRoutes.get('/:id', async (c) => {
   }
 })
 
+
 // GET /history/:id/step/:stepId - Get step detail
-historyRoutes.get('/:id/step/:stepId', async (c) => {
+  .get('/:id/step/:stepId', async (c) => {
   try {
     const runId = c.req.param('id')
     const stepId = c.req.param('stepId')

@@ -34,7 +34,7 @@ export const publishRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /publish - List the publish queue (approved products with unpublished
 // platform variants ready to go live)
-publishRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const result = await c.env.DB.prepare(`
       SELECT
@@ -59,8 +59,9 @@ publishRoutes.get('/', async (c) => {
   }
 })
 
+
 // POST /publish - Publish product to platforms
-publishRoutes.post('/', async (c) => {
+  .post('/', async (c) => {
   try {
     const body = await c.req.json<PublishRequest>()
     
@@ -157,8 +158,9 @@ publishRoutes.post('/', async (c) => {
   }
 })
 
+
 // POST /publish/schedule - Schedule publishing for later
-publishRoutes.post('/schedule', async (c) => {
+  .post('/schedule', async (c) => {
   try {
     const body = await c.req.json<PublishRequest & { schedule_at: string }>()
     
@@ -193,8 +195,9 @@ publishRoutes.post('/schedule', async (c) => {
   }
 })
 
+
 // POST /publish/:id - Publish a single platform variant (by variant id)
-publishRoutes.post('/:id', async (c) => {
+  .post('/:id', async (c) => {
   try {
     const id = c.req.param('id')
 
@@ -243,8 +246,9 @@ publishRoutes.post('/:id', async (c) => {
   }
 })
 
+
 // GET /publish/:productId - Get publish status for all platforms
-publishRoutes.get('/:productId', async (c) => {
+  .get('/:productId', async (c) => {
   try {
     const productId = c.req.param('productId')
     
@@ -272,8 +276,9 @@ publishRoutes.get('/:productId', async (c) => {
   }
 })
 
+
 // POST /publish/social/:id - Post a single social variant to its channel for real
-publishRoutes.post('/social/:id', async (c) => {
+  .post('/social/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const variant = await c.env.DB.prepare(`

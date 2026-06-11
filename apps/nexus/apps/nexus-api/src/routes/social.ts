@@ -4,7 +4,7 @@ import type { Env } from '../env'
 export const socialRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /social - List all social channels
-socialRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const cached = await c.env.CONFIG.get('config:social_channels')
     if (cached) {
@@ -24,8 +24,9 @@ socialRoutes.get('/', async (c) => {
   }
 })
 
+
 // POST /social - Create social channel
-socialRoutes.post('/', async (c) => {
+  .post('/', async (c) => {
   try {
     const data = await c.req.json()
     
@@ -61,8 +62,9 @@ socialRoutes.post('/', async (c) => {
   }
 })
 
+
 // GET /social/:id - Get social channel
-socialRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const channel = await c.env.DB.prepare('SELECT * FROM social_channels WHERE id = ?').bind(id).first()
@@ -78,8 +80,9 @@ socialRoutes.get('/:id', async (c) => {
   }
 })
 
+
 // PATCH /social/:id - Update social channel
-socialRoutes.patch('/:id', async (c) => {
+  .patch('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const updates = await c.req.json()
@@ -119,8 +122,9 @@ socialRoutes.patch('/:id', async (c) => {
   }
 })
 
+
 // DELETE /social/:id - Delete social channel
-socialRoutes.delete('/:id', async (c) => {
+  .delete('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     

@@ -2,7 +2,6 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 import { callAISimple } from '../services/shared/call-ai'
 
-export const blogRoutes = new Hono<{ Bindings: Env }>()
 
 interface BlogPostRow {
   id: string
@@ -18,8 +17,10 @@ interface BlogPostRow {
   updated_at: string
 }
 
+export const blogRoutes = new Hono<{ Bindings: Env }>()
+
 // POST /blog/generate — AI generates SEO-optimized blog post
-blogRoutes.post('/generate', async (c) => {
+  .post('/generate', async (c) => {
   try {
     const body = await c.req.json<{
       niche?: string
@@ -113,8 +114,9 @@ Return JSON with exactly these fields:
   }
 })
 
+
 // GET /blog — list posts with pagination
-blogRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const limit = parseInt(c.req.query('limit') || '20')
     const offset = parseInt(c.req.query('offset') || '0')
@@ -152,8 +154,9 @@ blogRoutes.get('/', async (c) => {
   }
 })
 
+
 // GET /blog/:slug — get single post by slug
-blogRoutes.get('/:slug', async (c) => {
+  .get('/:slug', async (c) => {
   try {
     const slug = c.req.param('slug')
 
@@ -173,8 +176,9 @@ blogRoutes.get('/:slug', async (c) => {
   }
 })
 
+
 // PUT /blog/:id — edit post
-blogRoutes.put('/:id', async (c) => {
+  .put('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json<Partial<Omit<BlogPostRow, 'id' | 'created_at'>>>()
@@ -224,8 +228,9 @@ blogRoutes.put('/:id', async (c) => {
   }
 })
 
+
 // DELETE /blog/:id — delete post
-blogRoutes.delete('/:id', async (c) => {
+  .delete('/:id', async (c) => {
   try {
     const id = c.req.param('id')
 
@@ -245,8 +250,9 @@ blogRoutes.delete('/:id', async (c) => {
   }
 })
 
+
 // POST /blog/:id/publish — publish post
-blogRoutes.post('/:id/publish', async (c) => {
+  .post('/:id/publish', async (c) => {
   try {
     const id = c.req.param('id')
     const now = new Date().toISOString()

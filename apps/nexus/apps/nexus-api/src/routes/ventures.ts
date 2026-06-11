@@ -15,7 +15,7 @@ export const ventureRoutes = new Hono<{ Bindings: Env }>()
 
 // ── Create venture ───────────────────────────────────────────────
 
-ventureRoutes.post('/', rateLimit(10), async (c) => {
+  .post('/', rateLimit(10), async (c) => {
   const body = await c.req.json<{
     opportunity_id: string
     vertical: string
@@ -40,9 +40,10 @@ ventureRoutes.post('/', rateLimit(10), async (c) => {
   }
 })
 
+
 // ── List ventures for opportunity ────────────────────────────────
 
-ventureRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   const opportunityId = c.req.query('opportunity_id')
   
   if (!opportunityId) {
@@ -53,9 +54,10 @@ ventureRoutes.get('/', async (c) => {
   return c.json({ ventures })
 })
 
+
 // ── Get single venture with metrics ────────────────────────────────
 
-ventureRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   const { id } = c.req.param()
   const result = await getVentureWithMetrics(c.env.DB, id)
   
@@ -66,9 +68,10 @@ ventureRoutes.get('/:id', async (c) => {
   return c.json(result)
 })
 
+
 // ── Update venture ───────────────────────────────────────────────
 
-ventureRoutes.patch('/:id', async (c) => {
+  .patch('/:id', async (c) => {
   const { id } = c.req.param()
   const body = await c.req.json<{
     status?: string
@@ -90,9 +93,10 @@ ventureRoutes.patch('/:id', async (c) => {
   }
 })
 
+
 // ── Kill venture (soft delete) ────────────────────────────────────
 
-ventureRoutes.delete('/:id', async (c) => {
+  .delete('/:id', async (c) => {
   const { id } = c.req.param()
   const body = await c.req.json<{ reason?: string }>()
   const reason = body?.reason ?? 'manual_kill'
@@ -105,9 +109,10 @@ ventureRoutes.delete('/:id', async (c) => {
   }
 })
 
+
 // ── Build venture (dispatch to factory) ─────────────────────────────
 
-ventureRoutes.post('/:id/build', rateLimit(3), async (c) => {
+  .post('/:id/build', rateLimit(3), async (c) => {
   const { id } = c.req.param()
 
   try {

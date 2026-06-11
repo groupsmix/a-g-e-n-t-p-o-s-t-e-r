@@ -5,7 +5,7 @@ import { publishProductToGumroad } from '../services/gumroad-publisher'
 export const reviewRoutes = new Hono<{ Bindings: Env }>()
 
 // POST /review/:productId/approve - Approve product for publishing
-reviewRoutes.post('/:productId/approve', async (c) => {
+  .post('/:productId/approve', async (c) => {
   try {
     const productId = c.req.param('productId')
     const now = new Date().toISOString()
@@ -57,8 +57,9 @@ reviewRoutes.post('/:productId/approve', async (c) => {
   }
 })
 
+
 // POST /review/:productId/reject - Reject product with feedback
-reviewRoutes.post('/:productId/reject', async (c) => {
+  .post('/:productId/reject', async (c) => {
   try {
     const productId = c.req.param('productId')
     const { feedback, reason } = await c.req.json()
@@ -97,8 +98,9 @@ reviewRoutes.post('/:productId/reject', async (c) => {
   }
 })
 
+
 // POST /review/:productId/revise - Request revision
-reviewRoutes.post('/:productId/revise', async (c) => {
+  .post('/:productId/revise', async (c) => {
   try {
     const productId = c.req.param('productId')
     const { sections } = await c.req.json()
@@ -136,8 +138,9 @@ reviewRoutes.post('/:productId/revise', async (c) => {
   }
 })
 
+
 // GET /review/:productId - Get all reviews for a product
-reviewRoutes.get('/:productId', async (c) => {
+  .get('/:productId', async (c) => {
   try {
     const productId = c.req.param('productId')
     

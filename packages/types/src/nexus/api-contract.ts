@@ -1,6 +1,11 @@
-// ── Shared API Types ──────────────────────────────────────────
-// Extracted from api.ts to keep both files under 800 lines.
-// api.ts re-exports everything here for backward compatibility.
+// ── NEXUS API wire contract ───────────────────────────────────
+// Single source of truth for /api response and request shapes, shared by
+// the Worker (nexus-api) and the dashboard (web). Server handlers should
+// produce these types (ideally at the D1/KV boundary) so the RPC client
+// infers them end-to-end. Audit #13.
+//
+// History: lived in web/src/lib/api-types.ts, where it silently drifted
+// from what the Worker actually returned.
 
 export interface ApiKeyInfo {
   key: string

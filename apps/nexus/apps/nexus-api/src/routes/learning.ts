@@ -14,7 +14,7 @@ const logger = createLogger({ service: 'nexus-api', module: 'learning' })
 export const learningRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /learning/patterns — list winner patterns with stats
-learningRoutes.get('/patterns', async (c) => {
+  .get('/patterns', async (c) => {
   try {
     const limit = parseInt(c.req.query('limit') || '50')
     const offset = parseInt(c.req.query('offset') || '0')
@@ -49,8 +49,9 @@ learningRoutes.get('/patterns', async (c) => {
   }
 })
 
+
 // POST /learning/analyze — trigger pattern extraction from sales data
-learningRoutes.post('/analyze', async (c) => {
+  .post('/analyze', async (c) => {
   try {
     const result = await extractPatterns(c.env)
     return c.json({
@@ -63,8 +64,9 @@ learningRoutes.post('/analyze', async (c) => {
   }
 })
 
+
 // GET /learning/stats — overall learning loop stats
-learningRoutes.get('/stats', async (c) => {
+  .get('/stats', async (c) => {
   try {
     const stats = await getLearningStats(c.env)
     return c.json(stats)
@@ -74,8 +76,9 @@ learningRoutes.get('/stats', async (c) => {
   }
 })
 
+
 // POST /learning/sync — manually trigger Gumroad sales sync
-learningRoutes.post('/sync', async (c) => {
+  .post('/sync', async (c) => {
   try {
     const result = await syncGumroadSales(c.env)
     return c.json({ ok: !result.error, ...result })
@@ -85,8 +88,9 @@ learningRoutes.post('/sync', async (c) => {
   }
 })
 
+
 // GET /learning/weights — get current generation weights from patterns
-learningRoutes.get('/weights', async (c) => {
+  .get('/weights', async (c) => {
   try {
     const weights = await applyPatterns(c.env)
     return c.json(weights)
@@ -95,6 +99,7 @@ learningRoutes.get('/weights', async (c) => {
     return c.json({ error: 'Failed to compute weights' }, 500)
   }
 })
+
 
 // Exported cron function: runs daily to sync sales + extract patterns
 export async function runLearningSync(env: Env): Promise<void> {

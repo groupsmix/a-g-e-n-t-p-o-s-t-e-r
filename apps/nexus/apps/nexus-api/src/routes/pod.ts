@@ -11,14 +11,15 @@ import {
 export const podRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /api/pod/shops — list connected Printify shops
-podRoutes.get('/shops', async (c) => {
+  .get('/shops', async (c) => {
   const result = await listShops(c.env)
   if (!result.ok) return c.json({ error: result.error }, 502)
   return c.json({ shops: result.shops })
 })
 
+
 // GET /api/pod/blueprints — list available product types
-podRoutes.get('/blueprints', async (c) => {
+  .get('/blueprints', async (c) => {
   const result = await listBlueprints(c.env)
   if (!result.ok) return c.json({ error: result.error }, 502)
 
@@ -31,8 +32,9 @@ podRoutes.get('/blueprints', async (c) => {
   return c.json({ blueprints: filtered, total: filtered.length })
 })
 
+
 // GET /api/pod/products — list POD products created in our DB
-podRoutes.get('/products', async (c) => {
+  .get('/products', async (c) => {
   const status = c.req.query('status')
   let query = 'SELECT * FROM pod_products ORDER BY created_at DESC LIMIT 100'
   const params: string[] = []
@@ -54,8 +56,9 @@ podRoutes.get('/products', async (c) => {
   }
 })
 
+
 // POST /api/pod/products — create a new POD product
-podRoutes.post('/products', async (c) => {
+  .post('/products', async (c) => {
   const body = await c.req.json<{
     niche: string
     productType: string
@@ -128,8 +131,9 @@ podRoutes.post('/products', async (c) => {
   })
 })
 
+
 // POST /api/pod/products/:id/publish — publish a POD product
-podRoutes.post('/products/:id/publish', async (c) => {
+  .post('/products/:id/publish', async (c) => {
   const id = c.req.param('id')
 
   let product: Record<string, unknown> | undefined
@@ -172,8 +176,9 @@ podRoutes.post('/products/:id/publish', async (c) => {
   return c.json({ ok: true, id, status: 'published' })
 })
 
+
 // GET /api/pod/stats — POD stats
-podRoutes.get('/stats', async (c) => {
+  .get('/stats', async (c) => {
   try {
     const [totalRow, publishedRow, revenueRow] = await Promise.all([
       c.env.DB.prepare('SELECT COUNT(*) as count FROM pod_products').first<{ count: number }>(),

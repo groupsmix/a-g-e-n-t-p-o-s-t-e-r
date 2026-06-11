@@ -14,7 +14,7 @@ export const freelanceRoutes = new Hono<{ Bindings: Env }>()
 
 // ── List jobs ─────────────────────────────────────────────────
 
-freelanceRoutes.get('/jobs', async (c) => {
+  .get('/jobs', async (c) => {
   const status = c.req.query('status')
   const sql = status
     ? 'SELECT * FROM freelance_jobs WHERE status = ? ORDER BY priority DESC, deadline ASC, created_at DESC'
@@ -31,9 +31,10 @@ freelanceRoutes.get('/jobs', async (c) => {
   return c.json({ jobs })
 })
 
+
 // ── Get single job ────────────────────────────────────────────
 
-freelanceRoutes.get('/jobs/:id', async (c) => {
+  .get('/jobs/:id', async (c) => {
   const id = c.req.param('id')
   const job = await c.env.DB.prepare('SELECT * FROM freelance_jobs WHERE id = ?')
     .bind(id)
@@ -57,9 +58,10 @@ freelanceRoutes.get('/jobs/:id', async (c) => {
   })
 })
 
+
 // ── Create job ────────────────────────────────────────────────
 
-freelanceRoutes.post('/jobs', async (c) => {
+  .post('/jobs', async (c) => {
   const body = await c.req.json<{
     client_name?: string
     title?: string
@@ -112,9 +114,10 @@ freelanceRoutes.post('/jobs', async (c) => {
   return c.json({ id, status: 'draft' }, 201)
 })
 
+
 // ── Start job (kick off orchestrator) ─────────────────────────
 
-freelanceRoutes.post('/jobs/:id/start', rateLimit(10), async (c) => {
+  .post('/jobs/:id/start', rateLimit(10), async (c) => {
   const id = c.req.param('id') ?? ''
   const job = await c.env.DB.prepare('SELECT * FROM freelance_jobs WHERE id = ?')
     .bind(id).first<FreelanceJob>()
@@ -127,9 +130,10 @@ freelanceRoutes.post('/jobs/:id/start', rateLimit(10), async (c) => {
   return c.json({ ok: true, status: 'intake_review' })
 })
 
+
 // ── Approve plan ──────────────────────────────────────────────
 
-freelanceRoutes.post('/jobs/:id/approve-plan', async (c) => {
+  .post('/jobs/:id/approve-plan', async (c) => {
   const id = c.req.param('id')
   const job = await c.env.DB.prepare('SELECT * FROM freelance_jobs WHERE id = ?')
     .bind(id).first<FreelanceJob>()
@@ -144,9 +148,10 @@ freelanceRoutes.post('/jobs/:id/approve-plan', async (c) => {
   return c.json({ ok: true, status: 'running' })
 })
 
+
 // ── Owner provides missing info ───────────────────────────────
 
-freelanceRoutes.post('/jobs/:id/provide-info', async (c) => {
+  .post('/jobs/:id/provide-info', async (c) => {
   const id = c.req.param('id')
   const { info } = await c.req.json<{ info?: string }>()
   const job = await c.env.DB.prepare('SELECT * FROM freelance_jobs WHERE id = ?')
@@ -167,16 +172,18 @@ freelanceRoutes.post('/jobs/:id/provide-info', async (c) => {
   return c.json({ ok: true })
 })
 
+
 // ── Pause / Resume / Cancel ───────────────────────────────────
 
-freelanceRoutes.post('/jobs/:id/pause', async (c) => {
+  .post('/jobs/:id/pause', async (c) => {
   const id = c.req.param('id')
   await updateJobStatus(c.env, id, 'human_review_needed')
   await logEvent(c.env, id, 'owner', 'job_paused', 'Owner paused job')
   return c.json({ ok: true })
 })
 
-freelanceRoutes.post('/jobs/:id/resume', async (c) => {
+
+  .post('/jobs/:id/resume', async (c) => {
   const id = c.req.param('id')
   const job = await c.env.DB.prepare('SELECT * FROM freelance_jobs WHERE id = ?')
     .bind(id).first<FreelanceJob>()
@@ -188,16 +195,18 @@ freelanceRoutes.post('/jobs/:id/resume', async (c) => {
   return c.json({ ok: true })
 })
 
-freelanceRoutes.post('/jobs/:id/cancel', async (c) => {
+
+  .post('/jobs/:id/cancel', async (c) => {
   const id = c.req.param('id')
   await updateJobStatus(c.env, id, 'archived')
   await logEvent(c.env, id, 'owner', 'job_cancelled', 'Owner cancelled job')
   return c.json({ ok: true })
 })
 
+
 // ── Force approve task ────────────────────────────────────────
 
-freelanceRoutes.post('/jobs/:id/tasks/:taskId/force-approve', async (c) => {
+  .post('/jobs/:id/tasks/:taskId/force-approve', async (c) => {
   const { id, taskId } = c.req.param()
   await updateTaskStatus(c.env, taskId, 'accepted')
   await logEvent(c.env, id, 'owner', 'force_approved',
@@ -208,9 +217,10 @@ freelanceRoutes.post('/jobs/:id/tasks/:taskId/force-approve', async (c) => {
   return c.json({ ok: true })
 })
 
+
 // ── Request revision on task ──────────────────────────────────
 
-freelanceRoutes.post('/jobs/:id/tasks/:taskId/request-revision', async (c) => {
+  .post('/jobs/:id/tasks/:taskId/request-revision', async (c) => {
   const { id, taskId } = c.req.param()
   const { instructions } = await c.req.json<{ instructions?: string }>()
 
@@ -232,9 +242,10 @@ freelanceRoutes.post('/jobs/:id/tasks/:taskId/request-revision', async (c) => {
   return c.json({ ok: true })
 })
 
+
 // ── Add owner note to CEO ─────────────────────────────────────
 
-freelanceRoutes.post('/jobs/:id/add-note', async (c) => {
+  .post('/jobs/:id/add-note', async (c) => {
   const id = c.req.param('id')
   const { note } = await c.req.json<{ note?: string }>()
   if (!note) return c.json({ error: 'note is required' }, 400)
@@ -254,9 +265,10 @@ freelanceRoutes.post('/jobs/:id/add-note', async (c) => {
   return c.json({ ok: true })
 })
 
+
 // ── Update deadline/priority ──────────────────────────────────
 
-freelanceRoutes.patch('/jobs/:id', async (c) => {
+  .patch('/jobs/:id', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json<{
     deadline?: string
@@ -289,9 +301,10 @@ freelanceRoutes.patch('/jobs/:id', async (c) => {
   return c.json({ ok: true })
 })
 
+
 // ── Approve final deliverable ─────────────────────────────────
 
-freelanceRoutes.post('/jobs/:id/approve', async (c) => {
+  .post('/jobs/:id/approve', async (c) => {
   const id = c.req.param('id')
   const job = await c.env.DB.prepare('SELECT * FROM freelance_jobs WHERE id = ?')
     .bind(id).first<FreelanceJob>()
@@ -307,9 +320,10 @@ freelanceRoutes.post('/jobs/:id/approve', async (c) => {
   return c.json({ ok: true, status: 'delivered' })
 })
 
+
 // ── Client revision request ───────────────────────────────────
 
-freelanceRoutes.post('/jobs/:id/client-revision', async (c) => {
+  .post('/jobs/:id/client-revision', async (c) => {
   const id = c.req.param('id')
   const { feedback } = await c.req.json<{ feedback?: string }>()
   const job = await c.env.DB.prepare('SELECT * FROM freelance_jobs WHERE id = ?')
@@ -329,9 +343,10 @@ freelanceRoutes.post('/jobs/:id/client-revision', async (c) => {
   return c.json({ ok: true, status: 'client_revision_requested' })
 })
 
+
 // ── Get task artifacts (version history) ──────────────────────
 
-freelanceRoutes.get('/jobs/:id/tasks/:taskId/artifacts', async (c) => {
+  .get('/jobs/:id/tasks/:taskId/artifacts', async (c) => {
   const { taskId } = c.req.param()
   const result = await c.env.DB.prepare(
     'SELECT * FROM freelance_task_artifacts WHERE task_id = ? ORDER BY version',
@@ -339,18 +354,20 @@ freelanceRoutes.get('/jobs/:id/tasks/:taskId/artifacts', async (c) => {
   return c.json({ artifacts: result.results ?? [] })
 })
 
+
 // ── Get playbook for job type ─────────────────────────────────
 
-freelanceRoutes.get('/playbooks/:jobType', async (c) => {
+  .get('/playbooks/:jobType', async (c) => {
   const jobType = c.req.param('jobType') as JobType
   const playbook = PLAYBOOKS[jobType]
   if (!playbook) return c.json({ error: 'Unknown job type' }, 404)
   return c.json({ job_type: jobType, stages: playbook })
 })
 
+
 // ── Save job as template ──────────────────────────────────────
 
-freelanceRoutes.post('/jobs/:id/save-template', async (c) => {
+  .post('/jobs/:id/save-template', async (c) => {
   const id = c.req.param('id')
   const { name } = await c.req.json<{ name?: string }>()
   const job = await c.env.DB.prepare('SELECT * FROM freelance_jobs WHERE id = ?')
@@ -372,9 +389,10 @@ freelanceRoutes.post('/jobs/:id/save-template', async (c) => {
   return c.json({ ok: true, template_id: templateId })
 })
 
+
 // ── List templates ────────────────────────────────────────────
 
-freelanceRoutes.get('/templates', async (c) => {
+  .get('/templates', async (c) => {
   const jobType = c.req.query('job_type')
   const query = jobType
     ? 'SELECT * FROM freelance_templates WHERE job_type = ? ORDER BY created_at DESC'
@@ -386,18 +404,20 @@ freelanceRoutes.get('/templates', async (c) => {
   return c.json({ templates: result.results ?? [] })
 })
 
+
 // ── Get portfolio entries ─────────────────────────────────────
 
-freelanceRoutes.get('/portfolio', async (c) => {
+  .get('/portfolio', async (c) => {
   const result = await c.env.DB.prepare(
     'SELECT * FROM freelance_portfolio ORDER BY created_at DESC',
   ).all()
   return c.json({ entries: result.results ?? [] })
 })
 
+
 // ── Generate portfolio entry ──────────────────────────────────
 
-freelanceRoutes.post('/jobs/:id/portfolio', async (c) => {
+  .post('/jobs/:id/portfolio', async (c) => {
   const id = c.req.param('id')
   const job = await c.env.DB.prepare('SELECT * FROM freelance_jobs WHERE id = ?')
     .bind(id).first<FreelanceJob>()
@@ -411,9 +431,10 @@ freelanceRoutes.post('/jobs/:id/portfolio', async (c) => {
   return c.json({ ok: true, entry })
 })
 
+
 // ── Owner command center ──────────────────────────────────────
 
-freelanceRoutes.get('/command-center', kvCache(30), async (c) => {
+  .get('/command-center', kvCache(30), async (c) => {
   const now = new Date()
 
   // Jobs due soon (deadline within 48 hours)
@@ -485,9 +506,10 @@ freelanceRoutes.get('/command-center', kvCache(30), async (c) => {
   })
 })
 
+
 // ── Intake questions for job type ─────────────────────────────
 
-freelanceRoutes.get('/intake-questions/:jobType', async (c) => {
+  .get('/intake-questions/:jobType', async (c) => {
   const jobType = c.req.param('jobType') as JobType
   const { INTAKE_QUESTIONS } = await import('../services/freelance/types')
   const { POD_INTAKE_QUESTIONS } = await import('../services/freelance/pod-types')
@@ -500,6 +522,7 @@ freelanceRoutes.get('/intake-questions/:jobType', async (c) => {
   if (!questions) return c.json({ error: 'Unknown job type' }, 404)
   return c.json({ questions })
 })
+
 
 // ── Helpers ───────────────────────────────────────────────────
 

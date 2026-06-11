@@ -2,7 +2,6 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 import { callAISimple } from '../services/shared'
 
-export const abTestingRoutes = new Hono<{ Bindings: Env }>()
 
 interface ABTest {
   id: string
@@ -20,8 +19,10 @@ interface ABTest {
   created_at: string
 }
 
+export const abTestingRoutes = new Hono<{ Bindings: Env }>()
+
 // POST / — create a new A/B test for a product
-abTestingRoutes.post('/', async (c) => {
+  .post('/', async (c) => {
   try {
     const body = await c.req.json<{ product_id: string }>()
     if (!body.product_id) return c.json({ error: 'product_id is required' }, 400)
@@ -80,8 +81,9 @@ Guidelines:
   }
 })
 
+
 // GET / — list all A/B tests
-abTestingRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const status = c.req.query('status')
     let query = `SELECT t.*, p.name AS product_name FROM ab_tests t LEFT JOIN products p ON t.product_id = p.id`
@@ -104,8 +106,9 @@ abTestingRoutes.get('/', async (c) => {
   }
 })
 
+
 // GET /:id — get test details with stats
-abTestingRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const test = await c.env.DB.prepare(
@@ -141,8 +144,9 @@ abTestingRoutes.get('/:id', async (c) => {
   }
 })
 
+
 // POST /:id/record — record a view or conversion for a variant
-abTestingRoutes.post('/:id/record', async (c) => {
+  .post('/:id/record', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json<{ variant: 'a' | 'b'; event: 'view' | 'conversion' }>()
@@ -172,8 +176,9 @@ abTestingRoutes.post('/:id/record', async (c) => {
   }
 })
 
+
 // POST /:id/complete — pick winner based on conversion rate
-abTestingRoutes.post('/:id/complete', async (c) => {
+  .post('/:id/complete', async (c) => {
   try {
     const id = c.req.param('id')
     const test = await c.env.DB.prepare(`SELECT * FROM ab_tests WHERE id = ?`)
