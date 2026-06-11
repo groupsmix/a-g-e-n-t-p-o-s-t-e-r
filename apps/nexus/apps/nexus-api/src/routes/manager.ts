@@ -6,12 +6,12 @@ import { callAISimple, safeJson } from '../services/shared'
 import { executeAction, type LiveAction, type LiveActionType } from '../services/action-executor'
 import { checkNiche } from '../services/niche-dedup'
 
-export const managerRoutes = new Hono<{ Bindings: Env }>()
 
 interface ManagerMessage {
   role: 'user' | 'assistant'
   content: string
 }
+
 
 interface PlannedProduct {
   domain_slug?: string
@@ -21,6 +21,7 @@ interface PlannedProduct {
   description?: string
   keywords?: string
 }
+
 
 interface ManagerAction {
   type: 'create_product' | 'note' | 'browse' | 'list_product' | 'check_sales' | 'create_pod' | 'run_campaign' | 'analyze_niche'
@@ -38,11 +39,14 @@ interface ManagerAction {
   platform?: string
 }
 
+
 const safeParse = safeJson
+
 
 async function callAI(env: Env, prompt: string): Promise<string> {
   return callAISimple(env, prompt, { taskType: 'manager_plan', outputFormat: 'json' })
 }
+
 
 // POST /manager/chat — the CEO Manager. Interprets a goal, plans products,
 // kicks off the agents (workflows), and reports back.
@@ -59,17 +63,21 @@ const EMPTY_READ_PATTERNS: RegExp[] = [
   /\b(performance|status|overview|dashboard|stats|summary)\b/i,
   /\bhow\s+(many|much)\b/i,
 ]
+
 const ACTION_INTENT_PATTERNS: RegExp[] = [
   /\b(create|build|make|generate|dispatch|spin\s*up|start|launch|run|kick\s*off)\b/i,
   /\b(approve|reject|delete|publish|retry|re-?run)\b/i,
   /\b(scrape|browse|fetch|search\s+the\s+web|visit)\b/i,
 ]
+
 function isEmptyReadQuestion(message: string): boolean {
   if (ACTION_INTENT_PATTERNS.some((re) => re.test(message))) return false
   return EMPTY_READ_PATTERNS.some((re) => re.test(message))
 }
 
-managerRoutes.post('/chat', async (c) => {
+export const managerRoutes = new Hono<{ Bindings: Env }>()
+
+  .post('/chat', async (c) => {
   const body = await c.req.json<{ message?: string; history?: ManagerMessage[] }>()
   const message = (body.message || '').trim()
   const history = Array.isArray(body.history) ? body.history.slice(-8) : []

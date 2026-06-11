@@ -16,7 +16,6 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 import { getSecret } from '../services/publishers'
 
-export const metricsRoutes = new Hono<{ Bindings: Env }>()
 
 interface Metric {
   value: number
@@ -30,6 +29,7 @@ interface Metric {
   note?: string
 }
 
+
 interface SummaryResponse {
   generated_at: string
   tasks_today: Metric
@@ -39,6 +39,7 @@ interface SummaryResponse {
   leads_today: Metric
 }
 
+
 function midnightIsoUtc(daysBack = 0): string {
   const d = new Date()
   d.setUTCHours(0, 0, 0, 0)
@@ -46,11 +47,13 @@ function midnightIsoUtc(daysBack = 0): string {
   return d.toISOString()
 }
 
+
 function fmtUsd(n: number): string {
   if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`
   if (n >= 100) return `$${n.toFixed(0)}`
   return `$${n.toFixed(2)}`
 }
+
 
 function pctDelta(today: number, yesterday: number): string | null {
   if (yesterday === 0) return today > 0 ? '+new' : null
@@ -59,7 +62,9 @@ function pctDelta(today: number, yesterday: number): string | null {
   return `${sign}${d.toFixed(0)}%`
 }
 
-metricsRoutes.get('/summary', async (c) => {
+export const metricsRoutes = new Hono<{ Bindings: Env }>()
+
+  .get('/summary', async (c) => {
   const todayStart = midnightIsoUtc(0)
   const yesterdayStart = midnightIsoUtc(1)
   const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()

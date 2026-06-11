@@ -1,7 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
 
-export const observabilityRoutes = new Hono<{ Bindings: Env }>()
 
 interface WorkflowRow {
   id: string
@@ -11,6 +10,7 @@ interface WorkflowRow {
   created_at: string
   updated_at: string | null
 }
+
 
 interface StepRow {
   run_id: string
@@ -22,6 +22,7 @@ interface StepRow {
   completed_at: string | null
 }
 
+
 interface ProductRow {
   id: string
   title: string
@@ -30,6 +31,8 @@ interface ProductRow {
   gumroad_url: string | null
   created_at: string
 }
+
+export const observabilityRoutes = new Hono<{ Bindings: Env }>()
 
 // BUG-FIX (D1_ERROR: no such column: domain_slug):
 //
@@ -43,7 +46,7 @@ interface ProductRow {
 // `completed_at` (which does exist) instead of the non-existent
 // `workflow_runs.updated_at`. Products use `name AS title` because the
 // table has a `name` column (no `title`).
-observabilityRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const [
       recentRuns,
@@ -122,6 +125,7 @@ observabilityRoutes.get('/', async (c) => {
     return c.json({ error: message }, 500)
   }
 })
+
 
 async function fetchAiSpend(
   env: Env,

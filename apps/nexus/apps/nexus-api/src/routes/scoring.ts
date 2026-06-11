@@ -6,7 +6,7 @@ import { checkPrePublish, checkPostBuild, checkPreBuild } from '../services/qual
 export const scoringRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /products/:id/score — score an existing product
-scoringRoutes.get('/:id/score', async (c) => {
+  .get('/:id/score', async (c) => {
   const productId = c.req.param('id')
   const product = await c.env.DB.prepare(
     `SELECT name, description, tags, price, deliverable_url, image_url FROM products WHERE id = ?`,
@@ -30,8 +30,9 @@ scoringRoutes.get('/:id/score', async (c) => {
   return c.json({ score, quality_gate: qualityGate, post_build_gate: postBuildGate })
 })
 
+
 // POST /niches/score — score a niche idea before building
-scoringRoutes.post('/score', async (c) => {
+  .post('/score', async (c) => {
   const body = await c.req.json<{ niche: string }>()
   if (!body.niche) return c.json({ error: 'niche is required' }, 400)
 

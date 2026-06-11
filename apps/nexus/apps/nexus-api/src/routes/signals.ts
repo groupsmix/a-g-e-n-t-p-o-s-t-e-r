@@ -12,7 +12,7 @@ export const signalRoutes = new Hono<{ Bindings: Env }>()
 
 // ── Create signal ─────────────────────────────────────────────
 
-signalRoutes.post('/', rateLimit(20), async (c) => {
+  .post('/', rateLimit(20), async (c) => {
   const body = await c.req.json<{
     source_type: SignalSourceType
     source_ref?: string
@@ -66,9 +66,10 @@ signalRoutes.post('/', rateLimit(20), async (c) => {
   }
 })
 
+
 // ── List signals ─────────────────────────────────────────────
 
-signalRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   const status = c.req.query('status')
   const sourceType = c.req.query('source_type')
   const minDemandScore = c.req.query('min_demand_score')
@@ -114,9 +115,10 @@ signalRoutes.get('/', async (c) => {
   return c.json({ signals, limit, offset })
 })
 
+
 // ── Get single signal ─────────────────────────────────────────
 
-signalRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   const { id } = c.req.param()
 
   const signal = await c.env.DB.prepare('SELECT * FROM signals WHERE id = ?')
@@ -145,9 +147,10 @@ signalRoutes.get('/:id', async (c) => {
   })
 })
 
+
 // ── Batch ingest signals ───────────────────────────────────────
 
-signalRoutes.post('/batch', rateLimit(10), async (c) => {
+  .post('/batch', rateLimit(10), async (c) => {
   const body = await c.req.json<{ signals: Array<Record<string, unknown>> }>()
 
   if (!Array.isArray(body.signals)) {
@@ -198,9 +201,10 @@ signalRoutes.post('/batch', rateLimit(10), async (c) => {
   })
 })
 
+
 // ── Re-score signal ───────────────────────────────────────────
 
-signalRoutes.post('/:id/score', async (c) => {
+  .post('/:id/score', async (c) => {
   const { id } = c.req.param()
 
   const signal = await scoreSignal(c.env.DB, id)
@@ -212,9 +216,10 @@ signalRoutes.post('/:id/score', async (c) => {
   return c.json({ signal })
 })
 
+
 // ── Promote signal to opportunity ─────────────────────────────
 
-signalRoutes.post('/:id/promote', async (c) => {
+  .post('/:id/promote', async (c) => {
   const { id } = c.req.param()
 
   const opportunityId = await promoteSignalToOpportunity(c.env.DB, id)
@@ -229,9 +234,10 @@ signalRoutes.post('/:id/promote', async (c) => {
   })
 })
 
+
 // ── Archive signal (soft delete) ───────────────────────────────
 
-signalRoutes.delete('/:id', async (c) => {
+  .delete('/:id', async (c) => {
   const { id } = c.req.param()
 
   await c.env.DB.prepare(`
@@ -240,6 +246,7 @@ signalRoutes.delete('/:id', async (c) => {
 
   return c.json({ ok: true })
 })
+
 
 // ── Helper: Safe JSON parse ───────────────────────────────────
 

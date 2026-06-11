@@ -9,7 +9,6 @@ import {
 import { multiplyOpportunity } from '../services/venture-multiplier'
 import { buildAllVenturesForOpportunity } from '../services/factory/factory-dispatcher'
 
-export const opportunityRoutes = new Hono<{ Bindings: Env }>()
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -46,6 +45,7 @@ interface OpportunityRow {
   expires_at: string | null
 }
 
+
 interface CreateOpportunityInput {
   trend_name: string
   target_buyer: string
@@ -72,9 +72,11 @@ interface CreateOpportunityInput {
   expires_at?: string
 }
 
+export const opportunityRoutes = new Hono<{ Bindings: Env }>()
+
 // ── List opportunities ───────────────────────────────────────
 
-opportunityRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   const status = c.req.query('status')
   const minScore = c.req.query('min_score')
   const niche = c.req.query('niche')
@@ -90,6 +92,7 @@ opportunityRoutes.get('/', async (c) => {
   return c.json({ opportunities })
 })
 
+
 // ── Get single opportunity ───────────────────────────────────
 
 // ── Dashboard summary ────────────────────────────────────────
@@ -101,7 +104,7 @@ opportunityRoutes.get('/', async (c) => {
 // "Not found" even though the endpoint exists. See:
 //   apps/web/src/lib/api.ts → getOpportunitySummary()
 //   apps/web/src/app/opportunities/page.tsx
-opportunityRoutes.get('/summary', kvCache(60), async (c) => {
+  .get('/summary', kvCache(60), async (c) => {
   const topOpps = await c.env.DB.prepare(
     'SELECT * FROM opportunities WHERE status IN (?, ?) AND total_score >= 70 ORDER BY total_score DESC LIMIT 5'
   ).bind('new', 'watchlist').all<OpportunityRow>()
@@ -125,7 +128,8 @@ opportunityRoutes.get('/summary', kvCache(60), async (c) => {
   })
 })
 
-opportunityRoutes.get('/:id', async (c) => {
+
+  .get('/:id', async (c) => {
   const { id } = c.req.param()
   // Use new service that returns opportunity with ventures array
   const result = await getOpportunityWithVentures(c.env.DB, id)
@@ -133,9 +137,10 @@ opportunityRoutes.get('/:id', async (c) => {
   return c.json(result)
 })
 
+
 // ── Create opportunity ───────────────────────────────────────
 
-opportunityRoutes.post('/', async (c) => {
+  .post('/', async (c) => {
   const body = await c.req.json<CreateOpportunityInput>()
 
   if (!body.trend_name || !body.target_buyer || !body.product_idea || !body.why_it_sells || !body.suggested_format) {
@@ -204,9 +209,10 @@ opportunityRoutes.post('/', async (c) => {
   return c.json({ ok: true, id })
 })
 
+
 // ── Update opportunity status ────────────────────────────────
 
-opportunityRoutes.patch('/:id/status', async (c) => {
+  .patch('/:id/status', async (c) => {
   const { id } = c.req.param()
   const { status } = await c.req.json<{ status: string }>()
 
@@ -222,9 +228,10 @@ opportunityRoutes.patch('/:id/status', async (c) => {
   return c.json({ ok: true })
 })
 
+
 // ── Delete opportunity ───────────────────────────────────────
 
-opportunityRoutes.delete('/:id', async (c) => {
+  .delete('/:id', async (c) => {
   const { id } = c.req.param()
   
   // First, get all ventures for this opportunity to cascade delete
@@ -269,9 +276,10 @@ opportunityRoutes.delete('/:id', async (c) => {
   return c.json({ ok: true })
 })
 
+
 // ── Multiply opportunity into ventures ─────────────────────────
 
-opportunityRoutes.post('/:id/multiply', rateLimit(5), async (c) => {
+  .post('/:id/multiply', rateLimit(5), async (c) => {
   const { id } = c.req.param()
 
   try {
@@ -282,9 +290,10 @@ opportunityRoutes.post('/:id/multiply', rateLimit(5), async (c) => {
   }
 })
 
+
 // ── Build all ventures for opportunity ─────────────────────────
 
-opportunityRoutes.post('/:id/build', rateLimit(3), async (c) => {
+  .post('/:id/build', rateLimit(3), async (c) => {
   const { id } = c.req.param()
 
   try {
@@ -295,9 +304,10 @@ opportunityRoutes.post('/:id/build', rateLimit(3), async (c) => {
   }
 })
 
+
 // ── AI: Scan for opportunities ───────────────────────────────
 
-opportunityRoutes.post('/scan', rateLimit(5), async (c) => {
+  .post('/scan', rateLimit(5), async (c) => {
   const { niche } = await c.req.json<{ niche?: string }>()
 
   const prompt = buildScanPrompt(niche)
@@ -350,9 +360,10 @@ opportunityRoutes.post('/scan', rateLimit(5), async (c) => {
   }
 })
 
+
 // ── Niche Factory: generate full niche plan ──────────────────
 
-opportunityRoutes.post('/niche-factory', rateLimit(5), async (c) => {
+  .post('/niche-factory', rateLimit(5), async (c) => {
   const { niche } = await c.req.json<{ niche: string }>()
   if (!niche) return c.json({ error: 'niche is required' }, 400)
 
@@ -376,6 +387,7 @@ opportunityRoutes.post('/niche-factory', rateLimit(5), async (c) => {
   }
 })
 
+
 // ── Helpers ──────────────────────────────────────────────────
 
 function formatOpportunity(row: OpportunityRow) {
@@ -387,6 +399,7 @@ function formatOpportunity(row: OpportunityRow) {
   }
 }
 
+
 function safeParseJson(str: string): unknown {
   try {
     return JSON.parse(str)
@@ -394,6 +407,7 @@ function safeParseJson(str: string): unknown {
     return []
   }
 }
+
 
 interface ParsedOpportunity {
   trend_name: string
@@ -417,6 +431,7 @@ interface ParsedOpportunity {
   source_signals: string[]
   is_guess: boolean
 }
+
 
 function parseOpportunities(text: string): ParsedOpportunity[] {
   try {
@@ -450,6 +465,7 @@ function parseOpportunities(text: string): ParsedOpportunity[] {
     return []
   }
 }
+
 
 function buildScanPrompt(niche?: string): string {
   const nicheClause = niche ? `Focus specifically on the "${niche}" niche.` : 'Scan across all profitable niches.'
@@ -492,6 +508,7 @@ CRITICAL RULES:
 
 Return ONLY a valid JSON array. No explanation text.`
 }
+
 
 function buildNicheFactoryPrompt(niche: string): string {
   return `You are the Niche Factory AI. Given the niche "${niche}", generate a complete money plan.

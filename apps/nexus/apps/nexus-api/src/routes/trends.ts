@@ -5,7 +5,7 @@ import { checkNiche } from '../services/niche-dedup'
 export const trendRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /trends - List trend alerts
-trendRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const includeDismissed = c.req.query('include_dismissed') === 'true'
     const limit = parseInt(c.req.query('limit') || '20')
@@ -40,8 +40,9 @@ trendRoutes.get('/', async (c) => {
   }
 })
 
+
 // POST /trends/:id/dismiss - Dismiss a trend
-trendRoutes.post('/:id/dismiss', async (c) => {
+  .post('/:id/dismiss', async (c) => {
   try {
     const id = c.req.param('id')
     
@@ -60,8 +61,9 @@ trendRoutes.post('/:id/dismiss', async (c) => {
   }
 })
 
+
 // POST /trends/:id/start - Start workflow from trend
-trendRoutes.post('/:id/start', async (c) => {
+  .post('/:id/start', async (c) => {
   try {
     const trendId = c.req.param('id')
     

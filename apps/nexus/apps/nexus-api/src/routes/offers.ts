@@ -3,7 +3,6 @@ import type { Env } from '../env'
 import { rateLimit } from '../middleware/rate-limit'
 import type { Offer } from '@posteragent/types/nexus'
 
-export const offerRoutes = new Hono<{ Bindings: Env }>()
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -25,6 +24,7 @@ interface OfferRow {
   updated_at: string
 }
 
+
 interface TrackedLinkRow {
   id: string
   offer_id: string
@@ -39,9 +39,11 @@ interface TrackedLinkRow {
   created_at: string
 }
 
+export const offerRoutes = new Hono<{ Bindings: Env }>()
+
 // ── Create offer ───────────────────────────────────────────────
 
-offerRoutes.post('/', rateLimit(10), async (c) => {
+  .post('/', rateLimit(10), async (c) => {
   const body = await c.req.json<{
     venture_id: string
     platform_id?: string
@@ -101,9 +103,10 @@ offerRoutes.post('/', rateLimit(10), async (c) => {
   return c.json({ offer: mapOfferRow(offer) }, 201)
 })
 
+
 // ── List offers ───────────────────────────────────────────────
 
-offerRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   const ventureId = c.req.query('venture_id')
   const opportunityId = c.req.query('opportunity_id')
   const platform = c.req.query('platform')
@@ -137,9 +140,10 @@ offerRoutes.get('/', async (c) => {
   return c.json({ offers })
 })
 
+
 // ── Get single offer with details ───────────────────────────────
 
-offerRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   const { id } = c.req.param()
 
   const offer = await c.env.DB.prepare('SELECT * FROM offers WHERE id = ?')
@@ -181,9 +185,10 @@ offerRoutes.get('/:id', async (c) => {
   })
 })
 
+
 // ── Update offer ───────────────────────────────────────────────
 
-offerRoutes.patch('/:id', async (c) => {
+  .patch('/:id', async (c) => {
   const { id } = c.req.param()
   const body = await c.req.json<{
     title?: string
@@ -243,9 +248,10 @@ offerRoutes.patch('/:id', async (c) => {
   return c.json({ offer: mapOfferRow(updated) })
 })
 
+
 // ── Approve offer ─────────────────────────────────────────────
 
-offerRoutes.patch('/:id/approve', async (c) => {
+  .patch('/:id/approve', async (c) => {
   const { id } = c.req.param()
 
   // Get venture_id for logging allocator action
@@ -275,9 +281,10 @@ offerRoutes.patch('/:id/approve', async (c) => {
   return c.json({ offer: mapOfferRow(updated!) })
 })
 
+
 // ── Pause offer ───────────────────────────────────────────────
 
-offerRoutes.patch('/:id/pause', async (c) => {
+  .patch('/:id/pause', async (c) => {
   const { id } = c.req.param()
 
   const offer = await c.env.DB.prepare('SELECT venture_id FROM offers WHERE id = ?')
@@ -304,9 +311,10 @@ offerRoutes.patch('/:id/pause', async (c) => {
   return c.json({ offer: mapOfferRow(updated!) })
 })
 
+
 // ── Kill offer ────────────────────────────────────────────────
 
-offerRoutes.patch('/:id/kill', async (c) => {
+  .patch('/:id/kill', async (c) => {
   const { id } = c.req.param()
 
   const offer = await c.env.DB.prepare('SELECT venture_id FROM offers WHERE id = ?')
@@ -333,9 +341,10 @@ offerRoutes.patch('/:id/kill', async (c) => {
   return c.json({ offer: mapOfferRow(updated!) })
 })
 
+
 // ── Clone offer ───────────────────────────────────────────────
 
-offerRoutes.post('/:id/clone', async (c) => {
+  .post('/:id/clone', async (c) => {
   const { id } = c.req.param()
 
   const original = await c.env.DB.prepare('SELECT * FROM offers WHERE id = ?')
@@ -373,6 +382,7 @@ offerRoutes.post('/:id/clone', async (c) => {
   return c.json({ offer: mapOfferRow(cloned!) }, 201)
 })
 
+
 // ── Helpers ──────────────────────────────────────────────────
 
 function mapOfferRow(row: OfferRow): Offer {
@@ -395,6 +405,7 @@ function mapOfferRow(row: OfferRow): Offer {
   }
 }
 
+
 function mapTrackedLinkRow(row: TrackedLinkRow) {
   return {
     id: row.id,
@@ -410,5 +421,3 @@ function mapTrackedLinkRow(row: TrackedLinkRow) {
     created_at: row.created_at,
   }
 }
-
-

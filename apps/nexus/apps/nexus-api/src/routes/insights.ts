@@ -20,7 +20,6 @@ import {
   type UnifiedQueryId,
 } from '@posteragent/agent-mindsdb'
 
-export const insightsRoutes = new Hono<{ Bindings: Env }>()
 
 function buildRouter(env: Env): UnifiedQueryRouter {
   const local = new D1UnifiedQueryRunner(env.DB)
@@ -30,7 +29,9 @@ function buildRouter(env: Env): UnifiedQueryRouter {
   return new UnifiedQueryRouter({ local, remote })
 }
 
-insightsRoutes.get('/:queryId', async (c) => {
+export const insightsRoutes = new Hono<{ Bindings: Env }>()
+
+  .get('/:queryId', async (c) => {
   const id = c.req.param('queryId') as UnifiedQueryId
   const since = c.req.query('since')
   const until = c.req.query('until')
@@ -49,7 +50,8 @@ insightsRoutes.get('/:queryId', async (c) => {
   }
 })
 
-insightsRoutes.post('/raw', async (c) => {
+
+  .post('/raw', async (c) => {
   try {
     const body = (await c.req.json()) as { sql: string }
     const router = buildRouter(c.env)

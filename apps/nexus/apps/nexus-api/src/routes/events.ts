@@ -2,7 +2,6 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 import { rateLimit } from '../middleware/rate-limit'
 
-export const eventRoutes = new Hono<{ Bindings: Env }>()
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -23,9 +22,11 @@ interface EconomicEventInput {
   occurred_at?: string
 }
 
+export const eventRoutes = new Hono<{ Bindings: Env }>()
+
 // ── Ingest events (batch) ─────────────────────────────────────
 
-eventRoutes.post('/ingest', rateLimit(30), async (c) => {
+  .post('/ingest', rateLimit(30), async (c) => {
   const body = await c.req.json<{ events: EconomicEventInput[] }>()
 
   if (!Array.isArray(body.events) || body.events.length === 0) {
@@ -116,9 +117,10 @@ eventRoutes.post('/ingest', rateLimit(30), async (c) => {
   })
 })
 
+
 // ── Get events summary by venture ──────────────────────────────
 
-eventRoutes.get('/summary', async (c) => {
+  .get('/summary', async (c) => {
   const ventureId = c.req.query('venture_id')
   const opportunityId = c.req.query('opportunity_id')
 
@@ -181,9 +183,10 @@ eventRoutes.get('/summary', async (c) => {
   })
 })
 
+
 // ── List events (paginated) ───────────────────────────────────
 
-eventRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   const ventureId = c.req.query('venture_id')
   const type = c.req.query('type')
   const limit = parseInt(c.req.query('limit') || '50', 10)

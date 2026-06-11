@@ -37,7 +37,7 @@ import {
 export const agentsRoutes = new Hono<{ Bindings: Env }>()
 
 // ── GET /api/agents/registry ────────────────────────────────────────────
-agentsRoutes.get('/registry', (c) => {
+  .get('/registry', (c) => {
   const statusFilter = c.req.query('status') as AgentStatus | undefined
   const tagFilter = c.req.query('tag')
 
@@ -53,8 +53,9 @@ agentsRoutes.get('/registry', (c) => {
   })
 })
 
+
 // ── GET /api/agents/registry/:type ──────────────────────────────────────
-agentsRoutes.get('/registry/:type', (c) => {
+  .get('/registry/:type', (c) => {
   const descriptor = getAgent(c.req.param('type'))
   if (!descriptor) {
     return c.json({ error: `unknown agent type: ${c.req.param('type')}` }, 404)
@@ -62,8 +63,9 @@ agentsRoutes.get('/registry/:type', (c) => {
   return c.json({ agent: descriptor })
 })
 
+
 // ── POST /api/agents/run ────────────────────────────────────────────────
-agentsRoutes.post('/run', async (c) => {
+  .post('/run', async (c) => {
   let body: unknown
   try {
     body = await c.req.json()

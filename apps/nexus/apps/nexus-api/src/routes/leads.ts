@@ -17,7 +17,6 @@ import type { Env } from '../env'
 import { rateLimit } from '../middleware/rate-limit'
 import { runLeadScan } from '../services/lead-scanner'
 
-export const leadRoutes = new Hono<{ Bindings: Env }>()
 
 interface LeadRow {
   fingerprint: string
@@ -40,6 +39,7 @@ interface LeadRow {
   operator_note: string | null
   created_at: string
 }
+
 
 function hydrate(row: LeadRow) {
   return {
@@ -65,6 +65,7 @@ function hydrate(row: LeadRow) {
   }
 }
 
+
 function safeParse<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback
   try {
@@ -74,9 +75,11 @@ function safeParse<T>(raw: string | null, fallback: T): T {
   }
 }
 
+export const leadRoutes = new Hono<{ Bindings: Env }>()
+
 // ── GET / — list ─────────────────────────────────────────────
 
-leadRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   const url = new URL(c.req.url)
   const status = url.searchParams.get('status') ?? 'new'
   const source = url.searchParams.get('source')
@@ -117,9 +120,10 @@ leadRoutes.get('/', async (c) => {
   }
 })
 
+
 // ── GET /stats ───────────────────────────────────────────────
 
-leadRoutes.get('/stats', async (c) => {
+  .get('/stats', async (c) => {
   try {
     const [byStatus, byIntent, bySource, top] = await Promise.all([
       c.env.DB.prepare(`SELECT status, COUNT(*) AS n FROM leads GROUP BY status`).all<{ status: string; n: number }>(),
@@ -138,9 +142,10 @@ leadRoutes.get('/stats', async (c) => {
   }
 })
 
+
 // ── GET /:fingerprint ────────────────────────────────────────
 
-leadRoutes.get('/:fingerprint', async (c) => {
+  .get('/:fingerprint', async (c) => {
   const fp = c.req.param('fingerprint')
   const row = await c.env.DB
     .prepare(`SELECT * FROM leads WHERE fingerprint = ?`)
@@ -151,12 +156,13 @@ leadRoutes.get('/:fingerprint', async (c) => {
   return c.json({ lead: hydrate(row) })
 })
 
+
 // ── POST /scan ───────────────────────────────────────────────
 //
 // Body: { terms: string[], subreddits?: string[], sources?: ['reddit'|'hn'][], limit?: number }
 // Rate-limited so the operator can't accidentally hammer Reddit/HN.
 
-leadRoutes.post('/scan', rateLimit(5), async (c) => {
+  .post('/scan', rateLimit(5), async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
   const terms = Array.isArray(body.terms) ? (body.terms as unknown[]).filter((t): t is string => typeof t === 'string' && t.trim().length > 0) : []
   if (terms.length === 0) {
@@ -174,9 +180,10 @@ leadRoutes.post('/scan', rateLimit(5), async (c) => {
   return c.json({ ok: true, ...result })
 })
 
+
 // ── POST /:fp/engage ─────────────────────────────────────────
 
-leadRoutes.post('/:fingerprint/engage', async (c) => {
+  .post('/:fingerprint/engage', async (c) => {
   const fp = c.req.param('fingerprint')
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
   const note = typeof body.note === 'string' ? body.note : null
@@ -187,9 +194,10 @@ leadRoutes.post('/:fingerprint/engage', async (c) => {
   return c.json({ ok: true })
 })
 
+
 // ── POST /:fp/dismiss ────────────────────────────────────────
 
-leadRoutes.post('/:fingerprint/dismiss', async (c) => {
+  .post('/:fingerprint/dismiss', async (c) => {
   const fp = c.req.param('fingerprint')
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
   const note = typeof body.note === 'string' ? body.note : null
@@ -200,9 +208,10 @@ leadRoutes.post('/:fingerprint/dismiss', async (c) => {
   return c.json({ ok: true })
 })
 
+
 // ── DELETE /:fp ──────────────────────────────────────────────
 
-leadRoutes.delete('/:fingerprint', async (c) => {
+  .delete('/:fingerprint', async (c) => {
   const fp = c.req.param('fingerprint')
   await c.env.DB.prepare(`DELETE FROM leads WHERE fingerprint = ?`).bind(fp).run()
   return c.json({ ok: true })

@@ -3,7 +3,7 @@ import type { Env } from '../env'
 
 export const hyperbeamRoutes = new Hono<{ Bindings: Env }>()
 
-hyperbeamRoutes.post('/session', async (c) => {
+  .post('/session', async (c) => {
   const apiKey = c.env.HYPERBEAM_API_KEY
   if (!apiKey) {
     return c.json({ ok: false, error: 'Hyperbeam API key not configured' }, 500)
@@ -50,7 +50,8 @@ hyperbeamRoutes.post('/session', async (c) => {
   }
 })
 
-hyperbeamRoutes.delete('/session/:id', async (c) => {
+
+  .delete('/session/:id', async (c) => {
   const apiKey = c.env.HYPERBEAM_API_KEY
   if (!apiKey) {
     return c.json({ ok: false, error: 'Hyperbeam API key not configured' }, 500)

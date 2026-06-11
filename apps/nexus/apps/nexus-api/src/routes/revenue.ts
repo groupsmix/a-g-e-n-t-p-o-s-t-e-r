@@ -23,6 +23,49 @@ import {
 import { getSecret } from '../services/publishers'
 import { listProducts } from '../services/gumroad'
 
+
+function windowFor(period: string, now: Date): { start: Date; end: Date } {
+  const end = now
+  const start = new Date(now)
+  if (period === 'day') start.setUTCHours(0, 0, 0, 0)
+  else if (period === 'week') {
+    start.setUTCHours(0, 0, 0, 0)
+    const dow = (start.getUTCDay() + 6) % 7
+    start.setUTCDate(start.getUTCDate() - dow)
+  } else if (period === 'month') {
+    start.setUTCHours(0, 0, 0, 0)
+    start.setUTCDate(1)
+  } else {
+    start.setUTCFullYear(start.getUTCFullYear() - 5) // 'all'
+  }
+  return { start, end }
+}
+
+
+function buildPollers(env: Env): Array<AffiliatePollAdapter | AdsenseAdapter> {
+  const out: Array<AffiliatePollAdapter | AdsenseAdapter> = []
+  const impactUrl = (env as unknown as Record<string, string | undefined>).IMPACT_REPORTS_URL
+  const impactAuth = (env as unknown as Record<string, string | undefined>).IMPACT_AUTH
+  if (impactUrl) {
+    out.push(
+      new AffiliatePollAdapter({
+        label: 'impact',
+        url: impactUrl,
+        headers: impactAuth ? { authorization: impactAuth } : undefined,
+        rowsPath: 'Records',
+        mapRow: (row: Record<string, unknown>) => ({
+          external_id: String(row.Id ?? row.ActionId ?? row.Oid ?? ''),
+          amount_usd_cents: Math.round(Number(row.Payout ?? row.Earnings ?? 0) * 100),
+          currency: String(row.Currency ?? 'USD'),
+          occurred_at: String(row.EventDate ?? row.CreationDate ?? new Date().toISOString()),
+          affiliate_subid: row.SubId1 ? String(row.SubId1) : undefined,
+        }),
+      }),
+    )
+  }
+  return out
+}
+
 export const revenueRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /api/revenue — high-level summary the dashboard's Revenue page
@@ -31,7 +74,7 @@ export const revenueRoutes = new Hono<{ Bindings: Env }>()
 // product_count, best_seller, products[] }. When no Gumroad token is
 // configured we return `configured:false` with a helpful message so the
 // page can render its "Connect Gumroad" CTA instead of an error.
-revenueRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   const token = await getSecret(c.env, 'GUMROAD_ACCESS_TOKEN').catch(() => null)
   if (!token) {
     return c.json({
@@ -76,24 +119,8 @@ revenueRoutes.get('/', async (c) => {
   })
 })
 
-function windowFor(period: string, now: Date): { start: Date; end: Date } {
-  const end = now
-  const start = new Date(now)
-  if (period === 'day') start.setUTCHours(0, 0, 0, 0)
-  else if (period === 'week') {
-    start.setUTCHours(0, 0, 0, 0)
-    const dow = (start.getUTCDay() + 6) % 7
-    start.setUTCDate(start.getUTCDate() - dow)
-  } else if (period === 'month') {
-    start.setUTCHours(0, 0, 0, 0)
-    start.setUTCDate(1)
-  } else {
-    start.setUTCFullYear(start.getUTCFullYear() - 5) // 'all'
-  }
-  return { start, end }
-}
 
-revenueRoutes.get('/summary', async (c) => {
+  .get('/summary', async (c) => {
   const period = c.req.query('period') ?? 'month'
   try {
     const store = new D1RevenueStore(c.env.DB)
@@ -114,7 +141,8 @@ revenueRoutes.get('/summary', async (c) => {
   }
 })
 
-revenueRoutes.get('/events', async (c) => {
+
+  .get('/events', async (c) => {
   const since = c.req.query('since') ?? new Date(Date.now() - 30 * 86_400_000).toISOString()
   const sourceParam = c.req.query('source') as
     | 'gumroad' | 'amazon' | 'affiliate' | 'adsense' | 'youtube' | 'tiktok' | 'newsletter' | 'direct' | 'other' | undefined
@@ -131,7 +159,8 @@ revenueRoutes.get('/events', async (c) => {
   }
 })
 
-revenueRoutes.post('/gumroad/webhook', async (c) => {
+
+  .post('/gumroad/webhook', async (c) => {
   // Gumroad pings with application/x-www-form-urlencoded — accept both.
   try {
     const ct = c.req.header('content-type') ?? ''
@@ -168,7 +197,8 @@ revenueRoutes.post('/gumroad/webhook', async (c) => {
   }
 })
 
-revenueRoutes.post('/amazon/csv', async (c) => {
+
+  .post('/amazon/csv', async (c) => {
   try {
     const csv = await c.req.text()
     const events = parseAmazonCsv(csv)
@@ -180,31 +210,8 @@ revenueRoutes.post('/amazon/csv', async (c) => {
   }
 })
 
-function buildPollers(env: Env): Array<AffiliatePollAdapter | AdsenseAdapter> {
-  const out: Array<AffiliatePollAdapter | AdsenseAdapter> = []
-  const impactUrl = (env as unknown as Record<string, string | undefined>).IMPACT_REPORTS_URL
-  const impactAuth = (env as unknown as Record<string, string | undefined>).IMPACT_AUTH
-  if (impactUrl) {
-    out.push(
-      new AffiliatePollAdapter({
-        label: 'impact',
-        url: impactUrl,
-        headers: impactAuth ? { authorization: impactAuth } : undefined,
-        rowsPath: 'Records',
-        mapRow: (row: Record<string, unknown>) => ({
-          external_id: String(row.Id ?? row.ActionId ?? row.Oid ?? ''),
-          amount_usd_cents: Math.round(Number(row.Payout ?? row.Earnings ?? 0) * 100),
-          currency: String(row.Currency ?? 'USD'),
-          occurred_at: String(row.EventDate ?? row.CreationDate ?? new Date().toISOString()),
-          affiliate_subid: row.SubId1 ? String(row.SubId1) : undefined,
-        }),
-      }),
-    )
-  }
-  return out
-}
 
-revenueRoutes.post('/tick', async (c) => {
+  .post('/tick', async (c) => {
   try {
     const store = new D1RevenueStore(c.env.DB)
     const adapters = buildPollers(c.env)
@@ -215,12 +222,14 @@ revenueRoutes.post('/tick', async (c) => {
   }
 })
 
+
 export async function runRevenueTick(env: Env): Promise<void> {
   const store = new D1RevenueStore(env.DB)
   const adapters = buildPollers(env)
   if (adapters.length === 0) return
   await runRevenueOnce({ adapters, store }).catch(() => undefined)
 }
+
 
 // Reference getSecret so we keep the import alive if we end up needing it for
 // AdSense OAuth refresh in a follow-up; harmless tree-shake otherwise.

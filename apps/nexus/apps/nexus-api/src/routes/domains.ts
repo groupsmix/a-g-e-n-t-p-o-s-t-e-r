@@ -4,7 +4,7 @@ import type { Env } from '../env'
 export const domainRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /domains - List all domains
-domainRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     // Try cache first
     const cached = await c.env.CONFIG.get('config:domains')
@@ -27,8 +27,9 @@ domainRoutes.get('/', async (c) => {
   }
 })
 
+
 // POST /domains - Create domain
-domainRoutes.post('/', async (c) => {
+  .post('/', async (c) => {
   try {
     const { name, slug, description, icon, color } = await c.req.json()
     
@@ -58,8 +59,9 @@ domainRoutes.post('/', async (c) => {
   }
 })
 
+
 // GET /domains/:id - Get domain
-domainRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const domain = await c.env.DB.prepare('SELECT * FROM domains WHERE id = ?').bind(id).first()
@@ -75,8 +77,9 @@ domainRoutes.get('/:id', async (c) => {
   }
 })
 
+
 // PATCH /domains/:id - Update domain
-domainRoutes.patch('/:id', async (c) => {
+  .patch('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const updates = await c.req.json()
@@ -114,8 +117,9 @@ domainRoutes.patch('/:id', async (c) => {
   }
 })
 
+
 // DELETE /domains/:id - Delete domain
-domainRoutes.delete('/:id', async (c) => {
+  .delete('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     
@@ -136,8 +140,9 @@ domainRoutes.delete('/:id', async (c) => {
   }
 })
 
+
 // GET /domains/:id/categories - List categories for a domain
-domainRoutes.get('/:id/categories', async (c) => {
+  .get('/:id/categories', async (c) => {
   try {
     const domainId = c.req.param('id')
     
@@ -163,8 +168,9 @@ domainRoutes.get('/:id/categories', async (c) => {
   }
 })
 
+
 // POST /domains/:id/categories - Create category
-domainRoutes.post('/:id/categories', async (c) => {
+  .post('/:id/categories', async (c) => {
   try {
     const domainId = c.req.param('id')
     const { name, slug, description, icon } = await c.req.json()

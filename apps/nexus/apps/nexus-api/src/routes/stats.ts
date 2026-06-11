@@ -23,7 +23,6 @@ import { getSetting } from '../services/shared'
 //    everywhere (BUG-P1-4 parity).
 // ============================================================
 
-export const statsRoutes = new Hono<{ Bindings: Env }>()
 
 // Usable-row filter for "needs human eyes" — kept in sync with
 // pipeline.ts so every surface shows the same pending count.
@@ -41,7 +40,9 @@ const PENDING_REVIEW_SQL = `
       AND COALESCE(ai_score, 0) >= 1
 `
 
-statsRoutes.get('/', async (c) => {
+export const statsRoutes = new Hono<{ Bindings: Env }>()
+
+  .get('/', async (c) => {
   const db = c.env.DB
 
   const firstN = async (sql: string): Promise<number> => {
@@ -151,13 +152,14 @@ statsRoutes.get('/', async (c) => {
   })
 })
 
+
 // ── POST /api/stats/legacy-pull ─────────────────────────────
 // Manual trigger for the legacy stats-pull port (audit §2.2). The cron lane
 // ("0 */6 * * *") does this automatically; this endpoint exists so the
 // parallel-run week can be verified on demand — run it, then diff the
 // Supabase rows against the legacy Actions run logs. Behind the access gate
 // like every /api route. Returns the run summary.
-statsRoutes.post('/legacy-pull', async (c) => {
+  .post('/legacy-pull', async (c) => {
   const { runLegacyStatsPull } = await import('../services/legacy-stats-pull')
   const result = await runLegacyStatsPull(c.env)
   return c.json(result)

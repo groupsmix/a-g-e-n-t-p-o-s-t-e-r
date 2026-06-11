@@ -4,7 +4,7 @@ import type { Env } from '../env'
 export const platformRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /platforms - List all platforms
-platformRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const cached = await c.env.CONFIG.get('config:platforms')
     if (cached) {
@@ -24,8 +24,9 @@ platformRoutes.get('/', async (c) => {
   }
 })
 
+
 // POST /platforms - Create platform
-platformRoutes.post('/', async (c) => {
+  .post('/', async (c) => {
   try {
     const data = await c.req.json()
     
@@ -66,8 +67,9 @@ platformRoutes.post('/', async (c) => {
   }
 })
 
+
 // GET /platforms/:id - Get platform
-platformRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const platform = await c.env.DB.prepare('SELECT * FROM platforms WHERE id = ?').bind(id).first()
@@ -83,8 +85,9 @@ platformRoutes.get('/:id', async (c) => {
   }
 })
 
+
 // PATCH /platforms/:id - Update platform
-platformRoutes.patch('/:id', async (c) => {
+  .patch('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const updates = await c.req.json()
@@ -125,8 +128,9 @@ platformRoutes.patch('/:id', async (c) => {
   }
 })
 
+
 // DELETE /platforms/:id - Delete platform
-platformRoutes.delete('/:id', async (c) => {
+  .delete('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     

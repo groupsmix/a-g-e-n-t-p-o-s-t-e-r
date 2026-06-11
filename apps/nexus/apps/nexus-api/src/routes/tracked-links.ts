@@ -11,7 +11,7 @@ export const trackedLinkRoutes = new Hono<{ Bindings: Env }>()
 
 // ── Create tracked link ───────────────────────────────────────
 
-trackedLinkRoutes.post('/', rateLimit(20), async (c) => {
+  .post('/', rateLimit(20), async (c) => {
   const body = await c.req.json<{
     offer_id: string
     channel: string
@@ -47,9 +47,10 @@ trackedLinkRoutes.post('/', rateLimit(20), async (c) => {
   }
 })
 
+
 // ── List tracked links ─────────────────────────────────────────
 
-trackedLinkRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   const offerId = c.req.query('offer_id')
 
   if (!offerId) {
@@ -78,9 +79,10 @@ trackedLinkRoutes.get('/', async (c) => {
   return c.json({ links })
 })
 
+
 // ── Get tracked link with stats ─────────────────────────────────
 
-trackedLinkRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   const { id } = c.req.param()
 
   const link = await c.env.DB.prepare('SELECT * FROM tracked_links WHERE id = ?')
@@ -99,9 +101,10 @@ trackedLinkRoutes.get('/:id', async (c) => {
   })
 })
 
+
 // ── Record click ───────────────────────────────────────────────
 
-trackedLinkRoutes.post('/:code/click', rateLimit(50), async (c) => {
+  .post('/:code/click', rateLimit(50), async (c) => {
   const { code } = c.req.param()
   const body = await c.req.json<{
     external_event_id?: string

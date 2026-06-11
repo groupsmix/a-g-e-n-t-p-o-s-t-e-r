@@ -7,7 +7,6 @@ import {
   parseKek,
 } from '../services/credentials/crypto'
 
-export const keyRoutes = new Hono<{ Bindings: Env }>()
 
 // The provider keys NEXUS knows how to use. `worker` decides where the key is
 // needed: AI keys are forwarded to the nexus-ai worker, publishing keys stay on
@@ -21,6 +20,7 @@ interface KeySpec {
   help: string
   worker: 'ai' | 'api'
 }
+
 
 const KEY_SPECS: KeySpec[] = [
   { key: 'GROQ_API_KEY', label: 'Groq (free AI text, always-on baseline)', group: 'AI', worker: 'ai', help: 'https://console.groq.com/keys' },
@@ -41,12 +41,15 @@ const KEY_SPECS: KeySpec[] = [
   { key: 'EMAIL_TO', label: 'Default delivery email (where schedules are sent)', group: 'Email', worker: 'api', help: 'Your inbox, e.g. you@gmail.com' },
 ]
 
+
 const KNOWN = new Map(KEY_SPECS.map((s) => [s.key, s]))
+
 
 function mask(v: string): string {
   if (v.length <= 4) return '••••'
   return `${'•'.repeat(Math.max(4, v.length - 4))}${v.slice(-4)}`
 }
+
 
 // ─── KEK loading ──────────────────────────────────────────────────────────
 //
@@ -64,6 +67,7 @@ function loadKek(env: Env): Uint8Array | null {
     return null
   }
 }
+
 
 /** Read+decrypt a single key from KV, or `null` when not set. */
 async function readPlaintext(env: Env, key: string): Promise<string | null> {
@@ -83,177 +87,6 @@ async function readPlaintext(env: Env, key: string): Promise<string | null> {
   }
 }
 
-// ─── GET / — list every known provider key with whether it's set (masked) ──
-//
-// We surface `source` per key so the dashboard can show the user where the
-// active key actually comes from: 'kv' (saved via this UI), 'worker_secret'
-// (set via `wrangler secret` on the Worker env), or null (truly not set).
-// Previously the UI said "Not set" for any key without a KV row even when a
-// worker secret was driving the engine — which is how an "engine running with
-// 39 products at $0.00" can happen alongside a screen that claims no keys are
-// configured. The aggregate `ai_configured_count` + `ai_provider_source` make
-// that mismatch impossible.
-keyRoutes.get('/', async (c) => {
-  const kek = loadKek(c.env)
-  const items = await Promise.all(
-    KEY_SPECS.map(async (spec) => {
-      const stored = await c.env.CONFIG.get(`secret:${spec.key}`).catch(() => null)
-      const envVal = (c.env as unknown as Record<string, unknown>)[spec.key]
-      const fromEnv = typeof envVal === 'string' && envVal.length > 0
-
-      // Decrypt (or passthrough legacy) just so we can mask the last 4 chars.
-      // The plaintext NEVER leaves this handler — only its mask does.
-      let plaintext: string | null = null
-      if (stored) {
-        if (kek) {
-          plaintext = await decryptOrPassthrough(stored, kek).catch(() => null)
-        } else if (!isEncrypted(stored)) {
-          plaintext = stored
-        }
-      }
-
-      const source: 'kv' | 'worker_secret' | null = stored
-        ? 'kv'
-        : fromEnv
-          ? 'worker_secret'
-          : null
-
-      return {
-        ...spec,
-        configured: Boolean(stored) || fromEnv,
-        source,
-        masked: plaintext
-          ? mask(plaintext)
-          : stored
-            ? '•••• (encrypted, no KEK)'
-            : fromEnv
-              ? '•••• (worker secret)'
-              : null,
-        encrypted: stored ? isEncrypted(stored) : false,
-      }
-    }),
-  )
-
-  const aiItems = items.filter((k) => k.group === 'AI')
-  const aiConfigured = aiItems.filter((k) => k.configured)
-  // The "active" source for AI generation is the first AI key the runtime
-  // would actually pick up. KV beats worker secret because saving a key in
-  // the UI writes to KV and is forwarded to the AI worker; if KV is empty we
-  // fall back to whatever the AI worker has on its env.
-  const aiKv = aiConfigured.find((k) => k.source === 'kv')
-  const aiEnv = aiConfigured.find((k) => k.source === 'worker_secret')
-  const aiActive = aiKv ?? aiEnv ?? null
-
-  return c.json({
-    keys: items,
-    kek_configured: kek !== null,
-    ai_configured_count: aiConfigured.length,
-    ai_provider_source: aiActive
-      ? { key: aiActive.key, label: aiActive.label, source: aiActive.source }
-      : null,
-  })
-})
-
-// ─── POST / — save one or more keys ───────────────────────────────────────
-//
-// Body: { keys: { KEY: value, ... } }. Empty string deletes a key. AI keys are
-// also pushed (in plaintext, over a service binding) to the nexus-ai worker so
-// the AI runtime can use them.
-keyRoutes.post('/', async (c) => {
-  const body = await c.req.json<{ keys?: Record<string, string> }>()
-  const incoming = body.keys || {}
-  const kek = loadKek(c.env)
-  const aiForward: Record<string, string> = {}
-  let written = 0
-  const errors: string[] = []
-
-  for (const [k, v] of Object.entries(incoming)) {
-    const spec = KNOWN.get(k)
-    if (!spec || typeof v !== 'string') continue
-    const kvKey = `secret:${k}`
-    const trimmed = v.trim()
-    if (trimmed.length === 0) {
-      await c.env.CONFIG.delete(kvKey)
-      if (spec.worker === 'ai') aiForward[k] = ''
-      continue
-    }
-    if (!kek) {
-      errors.push(`${k}: refusing to write without KEK configured`)
-      continue
-    }
-    try {
-      const ciphertext = await encrypt(trimmed, kek)
-      await c.env.CONFIG.put(kvKey, ciphertext)
-      written++
-    } catch (err) {
-      errors.push(`${k}: ${err instanceof Error ? err.message : 'encrypt failed'}`)
-      continue
-    }
-    if (spec.worker === 'ai') aiForward[k] = trimmed
-  }
-
-  // Forward AI provider keys to the nexus-ai worker.
-  let aiForwarded = false
-  if (Object.keys(aiForward).length > 0 && c.env.AI_WORKER) {
-    try {
-      const res = await c.env.AI_WORKER.fetch('https://nexus-ai/secrets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keys: aiForward }),
-      })
-      aiForwarded = res.ok
-    } catch {
-      aiForwarded = false
-    }
-  }
-
-  return c.json({
-    ok: errors.length === 0,
-    written,
-    ai_forwarded: aiForwarded,
-    errors: errors.length ? errors : undefined,
-  })
-})
-
-// ─── POST /test/:key — ping a provider with the stored key ────────────────
-//
-// Returns { ok, status, message, latency_ms } so the dashboard can show a
-// per-integration health pill. Implementations live in `testers` below; for
-// providers without a tester we return `not_implemented`.
-keyRoutes.post('/test/:key', async (c) => {
-  const keyName = c.req.param('key')
-  const spec = KNOWN.get(keyName)
-  if (!spec) return c.json({ ok: false, message: 'unknown key' }, 404)
-  const plaintext = await readPlaintext(c.env, keyName)
-  // Fall back to worker secret env if KV isn't populated.
-  const envFallback = (c.env as unknown as Record<string, unknown>)[keyName]
-  const value =
-    plaintext ??
-    (typeof envFallback === 'string' && envFallback.length > 0 ? envFallback : null)
-  if (!value) return c.json({ ok: false, message: 'key not configured' }, 400)
-
-  const tester = TESTERS[keyName]
-  if (!tester) {
-    return c.json({
-      ok: false,
-      status: 'not_implemented',
-      message: `ping for ${keyName} not implemented yet`,
-    })
-  }
-
-  const t0 = Date.now()
-  try {
-    const result = await tester(value, c.env)
-    return c.json({ ...result, latency_ms: Date.now() - t0 })
-  } catch (err) {
-    return c.json({
-      ok: false,
-      status: 'error',
-      message: err instanceof Error ? err.message : 'ping failed',
-      latency_ms: Date.now() - t0,
-    })
-  }
-})
 
 // ─── Per-provider testers ─────────────────────────────────────────────────
 //
@@ -262,13 +95,16 @@ keyRoutes.post('/test/:key', async (c) => {
 // credits. A 200 means the key is valid; a 401/403 means it isn't.
 
 type TestResult = { ok: boolean; status: string; message: string }
+
 type Tester = (value: string, env: Env) => Promise<TestResult>
+
 
 async function checkBearerGet(url: string, value: string): Promise<TestResult> {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${value}` } })
   if (res.ok) return { ok: true, status: 'ok', message: `${res.status}` }
   return { ok: false, status: 'unauthorized', message: `${res.status} ${res.statusText}` }
 }
+
 
 const TESTERS: Record<string, Tester> = {
   GROQ_API_KEY: (v) => checkBearerGet('https://api.groq.com/openai/v1/models', v),
@@ -350,10 +186,187 @@ const TESTERS: Record<string, Tester> = {
   },
 }
 
+export const keyRoutes = new Hono<{ Bindings: Env }>()
+
+// ─── GET / — list every known provider key with whether it's set (masked) ──
+//
+// We surface `source` per key so the dashboard can show the user where the
+// active key actually comes from: 'kv' (saved via this UI), 'worker_secret'
+// (set via `wrangler secret` on the Worker env), or null (truly not set).
+// Previously the UI said "Not set" for any key without a KV row even when a
+// worker secret was driving the engine — which is how an "engine running with
+// 39 products at $0.00" can happen alongside a screen that claims no keys are
+// configured. The aggregate `ai_configured_count` + `ai_provider_source` make
+// that mismatch impossible.
+  .get('/', async (c) => {
+  const kek = loadKek(c.env)
+  const items = await Promise.all(
+    KEY_SPECS.map(async (spec) => {
+      const stored = await c.env.CONFIG.get(`secret:${spec.key}`).catch(() => null)
+      const envVal = (c.env as unknown as Record<string, unknown>)[spec.key]
+      const fromEnv = typeof envVal === 'string' && envVal.length > 0
+
+      // Decrypt (or passthrough legacy) just so we can mask the last 4 chars.
+      // The plaintext NEVER leaves this handler — only its mask does.
+      let plaintext: string | null = null
+      if (stored) {
+        if (kek) {
+          plaintext = await decryptOrPassthrough(stored, kek).catch(() => null)
+        } else if (!isEncrypted(stored)) {
+          plaintext = stored
+        }
+      }
+
+      const source: 'kv' | 'worker_secret' | null = stored
+        ? 'kv'
+        : fromEnv
+          ? 'worker_secret'
+          : null
+
+      return {
+        ...spec,
+        configured: Boolean(stored) || fromEnv,
+        source,
+        masked: plaintext
+          ? mask(plaintext)
+          : stored
+            ? '•••• (encrypted, no KEK)'
+            : fromEnv
+              ? '•••• (worker secret)'
+              : null,
+        encrypted: stored ? isEncrypted(stored) : false,
+      }
+    }),
+  )
+
+  const aiItems = items.filter((k) => k.group === 'AI')
+  const aiConfigured = aiItems.filter((k) => k.configured)
+  // The "active" source for AI generation is the first AI key the runtime
+  // would actually pick up. KV beats worker secret because saving a key in
+  // the UI writes to KV and is forwarded to the AI worker; if KV is empty we
+  // fall back to whatever the AI worker has on its env.
+  const aiKv = aiConfigured.find((k) => k.source === 'kv')
+  const aiEnv = aiConfigured.find((k) => k.source === 'worker_secret')
+  const aiActive = aiKv ?? aiEnv ?? null
+
+  return c.json({
+    keys: items,
+    kek_configured: kek !== null,
+    ai_configured_count: aiConfigured.length,
+    ai_provider_source: aiActive
+      ? { key: aiActive.key, label: aiActive.label, source: aiActive.source }
+      : null,
+  })
+})
+
+
+// ─── POST / — save one or more keys ───────────────────────────────────────
+//
+// Body: { keys: { KEY: value, ... } }. Empty string deletes a key. AI keys are
+// also pushed (in plaintext, over a service binding) to the nexus-ai worker so
+// the AI runtime can use them.
+  .post('/', async (c) => {
+  const body = await c.req.json<{ keys?: Record<string, string> }>()
+  const incoming = body.keys || {}
+  const kek = loadKek(c.env)
+  const aiForward: Record<string, string> = {}
+  let written = 0
+  const errors: string[] = []
+
+  for (const [k, v] of Object.entries(incoming)) {
+    const spec = KNOWN.get(k)
+    if (!spec || typeof v !== 'string') continue
+    const kvKey = `secret:${k}`
+    const trimmed = v.trim()
+    if (trimmed.length === 0) {
+      await c.env.CONFIG.delete(kvKey)
+      if (spec.worker === 'ai') aiForward[k] = ''
+      continue
+    }
+    if (!kek) {
+      errors.push(`${k}: refusing to write without KEK configured`)
+      continue
+    }
+    try {
+      const ciphertext = await encrypt(trimmed, kek)
+      await c.env.CONFIG.put(kvKey, ciphertext)
+      written++
+    } catch (err) {
+      errors.push(`${k}: ${err instanceof Error ? err.message : 'encrypt failed'}`)
+      continue
+    }
+    if (spec.worker === 'ai') aiForward[k] = trimmed
+  }
+
+  // Forward AI provider keys to the nexus-ai worker.
+  let aiForwarded = false
+  if (Object.keys(aiForward).length > 0 && c.env.AI_WORKER) {
+    try {
+      const res = await c.env.AI_WORKER.fetch('https://nexus-ai/secrets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys: aiForward }),
+      })
+      aiForwarded = res.ok
+    } catch {
+      aiForwarded = false
+    }
+  }
+
+  return c.json({
+    ok: errors.length === 0,
+    written,
+    ai_forwarded: aiForwarded,
+    errors: errors.length ? errors : undefined,
+  })
+})
+
+
+// ─── POST /test/:key — ping a provider with the stored key ────────────────
+//
+// Returns { ok, status, message, latency_ms } so the dashboard can show a
+// per-integration health pill. Implementations live in `testers` below; for
+// providers without a tester we return `not_implemented`.
+  .post('/test/:key', async (c) => {
+  const keyName = c.req.param('key')
+  const spec = KNOWN.get(keyName)
+  if (!spec) return c.json({ ok: false, message: 'unknown key' }, 404)
+  const plaintext = await readPlaintext(c.env, keyName)
+  // Fall back to worker secret env if KV isn't populated.
+  const envFallback = (c.env as unknown as Record<string, unknown>)[keyName]
+  const value =
+    plaintext ??
+    (typeof envFallback === 'string' && envFallback.length > 0 ? envFallback : null)
+  if (!value) return c.json({ ok: false, message: 'key not configured' }, 400)
+
+  const tester = TESTERS[keyName]
+  if (!tester) {
+    return c.json({
+      ok: false,
+      status: 'not_implemented',
+      message: `ping for ${keyName} not implemented yet`,
+    })
+  }
+
+  const t0 = Date.now()
+  try {
+    const result = await tester(value, c.env)
+    return c.json({ ...result, latency_ms: Date.now() - t0 })
+  } catch (err) {
+    return c.json({
+      ok: false,
+      status: 'error',
+      message: err instanceof Error ? err.message : 'ping failed',
+      latency_ms: Date.now() - t0,
+    })
+  }
+})
+
+
 // ─── AI cost meter + daily spend cap (proxied to the nexus-ai worker) ─────
 
 // GET /spend — today's paid-model spend + the configured daily cap.
-keyRoutes.get('/spend', async (c) => {
+  .get('/spend', async (c) => {
   try {
     const res = await c.env.AI_WORKER.fetch(new Request('https://nexus-ai/spend'))
     if (res.ok) return c.json(await res.json())
@@ -361,8 +374,9 @@ keyRoutes.get('/spend', async (c) => {
   return c.json({ today: 0, cap: 0, cap_reached: false })
 })
 
+
 // POST /cap { cap_usd } — set the daily spend cap (0 = unlimited).
-keyRoutes.post('/cap', async (c) => {
+  .post('/cap', async (c) => {
   const body = await c.req.json<{ cap_usd?: number }>()
   try {
     const res = await c.env.AI_WORKER.fetch('https://nexus-ai/cap', {
@@ -376,8 +390,9 @@ keyRoutes.post('/cap', async (c) => {
   }
 })
 
+
 // GET /providers — per-provider ON/OFF state.
-keyRoutes.get('/providers', async (c) => {
+  .get('/providers', async (c) => {
   try {
     const res = await c.env.AI_WORKER.fetch(new Request('https://nexus-ai/providers'))
     if (res.ok) return c.json(await res.json())
@@ -385,8 +400,9 @@ keyRoutes.get('/providers', async (c) => {
   return c.json({ providers: [] })
 })
 
+
 // POST /providers/toggle { secretKey, off } — pause/resume a provider.
-keyRoutes.post('/providers/toggle', async (c) => {
+  .post('/providers/toggle', async (c) => {
   const body = await c.req.json<{ secretKey?: string; off?: boolean }>()
   try {
     const res = await c.env.AI_WORKER.fetch('https://nexus-ai/providers/toggle', {

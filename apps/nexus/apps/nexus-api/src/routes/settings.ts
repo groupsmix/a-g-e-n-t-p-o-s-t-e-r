@@ -1,19 +1,30 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
 
-export const settingsRoutes = new Hono<{ Bindings: Env }>()
 
 interface SettingRow {
   key: string
   value: string
 }
 
+
 function parse(value: string): unknown {
   try { return JSON.parse(value) } catch { return value }
 }
 
+
+async function upsert(c: { env: Env }, key: string, value: unknown, now: string) {
+  const stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value)
+  await c.env.DB.prepare(
+    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?`,
+  ).bind(key, stringValue, now, stringValue, now).run()
+}
+
+export const settingsRoutes = new Hono<{ Bindings: Env }>()
+
 // GET /settings - Get all settings
-settingsRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const result = await c.env.DB.prepare('SELECT key, value FROM settings').all<SettingRow>()
     const settings: Record<string, unknown> = {}
@@ -25,8 +36,9 @@ settingsRoutes.get('/', async (c) => {
   }
 })
 
+
 // GET /settings/:key - Get specific setting
-settingsRoutes.get('/:key', async (c) => {
+  .get('/:key', async (c) => {
   try {
     const key = c.req.param('key')
     const setting = await c.env.DB.prepare('SELECT key, value FROM settings WHERE key = ?')
@@ -39,16 +51,9 @@ settingsRoutes.get('/:key', async (c) => {
   }
 })
 
-async function upsert(c: { env: Env }, key: string, value: unknown, now: string) {
-  const stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value)
-  await c.env.DB.prepare(
-    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
-     ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = ?`,
-  ).bind(key, stringValue, now, stringValue, now).run()
-}
 
 // PATCH /settings - Update multiple settings
-settingsRoutes.patch('/', async (c) => {
+  .patch('/', async (c) => {
   try {
     const updates = await c.req.json() as Record<string, unknown>
     const now = new Date().toISOString()
@@ -64,8 +69,9 @@ settingsRoutes.patch('/', async (c) => {
   }
 })
 
+
 // PATCH /settings/:key - Update specific setting
-settingsRoutes.patch('/:key', async (c) => {
+  .patch('/:key', async (c) => {
   try {
     const key = c.req.param('key')
     const { value } = await c.req.json() as { value?: unknown }
@@ -78,12 +84,13 @@ settingsRoutes.patch('/:key', async (c) => {
   }
 })
 
+
 // ============================================================
 // User Preferences (sidebar order, theme, dashboard layout)
 // ============================================================
 
 // GET /settings/preference/:key
-settingsRoutes.get('/preference/:key', async (c) => {
+  .get('/preference/:key', async (c) => {
   try {
     const key = c.req.param('key')
     const row = await c.env.DB.prepare(
@@ -97,8 +104,9 @@ settingsRoutes.get('/preference/:key', async (c) => {
   }
 })
 
+
 // POST /settings/preference - Upsert a preference
-settingsRoutes.post('/preference', async (c) => {
+  .post('/preference', async (c) => {
   try {
     const { key, value } = await c.req.json() as { key?: string; value?: string }
     if (!key) return c.json({ error: 'key is required' }, 400)

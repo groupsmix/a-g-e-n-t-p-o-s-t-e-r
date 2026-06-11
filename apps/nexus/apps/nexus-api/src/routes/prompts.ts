@@ -4,7 +4,7 @@ import type { Env } from '../env'
 export const promptRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /prompts - List prompt templates (optionally filtered by layer)
-promptRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const layer = c.req.query('layer')
     
@@ -26,8 +26,9 @@ promptRoutes.get('/', async (c) => {
   }
 })
 
+
 // GET /prompts/:id - Get prompt template
-promptRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const prompt = await c.env.DB.prepare('SELECT * FROM prompt_templates WHERE id = ?').bind(id).first()
@@ -43,8 +44,9 @@ promptRoutes.get('/:id', async (c) => {
   }
 })
 
+
 // PATCH /prompts/:id - Update prompt template
-promptRoutes.patch('/:id', async (c) => {
+  .patch('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const { prompt_text } = await c.req.json()
@@ -78,8 +80,9 @@ promptRoutes.patch('/:id', async (c) => {
   }
 })
 
+
 // POST /prompts - Create prompt template
-promptRoutes.post('/', async (c) => {
+  .post('/', async (c) => {
   try {
     const data = await c.req.json()
     

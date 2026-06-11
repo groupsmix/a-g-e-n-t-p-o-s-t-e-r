@@ -8,15 +8,22 @@ import { RECIPE_OPTIONS, getRecipe } from '../services/recipes'
 import { publishProductToGumroad } from '../services/gumroad-publisher'
 import { ProductWorkflow } from '../services/workflow-engine'
 
+
+function safeParse(raw: unknown): any {
+  if (typeof raw !== 'string' || !raw.trim()) return null
+  try { return JSON.parse(raw) } catch { return null }
+}
+
 export const productRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /products/formats - List available deliverable format recipes.
-productRoutes.get('/formats', (c) => {
+  .get('/formats', (c) => {
   return c.json({ formats: RECIPE_OPTIONS })
 })
 
+
 // POST /products/:id/format - Set or override the deliverable format for a product.
-productRoutes.post('/:id/format', async (c) => {
+  .post('/:id/format', async (c) => {
   const productId = c.req.param('id')
   const { format } = await c.req.json<{ format?: string }>()
 
@@ -37,11 +44,12 @@ productRoutes.post('/:id/format', async (c) => {
   return c.json({ ok: true, format: recipe.format })
 })
 
+
 // POST /products/:id/generate-deliverable - Build (or rebuild) the real
 // downloadable PDF the buyer gets. Invoked by the dashboard "Generate
 // deliverable" button and self-invoked by a finished workflow run. Runs in
 // its own request so it gets a full time budget for the AI call + PDF render.
-productRoutes.post('/:id/generate-deliverable', async (c) => {
+  .post('/:id/generate-deliverable', async (c) => {
   const productId = c.req.param('id')
   const force = c.req.query('force') === '1'
   const format = c.req.query('format') || undefined
@@ -54,9 +62,10 @@ productRoutes.post('/:id/generate-deliverable', async (c) => {
   return c.json({ ok: true, deliverable_url: result.url, deliverable_format: result.format })
 })
 
+
 // GET /products/:id/deliverable - Download the finished product as a ZIP
 // (product brief markdown + tags + hero image when present).
-productRoutes.get('/:id/deliverable', async (c) => {
+  .get('/:id/deliverable', async (c) => {
   try {
     const productId = c.req.param('id')
     const product = await c.env.DB.prepare(`
@@ -157,6 +166,7 @@ productRoutes.get('/:id/deliverable', async (c) => {
   }
 })
 
+
 // GET /products - List products with filters
 //
 // T16: real server-side pagination.
@@ -167,7 +177,7 @@ productRoutes.get('/:id/deliverable', async (c) => {
 //     real pagination impossible on the frontend)
 //   - returns `total`, `limit`, `offset`, plus a derived `has_more` so
 //     the UI doesn't have to do offset+limit arithmetic itself
-productRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const DEFAULT_LIMIT = 25
     const MAX_LIMIT = 100
@@ -291,8 +301,9 @@ productRoutes.get('/', async (c) => {
   }
 })
 
+
 // GET /products/:id - Get product detail
-productRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   try {
     const productId = c.req.param('id')
     
@@ -352,8 +363,9 @@ productRoutes.get('/:id', async (c) => {
   }
 })
 
+
 // GET /products/:id/detail - Full product payload for the CEO review screen
-productRoutes.get('/:id/detail', async (c) => {
+  .get('/:id/detail', async (c) => {
   try {
     const productId = c.req.param('id')
 
@@ -461,8 +473,9 @@ productRoutes.get('/:id/detail', async (c) => {
   }
 })
 
+
 // PATCH /products/:id/detail - Inline edit from the Review screen
-productRoutes.patch('/:id/detail', async (c) => {
+  .patch('/:id/detail', async (c) => {
   try {
     const productId = c.req.param('id')
     const patch = await c.req.json<Record<string, unknown>>()
@@ -504,13 +517,9 @@ productRoutes.patch('/:id/detail', async (c) => {
   }
 })
 
-function safeParse(raw: unknown): any {
-  if (typeof raw !== 'string' || !raw.trim()) return null
-  try { return JSON.parse(raw) } catch { return null }
-}
 
 // PATCH /products/:id - Update product
-productRoutes.patch('/:id', async (c) => {
+  .patch('/:id', async (c) => {
   try {
     const productId = c.req.param('id')
     const updates = await c.req.json()
@@ -553,8 +562,9 @@ productRoutes.patch('/:id', async (c) => {
   }
 })
 
+
 // DELETE /products/:id - Delete product
-productRoutes.delete('/:id', async (c) => {
+  .delete('/:id', async (c) => {
   try {
     const productId = c.req.param('id')
     
@@ -596,13 +606,14 @@ productRoutes.delete('/:id', async (c) => {
   }
 })
 
+
 // POST /products/:id/retry — re-dispatch the 15-step pipeline for a product
 // that's stuck or rejected. This is the "Retry" button surfaced on the
 // Products grid: it cancels any live workflow run, flips the product back
 // to 'running', queues a fresh `workflow_runs` row, and kicks off
 // ProductWorkflow.run() in `waitUntil`. The user can then watch progress
 // on the History view as if it were a brand-new build.
-productRoutes.post('/:id/retry', async (c) => {
+  .post('/:id/retry', async (c) => {
   try {
     const productId = c.req.param('id')
 
@@ -663,8 +674,9 @@ productRoutes.post('/:id/retry', async (c) => {
   }
 })
 
+
 // POST /products/:id/publish-gumroad - Manual Gumroad publish trigger
-productRoutes.post('/:id/publish-gumroad', async (c) => {
+  .post('/:id/publish-gumroad', async (c) => {
   try {
     const productId = c.req.param('id')
     const result = await publishProductToGumroad(c.env, productId)

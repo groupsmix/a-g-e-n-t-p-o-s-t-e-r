@@ -2,7 +2,6 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 import { callAISimple } from '../services/shared'
 
-export const emailRoutes = new Hono<{ Bindings: Env }>()
 
 async function ensureTables(env: Env): Promise<void> {
   await env.DB.batch([
@@ -24,8 +23,10 @@ async function ensureTables(env: Env): Promise<void> {
   ]).catch(() => void 0)
 }
 
+export const emailRoutes = new Hono<{ Bindings: Env }>()
+
 // POST /subscribe — public, no auth needed (handled at the gate level)
-emailRoutes.post('/subscribe', async (c) => {
+  .post('/subscribe', async (c) => {
   await ensureTables(c.env)
   const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
@@ -48,8 +49,9 @@ emailRoutes.post('/subscribe', async (c) => {
   return c.json({ ok: true, id })
 })
 
+
 // GET /subscribers — list with stats
-emailRoutes.get('/subscribers', async (c) => {
+  .get('/subscribers', async (c) => {
   await ensureTables(c.env)
   const rows = await c.env.DB.prepare(
     `SELECT id, email, name, source, subscribed_at, unsubscribed_at
@@ -69,8 +71,9 @@ emailRoutes.get('/subscribers', async (c) => {
   return c.json({ subscribers: rows.results ?? [], total, active })
 })
 
+
 // DELETE /subscribers/:id — unsubscribe
-emailRoutes.delete('/subscribers/:id', async (c) => {
+  .delete('/subscribers/:id', async (c) => {
   await ensureTables(c.env)
   const id = c.req.param('id')
   const now = new Date().toISOString()
@@ -80,8 +83,9 @@ emailRoutes.delete('/subscribers/:id', async (c) => {
   return c.json({ ok: true })
 })
 
+
 // POST /campaigns — create campaign (AI generates email content)
-emailRoutes.post('/campaigns', async (c) => {
+  .post('/campaigns', async (c) => {
   await ensureTables(c.env)
   const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
   const productId = typeof body.product_id === 'string' ? body.product_id : null
@@ -129,8 +133,9 @@ Return JSON: {"subject":"catchy email subject line","body":"HTML email body with
   return c.json({ ok: true, campaign: { id, subject, body: emailBody, product_id: productId, status: 'draft', created_at: now } })
 })
 
+
 // GET /campaigns — list campaigns
-emailRoutes.get('/campaigns', async (c) => {
+  .get('/campaigns', async (c) => {
   await ensureTables(c.env)
   const rows = await c.env.DB.prepare(
     `SELECT c.id, c.subject, c.body, c.product_id, c.status, c.sent_at,
@@ -155,8 +160,9 @@ emailRoutes.get('/campaigns', async (c) => {
   return c.json({ campaigns: rows.results ?? [] })
 })
 
+
 // POST /campaigns/:id/send — send campaign
-emailRoutes.post('/campaigns/:id/send', async (c) => {
+  .post('/campaigns/:id/send', async (c) => {
   await ensureTables(c.env)
   const id = c.req.param('id')
   const campaign = await c.env.DB.prepare(

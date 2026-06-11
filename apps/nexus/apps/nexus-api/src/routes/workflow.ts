@@ -7,7 +7,7 @@ import { checkNiche } from '../services/niche-dedup'
 export const workflowRoutes = new Hono<{ Bindings: Env }>()
 
 // POST /workflow/start - Start a new workflow
-workflowRoutes.post('/start', async (c) => {
+  .post('/start', async (c) => {
   try {
     const body = await c.req.json<StartWorkflowInput>()
     
@@ -86,8 +86,9 @@ workflowRoutes.post('/start', async (c) => {
   }
 })
 
+
 // GET /workflow/:id - Get workflow status
-workflowRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   try {
     const runId = c.req.param('id')
     
@@ -134,8 +135,9 @@ workflowRoutes.get('/:id', async (c) => {
   }
 })
 
+
 // GET /workflow/:id/status - Get simplified workflow status
-workflowRoutes.get('/:id/status', async (c) => {
+  .get('/:id/status', async (c) => {
   try {
     const runId = c.req.param('id')
     
@@ -161,8 +163,9 @@ workflowRoutes.get('/:id/status', async (c) => {
   }
 })
 
+
 // POST /workflow/:id/cancel - Cancel a running workflow
-workflowRoutes.post('/:id/cancel', async (c) => {
+  .post('/:id/cancel', async (c) => {
   try {
     const runId = c.req.param('id')
     

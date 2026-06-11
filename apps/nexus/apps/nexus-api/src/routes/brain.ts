@@ -35,7 +35,7 @@ import { listSignals } from '../services/signals'
 export const brainRoutes = new Hono<{ Bindings: Env }>()
 
 // ── /api/brain/summary ──────────────────────────────────────────────────
-brainRoutes.get('/summary', async (c) => {
+  .get('/summary', async (c) => {
   const [memories, journal, persona, now, signals] = await Promise.all([
     memoryStats(c.env.DB),
     journalStats(c.env.DB),
@@ -67,8 +67,9 @@ brainRoutes.get('/summary', async (c) => {
   })
 })
 
+
 // ── /api/brain/memories ─────────────────────────────────────────────────
-brainRoutes.get('/memories', async (c) => {
+  .get('/memories', async (c) => {
   const type = c.req.query('type') as MemoryItemRow['type'] | undefined
   const memories = await listMemories(c.env.DB, {
     type,
@@ -81,8 +82,9 @@ brainRoutes.get('/memories', async (c) => {
   })
 })
 
+
 // ── /api/brain/journal ──────────────────────────────────────────────────
-brainRoutes.get('/journal', async (c) => {
+  .get('/journal', async (c) => {
   const entries = await listJournal(c.env.DB, {
     sinceISO: c.req.query('since') ?? undefined,
     limit: numberParam(c.req.query('limit'), 50),
@@ -93,8 +95,9 @@ brainRoutes.get('/journal', async (c) => {
   })
 })
 
+
 // ── /api/brain/persona ──────────────────────────────────────────────────
-brainRoutes.get('/persona', async (c) => {
+  .get('/persona', async (c) => {
   const persona = await getPersona({ DB: c.env.DB, CONFIG: c.env.CONFIG })
   return c.json({
     source: 'nexus-api',
@@ -102,8 +105,9 @@ brainRoutes.get('/persona', async (c) => {
   })
 })
 
+
 // ── /api/brain/now ──────────────────────────────────────────────────────
-brainRoutes.get('/now', async (c) => {
+  .get('/now', async (c) => {
   const scope = c.req.query('scope') ?? 'global'
   const row = await getNow(c.env.DB, scope)
   return c.json({
@@ -112,8 +116,9 @@ brainRoutes.get('/now', async (c) => {
   })
 })
 
+
 // ── /api/brain/signals ──────────────────────────────────────────────────
-brainRoutes.get('/signals', async (c) => {
+  .get('/signals', async (c) => {
   const signals = await listSignals(c.env.DB, {
     limit: numberParam(c.req.query('limit'), 25),
   })
@@ -122,6 +127,7 @@ brainRoutes.get('/signals', async (c) => {
     signals,
   })
 })
+
 
 // ── DTO mappers ─────────────────────────────────────────────────────────
 
@@ -138,6 +144,7 @@ function toMemoryDTO(row: MemoryItemRow) {
   }
 }
 
+
 function toJournalDTO(row: JournalEntryRow) {
   return {
     id: row.id,
@@ -152,6 +159,7 @@ function toJournalDTO(row: JournalEntryRow) {
   }
 }
 
+
 function toNowDTO(row: NowRow) {
   const expiresInMs = new Date(row.expires_at).getTime() - Date.now()
   return {
@@ -163,6 +171,7 @@ function toNowDTO(row: NowRow) {
     expiresInMs,
   }
 }
+
 
 function parseTags(tags: string | null): string[] {
   if (!tags) return []
@@ -176,6 +185,7 @@ function parseTags(tags: string | null): string[] {
   }
 }
 
+
 function parseStringArray(s: string | null): string[] {
   if (!s) return []
   try {
@@ -187,6 +197,7 @@ function parseStringArray(s: string | null): string[] {
     return []
   }
 }
+
 
 function numberParam(raw: string | undefined, fallback: number): number {
   if (!raw) return fallback

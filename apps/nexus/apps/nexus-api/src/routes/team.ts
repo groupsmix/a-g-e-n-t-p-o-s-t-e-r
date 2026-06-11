@@ -9,7 +9,6 @@ import { TEAM_ROLES } from '../services/workflow-engine'
 // together (in parallel waves) rather than one model doing everything.
 // ============================================================
 
-export const teamRoutes = new Hono<{ Bindings: Env }>()
 
 interface RegistryModel {
   id: string
@@ -21,7 +20,9 @@ interface RegistryModel {
   configured: boolean
 }
 
-teamRoutes.get('/', async (c) => {
+export const teamRoutes = new Hono<{ Bindings: Env }>()
+
+  .get('/', async (c) => {
   let registry: Record<string, RegistryModel[]> = {}
   try {
     const res = await c.env.AI_WORKER.fetch(new Request('https://nexus-ai/registry'))

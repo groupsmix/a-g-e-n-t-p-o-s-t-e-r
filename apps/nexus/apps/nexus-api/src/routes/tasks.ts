@@ -20,9 +20,7 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
 
-export const tasksRoutes = new Hono<{ Bindings: Env }>()
-// Re-export under the older alias used during scaffolding so either symbol works.
-export const taskRoutes = tasksRoutes
+
 
 // ── Types (mirror @posteragent/types#AgentTask) ─────────────────────────────
 
@@ -42,10 +40,14 @@ const VALID_TYPES = [
   'autonome-run',
   'memory-consolidate',
 ] as const
+
 type TaskType = (typeof VALID_TYPES)[number]
 
+
 const VALID_STATUSES = ['queued', 'running', 'done', 'failed', 'cancelled'] as const
+
 type TaskStatus = (typeof VALID_STATUSES)[number]
+
 
 const VALID_ORIGINS = [
   'dashboard',
@@ -55,7 +57,9 @@ const VALID_ORIGINS = [
   'api',
   'cli',
 ] as const
+
 type TaskOrigin = (typeof VALID_ORIGINS)[number]
+
 
 interface AgentTaskRow {
   id: string
@@ -79,6 +83,7 @@ interface AgentTaskRow {
   duration_ms: number | null
 }
 
+
 interface CreateTaskBody {
   type: TaskType
   payload?: Record<string, unknown>
@@ -87,6 +92,7 @@ interface CreateTaskBody {
   parent_task_id?: string
   estimated_cost_usd?: number
 }
+
 
 interface PatchTaskBody {
   status?: TaskStatus
@@ -97,6 +103,7 @@ interface PatchTaskBody {
   input_tokens?: number
   output_tokens?: number
 }
+
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -113,12 +120,15 @@ function inflate(row: AgentTaskRow) {
   }
 }
 
+
 function isValid<T extends readonly string[]>(set: T, v: unknown): v is T[number] {
   return typeof v === 'string' && (set as readonly string[]).includes(v)
 }
 
+export const tasksRoutes = new Hono<{ Bindings: Env }>()
+
 // ── GET /api/tasks ──────────────────────────────────────────────────────────
-tasksRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   const status = c.req.query('status')
   const type   = c.req.query('type')
   const limit  = Math.min(Math.max(Number(c.req.query('limit') || '50'), 1), 200)
@@ -162,8 +172,9 @@ tasksRoutes.get('/', async (c) => {
   })
 })
 
+
 // ── POST /api/tasks ─────────────────────────────────────────────────────────
-tasksRoutes.post('/', async (c) => {
+  .post('/', async (c) => {
   const body = await c.req.json<CreateTaskBody>().catch(() => null)
   if (!body) return c.json({ error: 'invalid JSON body' }, 400)
 
@@ -204,6 +215,7 @@ tasksRoutes.post('/', async (c) => {
   return c.json({ task: row ? inflate(row) : null }, 201)
 })
 
+
 // ── GET /api/tasks/stream ───────────────────────────────────────────────────
 // SSE that polls agent_tasks ordered by updated_at and pushes deltas.  Lives
 // BEFORE /:id so Hono's router matches it first.
@@ -216,7 +228,7 @@ tasksRoutes.post('/', async (c) => {
 // Clients reconnect with Last-Event-ID so we never replay a row we already
 // pushed; we use updated_at-as-ID since the trigger guarantees it advances
 // on every meaningful change.
-tasksRoutes.get('/stream', async (c) => {
+  .get('/stream', async (c) => {
   const intervalMs = Math.min(Math.max(Number(c.req.query('interval') || '2000'), 500), 30000)
   const lastIdHeader = c.req.header('Last-Event-ID')
   let cursor = lastIdHeader ?? new Date(Date.now() - 60_000).toISOString()
@@ -291,8 +303,9 @@ tasksRoutes.get('/stream', async (c) => {
   })
 })
 
+
 // ── GET /api/tasks/:id ──────────────────────────────────────────────────────
-tasksRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   const id = c.req.param('id')
   const row = await c.env.DB
     .prepare(`SELECT * FROM agent_tasks WHERE id = ?`)
@@ -303,10 +316,11 @@ tasksRoutes.get('/:id', async (c) => {
   return c.json({ task: inflate(row) })
 })
 
+
 // ── PATCH /api/tasks/:id ────────────────────────────────────────────────────
 // Status transitions also stamp started_at / finished_at / duration_ms so
 // the dashboard doesn't have to know about those mechanics.
-tasksRoutes.patch('/:id', async (c) => {
+  .patch('/:id', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json<PatchTaskBody>().catch(() => null)
   if (!body) return c.json({ error: 'invalid JSON body' }, 400)
@@ -385,3 +399,6 @@ tasksRoutes.patch('/:id', async (c) => {
 
   return c.json({ task: updated ? inflate(updated) : null })
 })
+
+// Re-export under the older alias used during scaffolding so either symbol works.
+export const taskRoutes = tasksRoutes

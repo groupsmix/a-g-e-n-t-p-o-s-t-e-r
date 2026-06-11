@@ -17,9 +17,9 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
 
-export const publisherQueueRoutes = new Hono<{ Bindings: Env }>()
 
 type Status = 'scheduled' | 'done' | 'failed'
+
 
 interface JobRow {
   idempotency_key: string
@@ -31,6 +31,7 @@ interface JobRow {
   created_at: string
   completed_at: string | null
 }
+
 
 interface Job {
   idempotency_key: string
@@ -45,6 +46,7 @@ interface Job {
   url: string | null
   post_id: string | null
 }
+
 
 function inflate(row: JobRow): Job {
   let title = '(no title)'
@@ -84,7 +86,9 @@ function inflate(row: JobRow): Job {
   }
 }
 
-publisherQueueRoutes.get('/summary', async (c) => {
+export const publisherQueueRoutes = new Hono<{ Bindings: Env }>()
+
+  .get('/summary', async (c) => {
   try {
     const totals = await c.env.DB.prepare(
       `SELECT status, COUNT(*) AS n FROM publish_jobs GROUP BY status`,
@@ -126,7 +130,8 @@ publisherQueueRoutes.get('/summary', async (c) => {
   }
 })
 
-publisherQueueRoutes.get('/jobs', async (c) => {
+
+  .get('/jobs', async (c) => {
   const platform = c.req.query('platform')
   const status = c.req.query('status') as Status | undefined
   const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10) || 50, 200)
@@ -148,7 +153,8 @@ publisherQueueRoutes.get('/jobs', async (c) => {
   }
 })
 
-publisherQueueRoutes.get('/calendar', async (c) => {
+
+  .get('/calendar', async (c) => {
   const daysParam = parseInt(c.req.query('days') ?? '14', 10)
   const days = Math.min(Math.max(daysParam || 14, 1), 60)
   try {
@@ -174,7 +180,8 @@ publisherQueueRoutes.get('/calendar', async (c) => {
   }
 })
 
-publisherQueueRoutes.post('/jobs/:id/retry', async (c) => {
+
+  .post('/jobs/:id/retry', async (c) => {
   const id = c.req.param('id')
   try {
     const row = await c.env.DB.prepare(
@@ -194,7 +201,8 @@ publisherQueueRoutes.post('/jobs/:id/retry', async (c) => {
   }
 })
 
-publisherQueueRoutes.delete('/jobs/:id', async (c) => {
+
+  .delete('/jobs/:id', async (c) => {
   const id = c.req.param('id')
   try {
     await c.env.DB.prepare(`DELETE FROM publish_jobs WHERE idempotency_key = ?`)

@@ -4,7 +4,7 @@ import type { Env } from '../env'
 export const aiModelRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /ai-models - List all AI models
-aiModelRoutes.get('/', async (c) => {
+  .get('/', async (c) => {
   try {
     const cached = await c.env.CONFIG.get('config:ai_models')
     if (cached) {
@@ -24,8 +24,9 @@ aiModelRoutes.get('/', async (c) => {
   }
 })
 
+
 // GET /ai-models/:id - Get AI model
-aiModelRoutes.get('/:id', async (c) => {
+  .get('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const model = await c.env.DB.prepare('SELECT * FROM ai_models WHERE id = ?').bind(id).first()
@@ -41,8 +42,9 @@ aiModelRoutes.get('/:id', async (c) => {
   }
 })
 
+
 // PATCH /ai-models/:id - Update AI model status
-aiModelRoutes.patch('/:id', async (c) => {
+  .patch('/:id', async (c) => {
   try {
     const id = c.req.param('id')
     const updates = await c.req.json()
@@ -83,8 +85,9 @@ aiModelRoutes.patch('/:id', async (c) => {
   }
 })
 
+
 // POST /ai-models/:id/reset - Reset rate limit for a model
-aiModelRoutes.post('/:id/reset', async (c) => {
+  .post('/:id/reset', async (c) => {
   try {
     const id = c.req.param('id')
     
