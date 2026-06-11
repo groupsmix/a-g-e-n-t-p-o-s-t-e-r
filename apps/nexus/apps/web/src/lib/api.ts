@@ -13,9 +13,10 @@ import type {
   WorkflowStatusResponse,
 } from '@posteragent/types/nexus'
 
-// Re-export all types for backward compatibility — consumers can import from
-// either 'api' or 'api-types'.
-export * from './api-types'
+// Re-export the wire contract for backward compatibility — consumers keep
+// importing from '@/lib/api'. The contract itself now lives in the shared
+// types package so the Worker produces the same shapes (audit #13).
+export * from '@posteragent/types/nexus/api-contract'
 export type { Domain, Product, ProductDetail, WorkflowStatusResponse } from '@posteragent/types/nexus'
 
 import type {
@@ -41,7 +42,7 @@ import type {
   TemplateInfo, PortfolioEntryInfo, IntakeQuestionInfo, CommandCenterData,
   Job, QueueStats, JobStatus,
   PublishProductResult,
-} from './api-types'
+} from '@posteragent/types/nexus/api-contract'
 
 // Re-export queue/publish types explicitly
 export type { Job, QueueStats, JobStatus, PublishProductResult };
