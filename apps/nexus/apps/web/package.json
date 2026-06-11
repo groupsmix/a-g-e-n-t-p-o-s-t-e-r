@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "pages:build": "NEXT_PUBLIC_BUILD_SHA=${CF_PAGES_COMMIT_SHA:-$(git rev-parse HEAD 2>/dev/null || echo dev)} NEXT_PUBLIC_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://nexus-api.professional-inbox-simo.workers.dev} next-on-pages",
+    "pages:build": "pnpm --filter @nexus/nexus-api build && NEXT_PUBLIC_BUILD_SHA=${CF_PAGES_COMMIT_SHA:-$(git rev-parse HEAD 2>/dev/null || echo dev)} NEXT_PUBLIC_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://nexus-api.professional-inbox-simo.workers.dev} next-on-pages",
     "pages:deploy": "wrangler pages deploy .vercel/output/static --project-name nexus-web --branch main --commit-dirty=true",
     "pages:ship": "pnpm pages:build && pnpm pages:deploy"
   },
