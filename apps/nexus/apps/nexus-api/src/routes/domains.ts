@@ -1,6 +1,11 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
+import type { Domain } from '@posteragent/types/nexus'
 
+// Audit #13 pattern: type the D1/KV boundary with the shared wire contract
+// (@posteragent/types). The RPC client then infers the same shape the
+// dashboard declares - drift between Worker and dashboard becomes a tsc
+// error in this file instead of a production surprise.
 export const domainRoutes = new Hono<{ Bindings: Env }>()
 
 // GET /domains - List all domains
@@ -9,13 +14,13 @@ export const domainRoutes = new Hono<{ Bindings: Env }>()
     // Try cache first
     const cached = await c.env.CONFIG.get('config:domains')
     if (cached) {
-      return c.json(JSON.parse(cached))
+      return c.json(JSON.parse(cached) as Domain[])
     }
     
     const result = await c.env.DB.prepare(`
       SELECT id, name, slug, description, icon, color, sort_order, is_active, created_at
       FROM domains WHERE is_active = 1 ORDER BY sort_order ASC
-    `).all()
+    `).all<Domain>()
     
     // Cache for 1 hour
     await c.env.CONFIG.put('config:domains', JSON.stringify(result.results), { expirationTtl: 3600 })
