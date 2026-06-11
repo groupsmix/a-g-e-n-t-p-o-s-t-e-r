@@ -22,7 +22,7 @@ import type { EmbeddingProvider } from '@posteragent/memory'
 import type { IdentityLayer } from '@posteragent/identity'
 
 import { BaseAgent } from './base-agent.js'
-import type { AgentLogger, DispatchOptions, OrchestratorDB } from './types.js'
+import type { AgentLogger, DispatchOptions, OrchestratorDB, TaskBudgetGuard } from './types.js'
 import { AgentRegistry } from './registry.js'
 
 export interface RunAgentTaskDeps {
@@ -31,6 +31,13 @@ export interface RunAgentTaskDeps {
   embedder?: EmbeddingProvider
   identity?: IdentityLayer
   log?: AgentLogger
+  /**
+   * Audit #44: when provided, every dispatch is pre-flighted against the
+   * configured spend caps and actual cost is recorded after the run. The
+   * guard was previously wired into WireDeps but never consulted — caps
+   * existed in the dashboard while tasks spent freely.
+   */
+  budget?: TaskBudgetGuard
 }
 
 export interface RunAgentTaskOptions extends DispatchOptions {
@@ -66,6 +73,37 @@ export async function runAgentTask(
     }
   }
 
+  // Audit #44: pre-flight the spend caps BEFORE claiming the task, so a
+  // blocked task stays `failed` with an explicit budget error instead of
+  // burning provider credits. Guard infrastructure errors fail OPEN (run
+  // proceeds, warning logged): a broken D1 table must not halt the fleet,
+  // and the post-run recording below is what keeps caps accurate.
+  if (deps.budget) {
+    let allowed = true
+    let notes: string[] = []
+    try {
+      const decision = await deps.budget.approve({
+        task_type: task.type,
+        model: task.modelUsed,
+        input_tokens: task.inputTokens,
+        output_tokens: task.outputTokens,
+      })
+      allowed = decision.allowed
+      notes = decision.notes
+    } catch (err) {
+      deps.log?.warn('budget pre-flight errored — failing open', {
+        taskId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+    if (!allowed) {
+      const msg = `budget cap exceeded: ${notes.join(' ') || 'estimated cost exceeds remaining budget'}`
+      deps.log?.warn('task blocked by budget cap', { taskId, type: task.type, notes })
+      await markFailed(deps.db, taskId, msg)
+      return { taskId, type: task.type, status: 'failed', error: msg, durationMs: 0 }
+    }
+  }
+
   // Atomic transition queued → running.  If another worker beat us to
   // it, `meta.changes` will be 0 and we bail unless force is set.
   if (!opts.force) {
@@ -89,6 +127,29 @@ export async function runAgentTask(
 
   // Persist final state.
   await finaliseTask(deps.db, result)
+
+  // Audit #44: record actual spend so the caps reflect reality. Failed
+  // runs are recorded too — a crash halfway through a run still spent
+  // money. Recording errors are logged, never thrown: usage accounting
+  // must not turn a successful task into a failed one.
+  if (deps.budget && (result.costUsd ?? 0) > 0) {
+    try {
+      await deps.budget.afterRun({
+        task_id: taskId,
+        task_type: task.type,
+        model: task.modelUsed ?? 'unknown',
+        input_tokens: task.inputTokens ?? 0,
+        output_tokens: task.outputTokens ?? 0,
+        cost_usd: result.costUsd ?? 0,
+        occurred_at: new Date().toISOString(),
+      })
+    } catch (err) {
+      deps.log?.warn('budget usage recording failed', {
+        taskId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
 
   return result
 }

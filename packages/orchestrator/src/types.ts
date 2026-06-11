@@ -68,6 +68,32 @@ export interface AgentLogger {
   error(msg: string, meta?: Record<string, unknown>): void
 }
 
+// ─── Budget guard contract ─────────────────────────────────────────────────
+
+/**
+ * Structural slice of @posteragent/agent-budget's BudgetGuard (audit #44).
+ * Declared here so the orchestrator can ENFORCE caps at dispatch time
+ * without a hard package dependency. `approve` runs before a task is
+ * claimed; `afterRun` records actual spend so caps see real usage.
+ */
+export interface TaskBudgetGuard {
+  approve(args: {
+    task_type: string
+    model?: string
+    input_tokens?: number
+    output_tokens?: number
+  }): Promise<{ allowed: boolean; notes: string[] }>
+  afterRun(usage: {
+    task_id: string
+    task_type: string
+    model: string
+    input_tokens: number
+    output_tokens: number
+    cost_usd: number
+    occurred_at: string
+  }): Promise<void>
+}
+
 // ─── Handler contract ─────────────────────────────────────────────────────
 
 /**

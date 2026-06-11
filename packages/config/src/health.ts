@@ -148,6 +148,39 @@ const checks: ServiceCheck[] = [
       return { name: 'fal', category: 'ai', required: false, ok: true, detail: 'key-present' }
     },
   },
+  // Audit #10: Supabase + Vercel are required by the env schema but were
+  // never health-checked, so a revoked key or paused project only surfaced
+  // as a mid-pipeline crash. (D1/KV/R2 are Workers bindings — they are
+  // probed by nexus-api's /health?deep=1 endpoint, not from Node.)
+  {
+    name: 'supabase',
+    category: 'storage',
+    required: true,
+    check: async () => {
+      const url = process.env['SUPABASE_URL']
+      const key = process.env['SUPABASE_ANON_KEY']
+      if (!url || !key) return missing('supabase', 'storage', true)
+      const { latencyMs, ok, status } = await pingWithTimeout(
+        `${url.replace(/\/$/, '')}/auth/v1/health`,
+        { headers: { apikey: key }, timeoutMs: 5000 },
+      )
+      return { name: 'supabase', category: 'storage', required: true, ok, latencyMs, detail: `HTTP ${status}` }
+    },
+  },
+  {
+    name: 'vercel',
+    category: 'infra',
+    required: true,
+    check: async () => {
+      const token = process.env['VERCEL_TOKEN']
+      if (!token) return missing('vercel', 'infra', true)
+      const { latencyMs, ok, status } = await pingWithTimeout('https://api.vercel.com/v2/user', {
+        headers: { Authorization: `Bearer ${token}` },
+        timeoutMs: 5000,
+      })
+      return { name: 'vercel', category: 'infra', required: true, ok, latencyMs, detail: `HTTP ${status}` }
+    },
+  },
 ]
 
 function missing(name: string, category: HealthResult['category'], required: boolean): HealthResult {

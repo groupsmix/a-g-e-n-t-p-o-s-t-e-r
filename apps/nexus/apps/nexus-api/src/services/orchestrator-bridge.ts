@@ -26,7 +26,7 @@ import { createLogger } from '@posteragent/logger/workers'
 
 import { wireRegistry, runAgentTask, type WireDeps } from '@posteragent/orchestrator'
 import { createAnthropicLLM, createTavilySearch } from '@posteragent/agent-research/adapters'
-import { D1BudgetStore } from '@posteragent/agent-budget'
+import { BudgetGuard, D1BudgetStore } from '@posteragent/agent-budget'
 import { D1SnapshotStore } from '@posteragent/agent-analytics'
 import {
   D1GoalSource,
@@ -67,6 +67,15 @@ type Registry = ReturnType<typeof wireRegistry>
  * of overhead per request in exchange for correctness.
  */
 let inflight: Promise<Registry> | null = null
+
+/**
+ * Audit #44: one factory used by every runAgentTask call site so spend
+ * caps configured in the dashboard are actually enforced at dispatch
+ * time (pre-flight approve + post-run usage recording).
+ */
+export function buildBudgetGuard(env: Env): BudgetGuard {
+  return new BudgetGuard({ store: new D1BudgetStore(env.DB) })
+}
 
 export async function getWiredRegistry(env: Env): Promise<Registry> {
   if (inflight) return inflight
@@ -187,6 +196,8 @@ async function drainOrchestratorQueue(env: Env, max = 5): Promise<DrainResult> {
         registry,
         identity,
         log: logger as never,
+        // Audit #44: enforce dashboard spend caps at dispatch time.
+        budget: buildBudgetGuard(env),
       })
       if (result.status === 'done') {
         succeeded++

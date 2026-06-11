@@ -137,13 +137,53 @@ app.use('*', async (c, next) => {
 
 // Health check endpoint — exposed at both /health (root convention) and
 // /api/health (the dashboard's convention).  Both return the same shape.
+//
+// Audit #10: `?deep=1` additionally probes the Workers bindings this API
+// actually depends on (D1, KV, R2) with short time-boxed operations, so a
+// broken binding shows up in monitoring instead of as a mid-request 500.
+// The shallow ping stays dependency-free so uptime checks remain cheap.
 const healthPayload = () => ({
   status: 'ok' as const,
   timestamp: new Date().toISOString(),
   version: '0.1.0',
 })
-app.get('/health', (c) => c.json(healthPayload()))
-app.get('/api/health', (c) => c.json(healthPayload()))
+
+interface DeepCheck {
+  ok: boolean
+  latencyMs: number
+  error?: string
+}
+
+async function probeBinding(run: () => Promise<unknown>, timeoutMs = 2500): Promise<DeepCheck> {
+  const t0 = Date.now()
+  try {
+    await Promise.race([
+      run(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`timeout after ${timeoutMs}ms`)), timeoutMs)),
+    ])
+    return { ok: true, latencyMs: Date.now() - t0 }
+  } catch (err) {
+    return { ok: false, latencyMs: Date.now() - t0, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+const healthHandler = async (c: { env: Env; req: { query: (k: string) => string | undefined }; json: (o: unknown, s?: 200 | 503) => Response }) => {
+  if (!c.req.query('deep')) return c.json(healthPayload())
+
+  const [d1, kv, r2] = await Promise.all([
+    probeBinding(() => c.env.DB.prepare('SELECT 1').first()),
+    probeBinding(() => c.env.CONFIG.get('health:probe')),
+    probeBinding(() => c.env.ASSETS.head('health:probe')),
+  ])
+  const checks = { d1, kv, r2 }
+  const allOk = Object.values(checks).every((r) => r.ok)
+  return c.json(
+    { ...healthPayload(), status: allOk ? ('ok' as const) : ('degraded' as const), checks },
+    allOk ? 200 : 503,
+  )
+}
+app.get('/health', (c) => healthHandler(c))
+app.get('/api/health', (c) => healthHandler(c))
 
 // API version prefix
 const api = new Hono<{ Bindings: Env }>()
