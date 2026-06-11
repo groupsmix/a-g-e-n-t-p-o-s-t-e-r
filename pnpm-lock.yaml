@@ -265,6 +265,9 @@ importers:
       clsx:
         specifier: ^2.1.0
         version: 2.1.1
+      hono:
+        specifier: ^4.12.25
+        version: 4.12.25
       lucide-react:
         specifier: ^0.312.0
         version: 0.312.0(react@18.3.1)
@@ -287,6 +290,12 @@ importers:
       '@cloudflare/next-on-pages':
         specifier: ^1.13.16
         version: 1.13.16(@cloudflare/workers-types@4.20260610.1)(next@14.2.35(@opentelemetry/api@1.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(wrangler@3.114.17(@cloudflare/workers-types@4.20260610.1))
+      '@cloudflare/workers-types':
+        specifier: ^4.20240117.0
+        version: 4.20260610.1
+      '@nexus/nexus-api':
+        specifier: workspace:*
+        version: link:../nexus-api
       '@types/node':
         specifier: ^20.11.0
         version: 20.19.41
@@ -4778,7 +4787,6 @@ packages:
 
   libsql@0.5.29:
     resolution: {integrity: sha512-8lMP8iMgiBzzoNbAPQ59qdVcj6UaE/Vnm+fiwX4doX4Narook0a4GPKWBEv+CR8a1OwbfkgL18uBfBjWdF0Fzg==}
-    cpu: [x64, arm64, wasm32, arm]
     os: [darwin, linux, win32]
 
   lightningcss-android-arm64@1.32.0:

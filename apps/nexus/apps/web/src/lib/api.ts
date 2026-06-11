@@ -47,38 +47,12 @@ import type {
 // Re-export queue/publish types explicitly
 export type { Job, QueueStats, JobStatus, PublishProductResult };
 
-const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL || ''
-const FALLBACK_API_BASE = 'http://localhost:8787'
+// Connection plumbing (API base, auth token, fetch core) lives in ./rpc
+// together with the typed hono/client clients. Re-exported here so the 58
+// existing consumer imports keep working unchanged.
+import { rpc, json, mutate, rpcGet, API_BASE, getToken, setToken } from './rpc'
 
-export const API_BASE: string = RAW_API_BASE || FALLBACK_API_BASE
-export const API_BASE_IS_FALLBACK: boolean = !RAW_API_BASE
-
-/**
- * True when running in a real browser whose origin is NOT localhost, while
- * API_BASE still points to the local Cloudflare Worker. This is the symptom
- * of NEXT_PUBLIC_API_URL being unset at build time on Vercel — every API
- * call will silently fail.
- *
- * Components can read this to surface a visible warning instead of letting
- * the dashboard look like it works but show no data.
- */
-export function isApiMisconfigured(): boolean {
-  if (!API_BASE_IS_FALLBACK) return false
-  if (typeof window === 'undefined') return false
-  const host = window.location.hostname
-  return host !== 'localhost' && host !== '127.0.0.1' && !host.endsWith('.local')
-}
-
-// Log a single loud warning at module load so the misconfiguration shows up
-// even on pages that don't render the banner.
-if (typeof window !== 'undefined' && isApiMisconfigured()) {
-  // eslint-disable-next-line no-console
-  console.error(
-    '[nexus] NEXT_PUBLIC_API_URL is not set. API calls will fail because API_BASE is defaulting to ' +
-      FALLBACK_API_BASE +
-      '. Rebuild with `pnpm --filter @nexus/web pages:ship` or set NEXT_PUBLIC_API_URL on the Cloudflare Pages project, then redeploy.',
-  )
-}
+export { API_BASE, API_BASE_IS_FALLBACK, isApiMisconfigured, getToken, setToken } from './rpc'
 
 export function assetUrl(path?: string | null): string | null {
   if (!path) return null
@@ -86,19 +60,10 @@ export function assetUrl(path?: string | null): string | null {
   return `${API_BASE}${path}`
 }
 
-const TOKEN_KEY = 'nexus_token'
-
-export function getToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return window.localStorage.getItem(TOKEN_KEY)
-}
-
-export function setToken(token: string | null) {
-  if (typeof window === 'undefined') return
-  if (token) window.localStorage.setItem(TOKEN_KEY, token)
-  else window.localStorage.removeItem(TOKEN_KEY)
-}
-
+/**
+ * Legacy escape hatch for endpoints not yet expressible through the typed
+ * clients (no validator-declared inputs). Same semantics as ./rpc's core.
+ */
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getToken()
   const res = await fetch(`${API_BASE}${path}`, {
@@ -123,22 +88,23 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   // Domains
-  getDomains: () => apiFetch<Domain[]>('/api/domains'),
-  createDomain: (data: Partial<Domain>) => apiFetch<Domain>('/api/domains', { method: 'POST', body: JSON.stringify(data) }),
-  updateDomain: (id: string, data: Partial<Domain>) => apiFetch<Domain>(`/api/domains/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  deleteDomain: (id: string) => apiFetch<void>(`/api/domains/${id}`, { method: 'DELETE' }),
+  getDomains: () => rpc.domains.index.$get().then(json<Domain[]>),
+  createDomain: (data: Partial<Domain>) => mutate<Domain>(rpc.domains.index.$url(), 'POST', data),
+  updateDomain: (id: string, data: Partial<Domain>) =>
+    mutate<Domain>(rpc.domains[':id'].$url({ param: { id } }), 'PATCH', data),
+  deleteDomain: (id: string) => mutate<void>(rpc.domains[':id'].$url({ param: { id } }), 'DELETE'),
 
   // Categories
-  getCategories: (domainId: string) => apiFetch<Category[]>(`/api/domains/${domainId}/categories`),
-  createCategory: (domainId: string, data: Partial<Category>) => apiFetch<Category>(`/api/domains/${domainId}/categories`, { method: 'POST', body: JSON.stringify(data) }),
+  getCategories: (domainId: string) =>
+    rpc.domains[':id'].categories.$get({ param: { id: domainId } }).then(json<Category[]>),
+  createCategory: (domainId: string, data: Partial<Category>) =>
+    mutate<Category>(rpc.domains[':id'].categories.$url({ param: { id: domainId } }), 'POST', data),
   updateCategory: (id: string, data: Partial<Category>) =>
-    apiFetch<Category>(`/api/categories/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  deleteCategory: (id: string) => apiFetch<void>(`/api/categories/${id}`, { method: 'DELETE' }),
-  getCategoryBySlug: (domainSlug: string, categorySlug: string) =>
-    apiFetch<Category & { domain?: Domain }>(
-      `/api/domains/${domainSlug}/categories/${categorySlug}`
-    ),
-  getDomainBySlug: (slug: string) => apiFetch<Domain>(`/api/domains/slug/${slug}`),
+    mutate<Category>(rpc.categories[':id'].$url({ param: { id } }), 'PATCH', data),
+  deleteCategory: (id: string) => mutate<void>(rpc.categories[':id'].$url({ param: { id } }), 'DELETE'),
+  // getCategoryBySlug / getDomainBySlug removed (audit #13): zero consumers,
+  // and both targeted routes that never existed on the Worker (guaranteed
+  // 404s) — the exact failure mode the typed clients make uncompilable.
 
   // Workflow
   startWorkflow: (data: StartWorkflowInput) => apiFetch<{ workflow_id: string; product_id: string }>('/api/workflow/start', { method: 'POST', body: JSON.stringify(data) }),
@@ -161,34 +127,30 @@ export const api = {
     if (typeof filters?.limit === 'number') params.set('limit', String(filters.limit))
     if (typeof filters?.offset === 'number') params.set('offset', String(filters.offset))
     if (filters?.q) params.set('q', filters.q)
-    return apiFetch<{ products: Product[]; total: number; limit: number; offset: number; has_more: boolean }>(
-      `/api/products?${params.toString()}`,
-    )
+    const url = rpc.products.index.$url()
+    url.search = params.toString()
+    return rpcGet<{ products: Product[]; total: number; limit: number; offset: number; has_more: boolean }>(url)
   },
-  getProduct: (id: string) => apiFetch<Product>(`/api/products/${id}`),
-  getProductDetail: (id: string) => apiFetch<ProductDetail>(`/api/products/${id}/detail`),
+  getProduct: (id: string) => rpc.products[':id'].$get({ param: { id } }).then(json<Product>),
+  getProductDetail: (id: string) =>
+    rpc.products[':id'].detail.$get({ param: { id } }).then(json<ProductDetail>),
   generateDeliverable: (id: string, opts?: { format?: string; force?: boolean }) => {
     const qs = new URLSearchParams()
     if (opts?.format) qs.set('format', opts.format)
     if (opts?.force) qs.set('force', '1')
-    const q = qs.toString()
-    return apiFetch<{ ok: boolean; deliverable_url: string; deliverable_format: string }>(
-      `/api/products/${id}/generate-deliverable${q ? `?${q}` : ''}`,
-      { method: 'POST' },
-    )
+    const url = rpc.products[':id']['generate-deliverable'].$url({ param: { id } })
+    url.search = qs.toString()
+    return mutate<{ ok: boolean; deliverable_url: string; deliverable_format: string }>(url, 'POST')
   },
   updateProductSection: (id: string, patch: Partial<ProductDetail>) =>
-    apiFetch<ProductDetail>(`/api/products/${id}/detail`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }),
-  deleteProduct: (id: string) => apiFetch<void>(`/api/products/${id}`, { method: 'DELETE' }),
+    mutate<ProductDetail>(rpc.products[':id'].detail.$url({ param: { id } }), 'PATCH', patch),
+  deleteProduct: (id: string) => mutate<void>(rpc.products[':id'].$url({ param: { id } }), 'DELETE'),
   // Re-dispatch the 15-step pipeline for a product that's stuck or rejected.
   // The Worker resets the product to 'running' and queues a fresh workflow_run.
   retryProduct: (id: string) =>
-    apiFetch<{ ok: boolean; workflow_id: string; product_id: string; status: string }>(
-      `/api/products/${id}/retry`,
-      { method: 'POST' },
+    mutate<{ ok: boolean; workflow_id: string; product_id: string; status: string }>(
+      rpc.products[':id'].retry.$url({ param: { id } }),
+      'POST',
     ),
 
   // Trends
