@@ -76,6 +76,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      # Build @posteragent/types (exports from dist/) before typechecking dependants
+      - run: pnpm turbo build --filter=@posteragent/types --filter=@posteragent/logger
       - run: pnpm --filter @posteragent/dashboard typecheck
       - run: pnpm --filter @posteragent/dashboard test
       - run: pnpm --filter @posteragent/dashboard build
@@ -93,6 +95,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      # Build @posteragent/types (exports from dist/) before typechecking dependants
+      - run: pnpm turbo build --filter=@posteragent/types --filter=@posteragent/logger
       - run: pnpm --filter @posteragent/memory --filter @posteragent/identity --filter @posteragent/orchestrator --filter @posteragent/proactivity --filter @posteragent/agent-research typecheck
       - run: pnpm --filter @posteragent/memory --filter @posteragent/identity --filter @posteragent/orchestrator --filter @posteragent/proactivity --filter @posteragent/agent-research test
 
@@ -109,6 +113,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      # Build @posteragent/types (exports from dist/) before typechecking dependants
+      - run: pnpm turbo build --filter=@posteragent/types --filter=@posteragent/logger
       - run: |
           pnpm \
             --filter @posteragent/agent-analytics \
@@ -184,20 +190,22 @@ jobs:
       - name: Validate migration filenames
         working-directory: apps/nexus/migrations
         run: |
-          # Extract numbers, check for duplicates and monotonic order.
-          nums=$(ls *.sql 2>/dev/null | sed 's/^0*//' | sed 's/[^0-9].*//' | sort -n)
+          # Extract full prefix including optional letter suffix (e.g. "11", "11a", "18b")
+          # to support the sub-migration naming convention (NNNa, NNNb, ...) used in this repo.
+          # Only files starting with a digit are considered (excludes seed_*.sql etc.).
+          nums=$(ls [0-9]*.sql 2>/dev/null | sed 's/\.sql$//' | sed 's/^0*\([1-9][0-9]*[a-z]*\).*/\1/' | sort -V)
           if [ -z "$nums" ]; then echo "No SQL migrations found"; exit 0; fi
-          prev=0
+          prev=""
           dupes=0
           for n in $nums; do
-            if [ "$n" -le "$prev" ] 2>/dev/null; then
-              echo "✗ Migration number $n is not monotonically greater than $prev (duplicate or out of order)"
+            if [ "$n" = "$prev" ]; then
+              echo "✗ Migration prefix '$n' is duplicated"
               dupes=$((dupes + 1))
             fi
             prev=$n
           done
           if [ "$dupes" -gt 0 ]; then
-            echo "✗ Found $dupes migration numbering issue(s). Use a unique, incrementing number."
+            echo "✗ Found $dupes duplicate migration prefix(es). Use unique, incrementing prefixes."
             exit 1
           fi
-          echo "✓ All migration numbers are unique and monotonically ordered."
+          echo "✓ All migration prefixes are unique and monotonically ordered."
