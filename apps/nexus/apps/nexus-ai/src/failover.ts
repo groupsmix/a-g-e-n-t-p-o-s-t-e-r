@@ -6,7 +6,15 @@
 import { AI_REGISTRY } from './registry'
 import { SEARCH_REGISTRY } from './search-registry'
 import { offlineGenerate } from './offline'
-import type { AIRegistryEntry, TaskType, FailoverResult, FailoverOptions, AIStatusCache } from './types'
+import type { AIRegistryEntry, TaskType, FailoverResult, FailoverOptions, AIStatusCache, AIAttemptLog } from './types'
+import {
+  AuthError,
+  BadOutputError,
+  QuotaError,
+  RateLimitError,
+  TimeoutError,
+  classifyProviderError,
+} from './errors'
 import { createLogger } from '@posteragent/logger/workers'
 
 const logger = createLogger({ service: 'nexus-ai', module: 'failover' })
@@ -21,6 +29,14 @@ interface Env {
   [key: string]: unknown
 }
 
+interface ModelCallResult {
+  output: string
+  tokens_used: number
+  cost_usd: number
+  tokens_in?: number
+  tokens_out?: number
+}
+
 /**
  * Run an AI task with automatic failover to next model on failure.
  * Checks rate limits, API keys, and handles errors gracefully.
@@ -32,14 +48,15 @@ export async function runWithFailover(
   options: FailoverOptions = {}
 ): Promise<FailoverResult> {
   const { timeoutMs = 90000, outputFormat = 'text', excludeModelIds } = options
+  const tried: string[] = []
+  const attempts: AIAttemptLog[] = []
 
   if (['research_market', 'research_keywords', 'research_competitors', 'trend_analysis'].includes(taskType)) {
-    const searchResult = await runSearchWithFailover(taskType, prompt, env, options)
-    if (searchResult) return { ...searchResult, source: 'model' }
+    const searchResult = await runSearchWithFailover(taskType, prompt, env, options, tried, attempts)
+    if (searchResult) return { ...searchResult, source: 'model', attempts }
   }
 
   const models = AI_REGISTRY[taskType] || []
-  const tried: string[] = []
 
   // Cost guardrail: how much we've already spent today on paid models.
   const cap = await getDailyCap(env)
@@ -88,6 +105,7 @@ export async function runWithFailover(
 
     tried.push(model.id)
     logger.info('Trying model', { model: model.name, taskType })
+    const startedAt = Date.now()
 
     try {
       let result = await callModelWithTimeout(
@@ -127,22 +145,34 @@ export async function runWithFailover(
                     output: repairResult.output,
                     tokens_used: result.tokens_used + repairResult.tokens_used,
                     cost_usd: (result.cost_usd || 0) + (repairResult.cost_usd || 0),
+                    tokens_in: (result.tokens_in || 0) + (repairResult.tokens_in || 0),
+                    tokens_out: (result.tokens_out || 0) + (repairResult.tokens_out || 0),
                   }
                 } else {
-                  throw new Error('Repaired output is still invalid JSON')
+                  throw new BadOutputError({ message: 'Repaired output is still invalid JSON' })
                 }
               } catch (repairErr: any) {
                 logger.error('Repair failed', repairErr, { model: model.name, taskType })
-                throw new Error(`Invalid JSON and repair failed: ${repairErr.message}`)
+                throw new BadOutputError({ message: `Invalid JSON and repair failed: ${repairErr.message}`, cause: repairErr })
               }
             } else {
-              throw new Error('Invalid JSON and repair could not find cheap model API key')
+              throw new BadOutputError({ message: 'Invalid JSON and repair could not find cheap model API key' })
             }
           } else {
-            throw new Error('Invalid JSON and no cheap configured model available for repair')
+            throw new BadOutputError({ message: 'Invalid JSON and no cheap configured model available for repair' })
           }
         }
       }
+
+      attempts.push({
+        model: model.id,
+        provider: model.provider,
+        latencyMs: Date.now() - startedAt,
+        status: 'success',
+        tokensIn: result.tokens_in,
+        tokensOut: result.tokens_out,
+        costUsd: result.cost_usd,
+      })
 
       logger.info('Model succeeded', { model: model.name, taskType, tokens_used: result.tokens_used, cost_usd: result.cost_usd })
 
@@ -163,14 +193,24 @@ export async function runWithFailover(
         tokens_used: result.tokens_used,
         cost_usd: result.cost_usd,
         source: 'model',
+        attempts,
       }
     } catch (error: any) {
-      const statusCode = error.status || error.statusCode || 0
-      const errorMsg = error.message || 'Unknown error'
+      const classifiedError = classifyProviderError(error)
+      const statusCode = classifiedError.statusCode || 0
 
-      if (statusCode === 429 || errorMsg.includes('rate_limit')) {
+      attempts.push({
+        model: model.id,
+        provider: model.provider,
+        latencyMs: Date.now() - startedAt,
+        status: 'failed',
+        errorClass: classifiedError.name,
+        errorMessage: classifiedError.message,
+      })
+
+      if (classifiedError instanceof RateLimitError) {
         // Use provider-supplied reset time; fall back to 15 min default.
-        const resetAt = clampReset(error.resetAt ?? (Date.now() + 900_000))
+        const resetAt = clampReset(classifiedError.resetAt ?? (Date.now() + 900_000))
         const ttl = Math.ceil((resetAt - Date.now()) / 1000) + 60
         const statusPayload = JSON.stringify({ type: 'rate_limited', reset_at: resetAt, hit_at: Date.now() })
 
@@ -183,9 +223,9 @@ export async function runWithFailover(
           await env.CONFIG.put(providerKey, statusPayload, { expirationTtl: ttl })
         }
 
-        logger.warn('Model rate limited', { model: model.name, taskType, resetAt, source: error.resetSource ?? 'default' })
+        logger.warn('Model rate limited', { model: model.name, taskType, resetAt, source: classifiedError.resetSource ?? 'default' })
 
-      } else if (statusCode === 402 || errorMsg.includes('quota') || errorMsg.includes('insufficient_quota')) {
+      } else if (classifiedError instanceof QuotaError) {
         // Daily quota — sleep until midnight UTC
         const midnight = new Date()
         midnight.setUTCHours(24, 0, 0, 0)
@@ -197,7 +237,7 @@ export async function runWithFailover(
         }), { expirationTtl: Math.ceil((resetAt - Date.now()) / 1000) + 60 })
         logger.warn('Model quota exceeded — sleeping until midnight', { model: model.name, taskType, resetAt })
 
-      } else if (statusCode === 401 || statusCode === 403) {
+      } else if (classifiedError instanceof AuthError) {
         // Invalid key — skip for 24h until key changes
         await env.CONFIG.put(statusKey, JSON.stringify({
           type: 'invalid_key',
@@ -206,8 +246,10 @@ export async function runWithFailover(
         }), { expirationTtl: 86460 })
         logger.warn('Model has invalid API key', { model: model.name, taskType })
 
+      } else if (classifiedError instanceof TimeoutError || classifiedError instanceof BadOutputError) {
+        logger.warn('Model failed with classified error', { model: model.name, taskType, statusCode, errorClass: classifiedError.name })
       } else {
-        logger.error('Model error', new Error(errorMsg), { model: model.name, taskType, statusCode })
+        logger.error('Model error', classifiedError, { model: model.name, taskType, statusCode, errorClass: classifiedError.name })
       }
 
       continue
@@ -218,7 +260,7 @@ export async function runWithFailover(
   // templates, try the universal free/real providers: Groq (free tier, if a
   // key is set) then Cloudflare Workers AI (free, no key). This keeps output
   // real AI at zero cost whenever possible.
-  const universal = await tryUniversalProviders(prompt, env, outputFormat, timeoutMs, tried)
+  const universal = await tryUniversalProviders(prompt, env, outputFormat, timeoutMs, tried, attempts)
   if (universal) return universal
 
   // No provider was available (or all failed). Rather than aborting the whole
@@ -227,6 +269,15 @@ export async function runWithFailover(
   // moment any API key is configured.
   logger.info('Falling back to offline template', { taskType, tried })
   const output = offlineGenerate(taskType, prompt, outputFormat)
+  attempts.push({
+    model: 'offline-template',
+    provider: 'offline',
+    latencyMs: 0,
+    status: 'success',
+    costUsd: 0,
+    tokensIn: 0,
+    tokensOut: 0,
+  })
   return {
     output,
     model_used: 'offline-template',
@@ -234,6 +285,7 @@ export async function runWithFailover(
     tokens_used: 0,
     cost_usd: 0,
     source: 'offline',
+    attempts,
   }
 }
 
@@ -242,11 +294,12 @@ export async function runSearchWithFailover(
   taskType: TaskType,
   prompt: string,
   env: Env,
-  options: FailoverOptions = {}
+  options: FailoverOptions = {},
+  tried: string[] = [],
+  attempts: AIAttemptLog[] = [],
 ): Promise<FailoverResult | null> {
   const { timeoutMs = 90000 } = options
   const models = SEARCH_REGISTRY[taskType] || []
-  const tried: string[] = []
 
   for (const model of models) {
     const apiKey = model.secretKey ? await getSecret(env, model.secretKey) : null
@@ -254,12 +307,13 @@ export async function runSearchWithFailover(
 
     tried.push(model.id)
     logger.info('Trying search provider', { model: model.name, taskType })
+    const startedAt = Date.now()
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
     try {
-      let result: { output: string; tokens_used: number; cost_usd: number }
+      let result: ModelCallResult
 
       if (model.provider === 'tavily') {
         result = await callTavily(apiKey, prompt, controller.signal)
@@ -275,6 +329,15 @@ export async function runSearchWithFailover(
 
       logger.info('Search succeeded', { model: model.name, taskType })
       if (!model.isFree && result.cost_usd) await addSpend(env, result.cost_usd)
+      attempts.push({
+        model: model.id,
+        provider: model.provider,
+        latencyMs: Date.now() - startedAt,
+        status: 'success',
+        tokensIn: result.tokens_in,
+        tokensOut: result.tokens_out,
+        costUsd: result.cost_usd,
+      })
 
       return {
         output: result.output,
@@ -282,9 +345,19 @@ export async function runSearchWithFailover(
         models_tried: tried,
         tokens_used: result.tokens_used,
         cost_usd: result.cost_usd,
+        attempts,
       }
     } catch (error: any) {
-      logger.error('Search provider error', new Error(error.message), { model: model.name, taskType })
+      const classifiedError = classifyProviderError(error)
+      attempts.push({
+        model: model.id,
+        provider: model.provider,
+        latencyMs: Date.now() - startedAt,
+        status: 'failed',
+        errorClass: classifiedError.name,
+        errorMessage: classifiedError.message,
+      })
+      logger.error('Search provider error', classifiedError, { model: model.name, taskType, errorClass: classifiedError.name })
       continue
     } finally {
       clearTimeout(timeout)
@@ -308,13 +381,15 @@ async function tryUniversalProviders(
   env: Env,
   outputFormat: string,
   timeoutMs: number,
-  tried: string[]
+  tried: string[],
+  attempts: AIAttemptLog[],
 ): Promise<FailoverResult | null> {
   // 1. Groq — free tier, OpenAI-compatible. Only if a key is configured.
   const groqKey = await getSecret(env, 'GROQ_API_KEY')
   if (groqKey) {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), timeoutMs)
+    const startedAt = Date.now()
     try {
       tried.push('groq-llama-3.3-70b')
       const result = await callOpenAICompatible(
@@ -326,9 +401,27 @@ async function tryUniversalProviders(
         controller.signal
       )
       logger.info('Universal fallback succeeded', { model: 'groq-llama-3.3-70b' })
-      return { output: result.output, model_used: 'groq-llama-3.3-70b', models_tried: tried, tokens_used: result.tokens_used, cost_usd: result.cost_usd, source: 'universal' }
+      attempts.push({
+        model: 'groq-llama-3.3-70b',
+        provider: 'groq',
+        latencyMs: Date.now() - startedAt,
+        status: 'success',
+        tokensIn: result.tokens_in,
+        tokensOut: result.tokens_out,
+        costUsd: result.cost_usd,
+      })
+      return { output: result.output, model_used: 'groq-llama-3.3-70b', models_tried: tried, tokens_used: result.tokens_used, cost_usd: result.cost_usd, source: 'universal', attempts }
     } catch (error) {
-      logger.warn('Groq universal fallback failed', { error: error instanceof Error ? error.message : 'error' })
+      const classifiedError = classifyProviderError(error)
+      attempts.push({
+        model: 'groq-llama-3.3-70b',
+        provider: 'groq',
+        latencyMs: Date.now() - startedAt,
+        status: 'failed',
+        errorClass: classifiedError.name,
+        errorMessage: classifiedError.message,
+      })
+      logger.warn('Groq universal fallback failed', { error: classifiedError.message, errorClass: classifiedError.name })
     } finally {
       clearTimeout(timeout)
     }
@@ -336,6 +429,7 @@ async function tryUniversalProviders(
 
   // 2. Cloudflare Workers AI — free, bound to the worker, no external key.
   if (env.AI) {
+    const startedAt = Date.now()
     try {
       tried.push('cloudflare-workers-ai-llama')
       // env.AI.run doesn't take an AbortSignal, so race it against a hard
@@ -351,10 +445,28 @@ async function tryUniversalProviders(
       ])) as { response?: string }
       if (out?.response && out.response.trim()) {
         logger.info('Universal fallback succeeded', { model: 'cloudflare-workers-ai-llama' })
-        return { output: out.response, model_used: 'cloudflare-workers-ai-llama', models_tried: tried, tokens_used: 0, cost_usd: 0, source: 'universal' }
+        attempts.push({
+          model: 'cloudflare-workers-ai-llama',
+          provider: 'workers-ai',
+          latencyMs: Date.now() - startedAt,
+          status: 'success',
+          tokensIn: 0,
+          tokensOut: 0,
+          costUsd: 0,
+        })
+        return { output: out.response, model_used: 'cloudflare-workers-ai-llama', models_tried: tried, tokens_used: 0, cost_usd: 0, source: 'universal', attempts }
       }
     } catch (error) {
-      logger.warn('Cloudflare Workers AI fallback failed', { error: error instanceof Error ? error.message : 'error' })
+      const classifiedError = classifyProviderError(error)
+      attempts.push({
+        model: 'cloudflare-workers-ai-llama',
+        provider: 'workers-ai',
+        latencyMs: Date.now() - startedAt,
+        status: 'failed',
+        errorClass: classifiedError.name,
+        errorMessage: classifiedError.message,
+      })
+      logger.warn('Cloudflare Workers AI fallback failed', { error: classifiedError.message, errorClass: classifiedError.name })
     }
   }
 
@@ -368,12 +480,12 @@ async function callModelWithTimeout(
   timeoutMs: number,
   outputFormat: string,
   _env: Env
-): Promise<{ output: string; tokens_used: number; cost_usd: number }> {
+): Promise<ModelCallResult> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    let result: { output: string; tokens_used: number; cost_usd: number }
+    let result: ModelCallResult
 
     switch (model.provider) {
       case 'deepseek':
@@ -513,7 +625,7 @@ async function callOpenAICompatible(
   prompt: string,
   outputFormat: string,
   signal: AbortSignal
-): Promise<{ output: string; tokens_used: number; cost_usd: number }> {
+): Promise<ModelCallResult> {
   const body: Record<string, unknown> = {
     model: model.apiModelName,
     messages: [{ role: 'user', content: prompt }],
@@ -548,15 +660,20 @@ async function callOpenAICompatible(
   }
 
   const data = await response.json() as any
-  const tokensUsed = data.usage?.total_tokens || 0
+  const tokensIn = data.usage?.prompt_tokens || 0
+  const tokensOut = data.usage?.completion_tokens || 0
+  const tokensUsed = data.usage?.total_tokens || tokensIn + tokensOut
   // Use per-token pricing from registry; fall back to blended estimate.
-  const ratePer1k = model.costPer1kOut ?? (priceFor(model.apiModelName) / 1000)
-  const costUsd = tokensUsed * ratePer1k / 1000
+  const inputRate = model.costPer1kIn ?? (priceFor(model.apiModelName) / 1000)
+  const outputRate = model.costPer1kOut ?? (priceFor(model.apiModelName) / 1000)
+  const costUsd = (tokensIn / 1000) * inputRate + (tokensOut / 1000) * outputRate
 
   return {
     output: data.choices[0].message.content,
     tokens_used: tokensUsed,
     cost_usd: costUsd,
+    tokens_in: tokensIn,
+    tokens_out: tokensOut,
   }
 }
 
@@ -570,7 +687,7 @@ async function callAnthropic(
   prompt: string,
   outputFormat: string,
   signal: AbortSignal
-): Promise<{ output: string; tokens_used: number; cost_usd: number }> {
+): Promise<ModelCallResult> {
   const messages: any[] = [{ role: 'user', content: prompt }]
   if (outputFormat === 'json' && model.supportsJsonMode) {
     messages.push({ role: 'assistant', content: '{' })
@@ -627,6 +744,8 @@ async function callAnthropic(
     output,
     tokens_used: tokensUsed,
     cost_usd: costUsd,
+    tokens_in: inputTokens,
+    tokens_out: outputTokens,
   }
 }
 

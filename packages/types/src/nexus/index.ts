@@ -19,6 +19,12 @@ export * from './action'
 // Portfolio Types (Money Machine)
 export * from './portfolio'
 
+// Announcement banner types
+export * from './announcement'
+
+// Feature flag types
+export * from './flags'
+
 // NOTE: The Env interface for Cloudflare bindings lives inside each Worker app
 // (apps/nexus-api/src/env.ts, apps/nexus-ai/src/index.ts) because the set of
 // bindings varies per worker and depends on @cloudflare/workers-types, which

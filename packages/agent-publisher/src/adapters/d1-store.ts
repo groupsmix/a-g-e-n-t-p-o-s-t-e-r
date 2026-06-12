@@ -12,7 +12,7 @@
  *   )
  */
 
-import type { JobStore, PublishJob, PublishResult } from '../types.js'
+import type { JobStore, PublishJob } from '../types.js'
 
 export interface D1Like {
   prepare(query: string): {
@@ -26,17 +26,19 @@ export interface D1Like {
 export function createD1JobStore(d1: D1Like): JobStore {
   return {
     async enqueue(job) {
+      const status = job.status ?? 'needs_approval'
       await d1
         .prepare(
           `INSERT OR REPLACE INTO publish_jobs
            (idempotency_key, platform, publish_at, payload, status, created_at)
-           VALUES (?, ?, ?, ?, 'scheduled', datetime('now'))`,
+           VALUES (?, ?, ?, ?, ?, datetime('now'))`,
         )
         .bind(
           job.idempotencyKey ?? `${job.platform}:${Date.now()}`,
           job.platform,
           job.publishAt ?? null,
           JSON.stringify(job),
+          status,
         )
         .run()
     },

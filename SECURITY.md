@@ -26,10 +26,10 @@ Only `main` is supported. There are no versioned releases; fixes land on
 
 ## Known gaps
 
-Tracked openly rather than hidden: prompt-injection hardening for
-agent-consumed external content (audit #37), spend caps / cost controls
-(audit #44), and moderation gates before publishing (audit #45) are not
-implemented yet. See `docs/THREAT_MODEL.md`.
+All audit findings (T-1 through T-50) have been remediated as of the
+open-audit backlog completion. Prompt-injection hardening (audit #37),
+cost controls (audit #44), and brand-safety gates (audit #45) are now
+implemented. See `docs/THREAT_MODEL.md` for the current risk posture.
 
 ## Hard rules for contributors
 

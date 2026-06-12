@@ -41,7 +41,7 @@ import type {
   TaskArtifactInfo, PlaybookStageInfo, CreateFreelanceJobInput,
   TemplateInfo, PortfolioEntryInfo, IntakeQuestionInfo, CommandCenterData,
   Job, QueueStats, JobStatus,
-  PublishProductResult,
+  PublishProductResult, Lead, LeadStats,
 } from '@posteragent/types/nexus/api-contract'
 
 // Re-export queue/publish types explicitly
@@ -80,7 +80,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error('Unauthorized')
   }
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: res.statusText }))
+    const error = (await res.json().catch(() => ({ message: res.statusText }))) as any
     throw new Error(error.message || error.error || `API error: ${res.status}`)
   }
   return res.json()
@@ -402,7 +402,7 @@ export const api = {
     mutate<{ ok: boolean; campaign: EmailCampaign }>(rpc.email.campaigns.$url(), 'POST', data),
   getCampaigns: () => rpc.email.campaigns.$get().then(json<{ campaigns: EmailCampaign[] }>),
   sendCampaign: (id: string) =>
-    mutate<{ ok: boolean; sent_to: number; campaign_id: string; sent_at: string }>(rpc.email.campaigns[':id'].send.$url({ param: { id } }), 'POST'),
+    mutate<{ ok: boolean; sent_to: number; failed_to: number; campaign_id: string; sent_at: string | null; errors: string[] }>(rpc.email.campaigns[':id'].send.$url({ param: { id } }), 'POST'),
 
   // Competitor Tracker
   getCompetitors: () =>
@@ -428,6 +428,9 @@ export const api = {
         ai_spend_today: number
         ai_spend_cap: number
         ai_cap_reached: boolean
+        recent_ai_calls: number
+        failed_ai_calls: number
+        offline_ai_calls: number
       }
       failed_steps: Array<{
         run_id: string
@@ -453,6 +456,26 @@ export const api = {
         domain_slug: string | null
         gumroad_url: string | null
         created_at: string
+      }>
+      recent_ai_calls: Array<{
+        id: string
+        ts: string
+        task_type: string
+        model_used: string | null
+        source: string | null
+        cost_usd: number
+        latency_ms: number
+        caller: string
+        workflow_id: string | null
+        ok: number
+      }>
+      ai_model_health: Array<{
+        model_used: string | null
+        total_calls: number
+        ok_calls: number
+        failed_calls: number
+        avg_latency_ms: number
+        spend_usd: number
       }>
     }>),
 
@@ -490,7 +513,7 @@ export const api = {
     mutate<{ ok: boolean }>(rpc.freelance.jobs[':id'].$url({ param: { id } }), 'PATCH', data),
   clientRevision: (id: string, feedback: string) =>
     mutate<{ ok: boolean }>(rpc.freelance.jobs[':id']['client-revision'].$url({ param: { id } }), 'POST', { feedback }),
-  getTaskArtifacts: (jobId: string, taskId: string) =>
+  getFreelanceTaskArtifacts: (jobId: string, taskId: string) =>
     rpc.freelance.jobs[':id'].tasks[':taskId'].artifacts.$get({ param: { id: jobId, taskId } }).then(json<{ artifacts: TaskArtifactInfo[] }>),
   getPlaybook: (jobType: string) =>
     rpc.freelance.playbooks[':jobType'].$get({ param: { jobType } }).then(json<{ job_type: string; stages: PlaybookStageInfo[] }>),
@@ -642,38 +665,117 @@ export const api = {
     if (typeof params?.limit === 'number') q.set('limit', String(params.limit))
     const url = rpc.leads.index.$url()
     url.search = q.toString()
-    return rpcGet<{
-      leads: Array<{
-        fingerprint: string; source: string; source_id: string;
-        author: string; author_bio: string | null;
-        text: string; url: string; posted_at: string;
-        matched_terms: string[]; extra: Record<string, unknown> | null;
-        score_total: number; score_intent: string;
-        score_components: Record<string, number>;
-        suggested_reply: string | null;
-        status: string;
-        engaged_at: string | null; dismissed_at: string | null;
-        operator_note: string | null; created_at: string;
-      }>;
-      total: number;
-    }>(url)
+    return rpcGet<{ leads: Lead[]; total: number }>(url)
   },
   getLeadStats: () =>
-    rpc.leads.stats.$get().then(json<{
-      byStatus: Array<{ status: string; n: number }>;
-      byIntent: Array<{ intent: string; n: number }>;
-      bySource: Array<{ source: string; n: number }>;
-      top_score: number;
-    }>),
+    rpc.leads.stats.$get().then(json<LeadStats>),
   scanLeads: (body: { terms: string[]; subreddits?: string[]; sources?: Array<'reddit' | 'hn'>; limit?: number }) =>
     mutate<{
       ok: boolean; scanned: number; inserted: number; skipped: number;
       filtered: number; errors: string[]; sources: Record<string, number>;
     }>(rpc.leads.scan.$url(), 'POST', body),
+  updateLead: (
+    fp: string,
+    patch: Partial<{
+      status: string
+      operator_note: string | null
+      contact_email: string | null
+      contact_name: string | null
+      company_name: string | null
+      company_domain: string | null
+      source_type: string | null
+      last_contacted_at: string | null
+      contact_status: string
+      enrichment: Record<string, unknown> | null
+    }>,
+  ) =>
+    mutate<{ ok: boolean; lead: Lead }>(
+      rpc.leads[':fingerprint'].$url({ param: { fingerprint: fp } }),
+      'PATCH',
+      patch,
+    ),
   engageLead: (fp: string, note?: string) =>
     mutate<{ ok: boolean }>(rpc.leads[':fingerprint'].engage.$url({ param: { fingerprint: fp } }), 'POST', { note: note ?? null }),
+  contactLead: (fp: string, note?: string) =>
+    mutate<{ ok: boolean }>(rpc.leads[':fingerprint'].contact.$url({ param: { fingerprint: fp } }), 'POST', { note: note ?? null }),
+  qualifyLead: (fp: string, note?: string) =>
+    mutate<{ ok: boolean }>(rpc.leads[':fingerprint'].qualify.$url({ param: { fingerprint: fp } }), 'POST', { note: note ?? null }),
+  disqualifyLead: (fp: string, note?: string) =>
+    mutate<{ ok: boolean }>(rpc.leads[':fingerprint'].disqualify.$url({ param: { fingerprint: fp } }), 'POST', { note: note ?? null }),
   dismissLead: (fp: string, note?: string) =>
     mutate<{ ok: boolean }>(rpc.leads[':fingerprint'].dismiss.$url({ param: { fingerprint: fp } }), 'POST', { note: note ?? null }),
+  restoreLead: (fp: string) =>
+    mutate<{ ok: boolean }>(rpc.leads[':fingerprint'].restore.$url({ param: { fingerprint: fp } }), 'POST'),
   deleteLead: (fp: string) =>
     mutate<{ ok: boolean }>(rpc.leads[':fingerprint'].$url({ param: { fingerprint: fp } }), 'DELETE'),
+
+  // Brain Cockpit
+  getBrainSummary: () => apiFetch<{ summary: any; source: string }>('/api/brain/summary'),
+  getMemories: (q?: string, type?: string) => {
+    const qs = new URLSearchParams()
+    if (q) qs.set('q', q)
+    if (type) qs.set('type', type)
+    return apiFetch<{ memories: any[] }>(`/api/brain/memories?${qs.toString()}`)
+  },
+  getJournal: () => apiFetch<{ journal: any[] }>('/api/brain/journal'),
+  updateNow: (content: string, expires_in_ms?: number) =>
+    apiFetch<{ ok: boolean }>('/api/brain/now', { method: 'POST', body: JSON.stringify({ content, expires_in_ms }) }),
+  updatePersona: (name: string, tagline: string, emoji: string, traits: string[]) =>
+    apiFetch<{ ok: boolean }>('/api/brain/persona', { method: 'POST', body: JSON.stringify({ name, tagline, emoji, traits }) }),
+
+  // Approvals
+  getApprovals: () => apiFetch<{ approvals: any[] }>('/api/approvals'),
+  approveRequest: (id: string, feedback?: string) =>
+    apiFetch<{ ok: boolean; status: string }>(`/api/approvals/${id}/approve`, { method: 'POST', body: JSON.stringify({ feedback }) }),
+  rejectRequest: (id: string, feedback?: string) =>
+    apiFetch<{ ok: boolean; status: string }>(`/api/approvals/${id}/reject`, { method: 'POST', body: JSON.stringify({ feedback }) }),
+  requestChanges: (id: string, feedback: string) =>
+    apiFetch<{ ok: boolean; status: string }>(`/api/approvals/${id}/request-changes`, { method: 'POST', body: JSON.stringify({ feedback }) }),
+
+  // Notifications
+  getNotifications: () => apiFetch<{ notifications: any[] }>('/api/notifications'),
+  markNotificationRead: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/notifications/${id}/read`, { method: 'POST' }),
+
+  // Tasks (Control Plane)
+  getTasks: (status?: string, type?: string) => {
+    const qs = new URLSearchParams()
+    if (status) qs.set('status', status)
+    if (type) qs.set('type', type)
+    return apiFetch<{ tasks: any[]; count: number }>(`/api/tasks?${qs.toString()}`)
+  },
+  createTask: (body: { type: string; payload?: any; agent_id?: string; origin?: string }) =>
+    apiFetch<{ task: any }>('/api/tasks', { method: 'POST', body: JSON.stringify(body) }),
+  getTask: (id: string) => apiFetch<{ task: any }>(`/api/tasks/${id}`),
+  patchTask: (id: string, body: any) =>
+    apiFetch<{ task: any }>(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  getTaskEvents: (id: string) => apiFetch<{ events: any[] }>(`/api/tasks/${id}/events`),
+  getTaskMessages: (id: string) => apiFetch<{ messages: any[] }>(`/api/tasks/${id}/messages`),
+  postTaskMessage: (id: string, sender: string, content: string) =>
+    apiFetch<{ message: any }>(`/api/tasks/${id}/messages`, { method: 'POST', body: JSON.stringify({ sender, content }) }),
+  getTaskArtifacts: (id: string) => apiFetch<{ artifacts: any[] }>(`/api/tasks/${id}/artifacts`),
+  postTaskArtifact: (id: string, kind: string, url?: string, content?: string) =>
+    apiFetch<{ artifact: any }>(`/api/tasks/${id}/artifacts`, { method: 'POST', body: JSON.stringify({ kind, url, content }) }),
+
+  // Live Processes
+  getProcesses: () => apiFetch<{ processes: any[] }>('/api/processes'),
+  registerProcess: (name: string, status: string, task_id?: string) =>
+    apiFetch<{ process: any }>('/api/processes/register', { method: 'POST', body: JSON.stringify({ name, status, task_id }) }),
+
+  // Run Agent Task
+  runAgentTask: (taskId: string, force?: boolean) =>
+    apiFetch<{ ok: boolean; result: any }>('/api/agents/run', { method: 'POST', body: JSON.stringify({ taskId, force }) }),
+
+  // Announcements
+  getAnnouncement: () => apiFetch<{ announcement: any }>('/api/announcements'),
+  setAnnouncement: (body: { message: string; type?: string; dismissible?: boolean }) =>
+    apiFetch<{ announcement: any }>('/api/announcements', { method: 'POST', body: JSON.stringify(body) }),
+  clearAnnouncement: () => apiFetch<{ cleared: boolean }>('/api/announcements', { method: 'DELETE' }),
+  dismissAnnouncement: () => apiFetch<{ dismissed: boolean }>('/api/announcements/dismiss', { method: 'PATCH' }),
+
+  // Feature Flags
+  getFlags: () => apiFetch<{ flags: any }>('/api/flags'),
+  setFlag: (key: string, value: any) =>
+    apiFetch<{ key: string; value: any; updated: boolean }>(`/api/flags/${key}`, { method: 'PATCH', body: JSON.stringify({ value }) }),
+  resetFlags: () => apiFetch<{ reset: boolean; defaults: any }>('/api/flags/reset', { method: 'POST' }),
 }

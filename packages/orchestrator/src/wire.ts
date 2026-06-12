@@ -43,12 +43,12 @@ import { runAutonomeOnce } from '@posteragent/agent-autonome'
 import { runPlatformAnalytics } from '@posteragent/agent-analytics'
 import { handleRevenueTask } from '@posteragent/agent-revenue'
 
-import { AgentRegistry, defaultRegistry } from './registry.js'
+import { defaultRegistry } from './registry.js'
+import type { AgentRegistry } from './registry.js'
 import type { AgentContext, AgentHandler, HandlerOutcome } from './types.js'
 
 import {
   createWriteHandler,
-  type WriteHandlerDeps,
 } from './handlers/real/write.js'
 import {
   createGenerateImageHandler,
@@ -91,6 +91,7 @@ export interface WireDeps {
     // below is the only place that hard-imports.
     adapters: unknown[]
     store?: unknown
+    agentReacher?: unknown
   }
 
   /** Autonome runtime sources for the hourly tick. */
@@ -127,22 +128,44 @@ export function wireRegistry(deps: WireDeps = {}): AgentRegistry {
   const r = defaultRegistry()
 
   // ── research ──────────────────────────────────────────────────────
-  if (deps.llm && (deps.search || deps.memory)) {
-    r.override(createResearchHandler({
-      llm: deps.llm,
-      search: deps.search,
-      memory: deps.memory,
-    }) as unknown as AgentHandler)
-  }
+  r.override({
+    type: 'research',
+    name: 'Deep Research Agent',
+    description: 'Planner → (Web Search + Memory RAG) → Synthesis → Citation → Memory pipeline.',
+    async run(ctx: AgentContext) {
+      if (!deps.llm) {
+        throw new Error('Research Agent is not configured: ANTHROPIC_API_KEY is missing.')
+      }
+      if (!deps.search && !deps.memory) {
+        throw new Error('Research Agent is not configured: both Tavily Search and Memory Store are missing. TAVILY_API_KEY must be provided.')
+      }
+      const handler = createResearchHandler({
+        llm: deps.llm,
+        search: deps.search,
+        memory: deps.memory,
+      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return handler.run(ctx as any) as any
+    }
+  } as unknown as AgentHandler)
 
   // ── write ─────────────────────────────────────────────────────────
-  if (deps.llm) {
-    const writeDeps: WriteHandlerDeps = {
-      llm: deps.llm,
-      defaultModel: deps.defaultModel,
+  r.override({
+    type: 'write',
+    name: 'Content Writer',
+    description: 'Multi-format content writer (blog, thread, IG carousel, LinkedIn, newsletter, TikTok, YT shorts). Chains from research output.',
+    async run(ctx: AgentContext) {
+      if (!deps.llm) {
+        throw new Error('Writer Agent is not configured: ANTHROPIC_API_KEY is missing.')
+      }
+      const handler = createWriteHandler({
+        llm: deps.llm,
+        defaultModel: deps.defaultModel,
+      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return handler.run(ctx as any) as any
     }
-    r.override(createWriteHandler(writeDeps) as unknown as AgentHandler)
-  }
+  } as unknown as AgentHandler)
 
   // ── generate-image ────────────────────────────────────────────────
   if (deps.image) {
@@ -206,6 +229,7 @@ function wrapPublisherHandler(p: NonNullable<WireDeps['publisher']>): AgentHandl
   const inner = createPublisherHandler({
     adapters: p.adapters as Parameters<typeof createPublisherHandler>[0]['adapters'],
     store: p.store as Parameters<typeof createPublisherHandler>[0]['store'],
+    agentReacher: p.agentReacher as Parameters<typeof createPublisherHandler>[0]['agentReacher'],
   })
   // agent-publisher's run takes `{ payload }`; orchestrator's takes a full
   // AgentContext. Adapt.

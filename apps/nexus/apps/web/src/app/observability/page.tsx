@@ -105,6 +105,26 @@ export default function ObservabilityPage() {
         />
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Card
+          icon={<Activity className="h-4 w-4 text-cyan-400" />}
+          label="Recent AI Calls"
+          value={s.recent_ai_calls ?? 0}
+        />
+        <Card
+          icon={<XCircle className="h-4 w-4 text-rose-400" />}
+          label="Failed AI Calls"
+          value={s.failed_ai_calls ?? 0}
+          alert={(s.failed_ai_calls ?? 0) > 0}
+        />
+        <Card
+          icon={<AlertTriangle className="h-4 w-4 text-amber-400" />}
+          label="Offline AI Calls"
+          value={s.offline_ai_calls ?? 0}
+          alert={(s.offline_ai_calls ?? 0) > 0}
+        />
+      </div>
+
       {/* Product counts */}
       <Section title="Product Status Breakdown">
         <div className="flex flex-wrap gap-2">
@@ -117,6 +137,39 @@ export default function ObservabilityPage() {
             </div>
           ))}
         </div>
+      </Section>
+
+      <Section title="AI Model Health" count={data.ai_model_health.length}>
+        {data.ai_model_health.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No AI ledger rows yet</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="text-left py-2 pr-3">Model</th>
+                  <th className="text-left py-2 pr-3">Calls</th>
+                  <th className="text-left py-2 pr-3">Success</th>
+                  <th className="text-left py-2 pr-3">Failed</th>
+                  <th className="text-left py-2 pr-3">Avg Latency</th>
+                  <th className="text-left py-2">Spend</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.ai_model_health.map((row) => (
+                  <tr key={row.model_used ?? 'unknown'} className="border-b border-border/50">
+                    <td className="py-2 pr-3 font-mono">{row.model_used ?? 'unknown'}</td>
+                    <td className="py-2 pr-3">{row.total_calls}</td>
+                    <td className="py-2 pr-3 text-green-400">{row.ok_calls}</td>
+                    <td className="py-2 pr-3 text-red-400">{row.failed_calls}</td>
+                    <td className="py-2 pr-3">{Math.round(row.avg_latency_ms ?? 0)} ms</td>
+                    <td className="py-2">{formatCost(row.spend_usd ?? 0, row.total_calls ?? 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Section>
 
       {/* Failed AI steps */}
@@ -214,6 +267,43 @@ export default function ObservabilityPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </Section>
+
+      <Section title="Recent AI Calls" count={data.recent_ai_calls.length}>
+        {data.recent_ai_calls.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No AI ledger rows yet</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="text-left py-2 pr-3">Time</th>
+                  <th className="text-left py-2 pr-3">Task</th>
+                  <th className="text-left py-2 pr-3">Model</th>
+                  <th className="text-left py-2 pr-3">Caller</th>
+                  <th className="text-left py-2 pr-3">Latency</th>
+                  <th className="text-left py-2 pr-3">Cost</th>
+                  <th className="text-left py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recent_ai_calls.map((row) => (
+                  <tr key={row.id} className="border-b border-border/50">
+                    <td className="py-2 pr-3 text-muted-foreground">{row.ts}</td>
+                    <td className="py-2 pr-3">{row.task_type}</td>
+                    <td className="py-2 pr-3 font-mono">{row.model_used ?? 'unknown'}</td>
+                    <td className="py-2 pr-3">{row.caller}</td>
+                    <td className="py-2 pr-3">{row.latency_ms} ms</td>
+                    <td className="py-2 pr-3">{formatCost(row.cost_usd ?? 0, 1)}</td>
+                    <td className="py-2">
+                      <StatusBadge status={Number(row.ok) === 1 ? 'completed' : 'failed'} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </Section>

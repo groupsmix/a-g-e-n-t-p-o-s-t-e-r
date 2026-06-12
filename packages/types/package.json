@@ -3,14 +3,60 @@
   "version": "0.1.0",
   "private": true,
   "description": "Shared TypeScript interfaces for the posteragent monorepo (legacy at ., NEXUS domain types at ./nexus — audit 2.3)",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./nexus": "./src/nexus/index.ts",
-    "./nexus/*": "./src/nexus/*.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./nexus": {
+      "types": "./dist/nexus/index.d.ts",
+      "default": "./dist/nexus/index.js"
+    },
+    "./nexus/action": {
+      "types": "./dist/nexus/action.d.ts",
+      "default": "./dist/nexus/action.js"
+    },
+    "./nexus/ai": {
+      "types": "./dist/nexus/ai.d.ts",
+      "default": "./dist/nexus/ai.js"
+    },
+    "./nexus/announcement": {
+      "types": "./dist/nexus/announcement.d.ts",
+      "default": "./dist/nexus/announcement.js"
+    },
+    "./nexus/api-contract": {
+      "types": "./dist/nexus/api-contract.d.ts",
+      "default": "./dist/nexus/api-contract.js"
+    },
+    "./nexus/domain": {
+      "types": "./dist/nexus/domain.d.ts",
+      "default": "./dist/nexus/domain.js"
+    },
+    "./nexus/flags": {
+      "types": "./dist/nexus/flags.d.ts",
+      "default": "./dist/nexus/flags.js"
+    },
+    "./nexus/platform": {
+      "types": "./dist/nexus/platform.d.ts",
+      "default": "./dist/nexus/platform.js"
+    },
+    "./nexus/portfolio": {
+      "types": "./dist/nexus/portfolio.d.ts",
+      "default": "./dist/nexus/portfolio.js"
+    },
+    "./nexus/product": {
+      "types": "./dist/nexus/product.d.ts",
+      "default": "./dist/nexus/product.js"
+    },
+    "./nexus/workflow": {
+      "types": "./dist/nexus/workflow.d.ts",
+      "default": "./dist/nexus/workflow.js"
+    }
   },
   "scripts": {
+    "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

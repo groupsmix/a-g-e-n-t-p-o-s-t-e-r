@@ -42,6 +42,8 @@ export interface PublishJob {
   meta?: Record<string, unknown>
   /** Idempotency key — adapters skip duplicates. */
   idempotencyKey?: string
+  /** Status override for drafts/approvals. */
+  status?: string
 }
 
 export interface PublishResult {

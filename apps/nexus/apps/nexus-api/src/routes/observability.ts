@@ -32,6 +32,28 @@ interface ProductRow {
   created_at: string
 }
 
+interface AICallRow {
+  id: string
+  ts: string
+  task_type: string
+  model_used: string | null
+  source: string | null
+  cost_usd: number
+  latency_ms: number
+  caller: string
+  workflow_id: string | null
+  ok: number
+}
+
+interface AIModelHealthRow {
+  model_used: string | null
+  total_calls: number
+  ok_calls: number
+  failed_calls: number
+  avg_latency_ms: number
+  spend_usd: number
+}
+
 export const observabilityRoutes = new Hono<{ Bindings: Env }>()
 
 // BUG-FIX (D1_ERROR: no such column: domain_slug):
@@ -54,6 +76,8 @@ export const observabilityRoutes = new Hono<{ Bindings: Env }>()
       publishResults,
       productCounts,
       aiSpend,
+      recentAiCalls,
+      aiModelHealth,
     ] = await Promise.all([
       c.env.DB.prepare(
         `SELECT wr.id, wr.status,
@@ -98,10 +122,15 @@ export const observabilityRoutes = new Hono<{ Bindings: Env }>()
       ).all<{ status: string; count: number }>(),
 
       fetchAiSpend(c.env),
+      fetchRecentAiCalls(c.env),
+      fetchAiModelHealth(c.env),
     ])
 
     const failedWorkflows = (recentRuns.results ?? []).filter((r) => r.status === 'failed')
     const successWorkflows = (recentRuns.results ?? []).filter((r) => r.status === 'completed')
+    const aiCalls = recentAiCalls.results ?? []
+    const aiFailures = aiCalls.filter((row) => Number(row.ok) === 0)
+    const offlineCalls = aiCalls.filter((row) => row.source === 'offline')
 
     return c.json({
       summary: {
@@ -115,10 +144,15 @@ export const observabilityRoutes = new Hono<{ Bindings: Env }>()
         ai_spend_today: aiSpend.today,
         ai_spend_cap: aiSpend.cap,
         ai_cap_reached: aiSpend.cap_reached,
+        recent_ai_calls: aiCalls.length,
+        failed_ai_calls: aiFailures.length,
+        offline_ai_calls: offlineCalls.length,
       },
       failed_steps: failedSteps.results ?? [],
       recent_workflows: recentRuns.results ?? [],
       publish_results: publishResults.results ?? [],
+      recent_ai_calls: aiCalls,
+      ai_model_health: aiModelHealth.results ?? [],
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
@@ -131,9 +165,7 @@ async function fetchAiSpend(
   env: Env,
 ): Promise<{ today: number; cap: number; cap_reached: boolean }> {
   try {
-    const res = await env.AI_WORKER.fetch(
-      new Request('https://nexus-ai/spend', { method: 'GET' }),
-    )
+    const res = await env.AI_WORKER.fetch('https://nexus-ai/spend', { method: 'GET' })
     if (res.ok) {
       return (await res.json()) as { today: number; cap: number; cap_reached: boolean }
     }
@@ -141,4 +173,37 @@ async function fetchAiSpend(
     /* AI worker unreachable */
   }
   return { today: 0, cap: 0, cap_reached: false }
+}
+
+async function fetchRecentAiCalls(env: Env): Promise<{ results: AICallRow[] }> {
+  try {
+    return await env.DB.prepare(
+      `SELECT id, ts, task_type, model_used, source, cost_usd, latency_ms, caller, workflow_id, ok
+         FROM ai_calls
+        ORDER BY ts DESC
+        LIMIT 20`,
+    ).all<AICallRow>()
+  } catch {
+    return { results: [] }
+  }
+}
+
+async function fetchAiModelHealth(env: Env): Promise<{ results: AIModelHealthRow[] }> {
+  try {
+    return await env.DB.prepare(
+      `SELECT model_used,
+              COUNT(*) AS total_calls,
+              SUM(CASE WHEN ok = 1 THEN 1 ELSE 0 END) AS ok_calls,
+              SUM(CASE WHEN ok = 0 THEN 1 ELSE 0 END) AS failed_calls,
+              AVG(latency_ms) AS avg_latency_ms,
+              SUM(cost_usd) AS spend_usd
+         FROM ai_calls
+        WHERE ts >= datetime('now', '-7 days')
+        GROUP BY model_used
+        ORDER BY total_calls DESC, spend_usd DESC
+        LIMIT 12`,
+    ).all<AIModelHealthRow>()
+  } catch {
+    return { results: [] }
+  }
 }

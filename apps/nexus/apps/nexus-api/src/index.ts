@@ -66,6 +66,9 @@ import { signalRoutes } from './routes/signals'
 import { tasksRoutes } from './routes/tasks'
 import { agentsRoutes } from './routes/agents'
 import { brainRoutes } from './routes/brain'
+import { approvalsRoutes } from './routes/approvals'
+import { processesRoutes } from './routes/processes'
+import { notificationsRoutes } from './routes/notifications'
 import { metricsRoutes } from './routes/metrics'
 import { publisherQueueRoutes } from './routes/publisher-queue'
 import { analyticsRoutes, buildAdapters as buildAnalyticsAdapters } from './routes/analytics'
@@ -75,6 +78,8 @@ import { tickOrchestrator } from './services/orchestrator-bridge'
 import { moneyMachineRoutes } from './routes/money-machine'
 import { budgetRoutes } from './routes/budget'
 import { insightsRoutes } from './routes/insights'
+import { announcementRoutes } from './routes/announcements'
+import { flagRoutes } from './routes/flags'
 import {
   D1SnapshotStore,
   collectAnalytics,
@@ -250,6 +255,9 @@ api.route('/tracked-links', trackedLinkRoutes)
 api.route('/events', eventRoutes)
 api.route('/signals', signalRoutes)
 api.route('/tasks', tasksRoutes)
+api.route('/approvals', approvalsRoutes)
+api.route('/processes', processesRoutes)
+api.route('/notifications', notificationsRoutes)
 // Phase 3 — orchestrator surface + dashboard brain reads (TASK-300)
 api.route('/agents', agentsRoutes)
 api.route('/brain', brainRoutes)
@@ -267,6 +275,8 @@ api.route('/revenue', revenueRoutes)
 api.route('/budget', budgetRoutes)
 // Phase 10 — MindsDB-backed unified insights (TASK-1003)
 api.route('/insights', insightsRoutes)
+api.route('/announcements', announcementRoutes)
+api.route('/flags', flagRoutes)
 // Auto money machine — end-to-end chain (research → write → generate → publish)
 // backed by the orchestrator's BaseAgent (memory + identity + journal).
 api.route('/money-machine', moneyMachineRoutes)

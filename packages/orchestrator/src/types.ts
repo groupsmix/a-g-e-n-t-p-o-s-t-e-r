@@ -51,6 +51,10 @@ export interface AgentContext<P = Record<string, unknown>> {
   db: OrchestratorDB
   signal: AbortSignal
   /**
+   * Helper to write a task event to the control-plane database.
+   */
+  logEvent?: (eventType: string, message: string) => Promise<void>
+  /**
    * If set, the handler should attribute LLM calls to this owner-scoped
    * model alias.  Resolved from settings / env at dispatch time.
    */
@@ -101,6 +105,7 @@ export interface TaskBudgetGuard {
  * `AgentResult`, persists the row, and writes follow-up memories.
  */
 export interface HandlerOutcome<T = unknown> {
+  status?: 'done' | 'failed' | 'needs_me'
   data: T
   /** What the orchestrator should persist to the journal entry. */
   summary: string
@@ -122,6 +127,12 @@ export interface HandlerOutcome<T = unknown> {
     outputTokens?: number
     costUsd?: number
   }
+  /** Artifacts produced by this run. */
+  artifacts?: Array<{
+    kind: string
+    url?: string
+    content?: string
+  }>
 }
 
 /**
@@ -150,6 +161,8 @@ export interface DispatchOptions {
   systemPromptOverride?: string
   /** Skip writing journal + memories on success.  Use for dry runs. */
   skipPersist?: boolean
+  /** Skip manual approval policy check. Useful for tests. */
+  skipApproval?: boolean
 }
 
 // ─── Public result alias (re-export for convenience) ──────────────────────

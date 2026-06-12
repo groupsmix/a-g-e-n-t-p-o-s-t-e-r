@@ -41,6 +41,8 @@ const STATUS_META = {
   done: { icon: CheckCircle2, color: 'text-success', variant: 'success' as const, label: 'Done' },
   failed: { icon: XCircle, color: 'text-destructive', variant: 'destructive' as const, label: 'Failed' },
   cancelled: { icon: XCircle, color: 'text-muted-foreground', variant: 'outline' as const, label: 'Cancelled' },
+  needs_me: { icon: Clock, color: 'text-warning', variant: 'outline' as const, label: 'Needs Me' },
+  archived: { icon: Clock, color: 'text-muted-foreground', variant: 'outline' as const, label: 'Archived' },
 }
 
 interface TaskCardProps {

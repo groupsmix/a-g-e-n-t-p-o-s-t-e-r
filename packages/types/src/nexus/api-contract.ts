@@ -377,6 +377,43 @@ export interface EmailCampaign {
   product_name?: string | null
 }
 
+export interface Lead {
+  fingerprint: string
+  source: string
+  source_id: string
+  author: string
+  author_bio: string | null
+  text: string
+  url: string
+  posted_at: string
+  matched_terms: string[]
+  extra: Record<string, unknown> | null
+  score_total: number
+  score_intent: string
+  score_components: Record<string, number>
+  suggested_reply: string | null
+  status: string
+  engaged_at: string | null
+  dismissed_at: string | null
+  operator_note: string | null
+  contact_email: string | null
+  contact_name: string | null
+  company_name: string | null
+  company_domain: string | null
+  source_type: string
+  last_contacted_at: string | null
+  contact_status: string
+  enrichment: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface LeadStats {
+  byStatus: Array<{ status: string; n: number }>
+  byIntent: Array<{ intent: string; n: number }>
+  bySource: Array<{ source: string; n: number }>
+  top_score: number
+}
+
 export interface MarketingLogEntry {
   channel: string | null
   content: string | null

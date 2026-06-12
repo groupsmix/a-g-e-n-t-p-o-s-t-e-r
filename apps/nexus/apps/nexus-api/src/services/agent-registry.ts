@@ -12,6 +12,8 @@
  * in migration 023).
  */
 
+import type { Env } from '../env'
+
 export const AGENT_TASK_TYPES = [
   'research',
   'write',
@@ -31,8 +33,8 @@ export const AGENT_TASK_TYPES = [
 
 export type AgentTaskType = (typeof AGENT_TASK_TYPES)[number]
 
-/** Implementation maturity — drives the "stub" badge in the dashboard. */
-export type AgentStatus = 'real' | 'stub' | 'planned'
+/** Implementation maturity — drives the status badge in the dashboard. */
+export type AgentStatus = 'real_wired' | 'real_not_wired' | 'stub_by_design' | 'not_supported'
 
 export interface AgentDescriptor {
   type: AgentTaskType
@@ -52,12 +54,11 @@ export interface AgentDescriptor {
 
 // ── Registry ──────────────────────────────────────────────────────────────
 
-const REGISTRY: Record<AgentTaskType, AgentDescriptor> = {
+const REGISTRY: Record<AgentTaskType, Omit<AgentDescriptor, 'status'>> = {
   research: {
     type: 'research',
     name: 'Deep Researcher',
     description: 'Multi-sub-question web research with citations. Anthropic + Tavily.',
-    status: 'real',
     costBand: 'mid',
     estimatedCostUsd: 0.18,
     tags: ['research', 'web'],
@@ -66,7 +67,6 @@ const REGISTRY: Record<AgentTaskType, AgentDescriptor> = {
     type: 'write',
     name: 'Writer',
     description: 'Long-form content from a brief, voice-locked to SOUL.md.',
-    status: 'stub',
     costBand: 'cheap',
     estimatedCostUsd: 0.04,
     tags: ['content', 'longform'],
@@ -75,7 +75,6 @@ const REGISTRY: Record<AgentTaskType, AgentDescriptor> = {
     type: 'build-app',
     name: 'App Builder',
     description: 'Scaffolds a small app skeleton from a spec.',
-    status: 'stub',
     costBand: 'high',
     estimatedCostUsd: 0.6,
     tags: ['builder', 'code'],
@@ -84,7 +83,6 @@ const REGISTRY: Record<AgentTaskType, AgentDescriptor> = {
     type: 'build-site',
     name: 'Site Factory',
     description: 'Generates a multi-page marketing site from a brief.',
-    status: 'stub',
     costBand: 'mid',
     estimatedCostUsd: 0.25,
     tags: ['builder', 'site'],
@@ -93,7 +91,6 @@ const REGISTRY: Record<AgentTaskType, AgentDescriptor> = {
     type: 'publish',
     name: 'Publisher',
     description: 'Pushes drafted content to a target platform via its adapter.',
-    status: 'stub',
     costBand: 'free',
     estimatedCostUsd: 0,
     tags: ['publish', 'social'],
@@ -102,7 +99,6 @@ const REGISTRY: Record<AgentTaskType, AgentDescriptor> = {
     type: 'analyse',
     name: 'Analyst',
     description: 'Summarises a corpus or signal stream into a one-pager.',
-    status: 'stub',
     costBand: 'cheap',
     estimatedCostUsd: 0.05,
     tags: ['analysis'],
@@ -111,7 +107,6 @@ const REGISTRY: Record<AgentTaskType, AgentDescriptor> = {
     type: 'generate-video',
     name: 'Video Generator',
     description: 'Stitches a short video from a script via Remotion + a TTS voice.',
-    status: 'stub',
     costBand: 'high',
     estimatedCostUsd: 0.8,
     tags: ['content', 'video'],
@@ -120,7 +115,6 @@ const REGISTRY: Record<AgentTaskType, AgentDescriptor> = {
     type: 'generate-image',
     name: 'Image Generator',
     description: 'Renders a single image from a prompt via FAL or Replicate.',
-    status: 'stub',
     costBand: 'cheap',
     estimatedCostUsd: 0.02,
     tags: ['content', 'image'],
@@ -129,7 +123,6 @@ const REGISTRY: Record<AgentTaskType, AgentDescriptor> = {
     type: 'lead-scrape',
     name: 'Lead Scraper',
     description: 'Pulls a contact list from a public source against a query.',
-    status: 'stub',
     costBand: 'mid',
     estimatedCostUsd: 0.15,
     tags: ['leads', 'crm'],
@@ -138,7 +131,6 @@ const REGISTRY: Record<AgentTaskType, AgentDescriptor> = {
     type: 'email-campaign',
     name: 'Email Campaign',
     description: 'Drafts + schedules a multi-step email sequence to a list.',
-    status: 'stub',
     costBand: 'cheap',
     estimatedCostUsd: 0.08,
     tags: ['email', 'crm'],
@@ -147,7 +139,6 @@ const REGISTRY: Record<AgentTaskType, AgentDescriptor> = {
     type: 'financial-analysis',
     name: 'Financial Analyst',
     description: 'Pulls KPIs across revenue sources into a single brief.',
-    status: 'stub',
     costBand: 'cheap',
     estimatedCostUsd: 0.06,
     tags: ['analysis', 'revenue'],
@@ -156,7 +147,6 @@ const REGISTRY: Record<AgentTaskType, AgentDescriptor> = {
     type: 'brand-monitor',
     name: 'Brand Monitor',
     description: 'Scans mentions across platforms for sentiment + urgency.',
-    status: 'stub',
     costBand: 'cheap',
     estimatedCostUsd: 0.07,
     tags: ['analysis', 'brand'],
@@ -165,7 +155,6 @@ const REGISTRY: Record<AgentTaskType, AgentDescriptor> = {
     type: 'autonome-run',
     name: 'Autonome',
     description: 'Runs a scheduled multi-step goal until completion or budget.',
-    status: 'stub',
     costBand: 'high',
     estimatedCostUsd: 1.2,
     tags: ['autonome', 'scheduled'],
@@ -174,21 +163,63 @@ const REGISTRY: Record<AgentTaskType, AgentDescriptor> = {
     type: 'memory-consolidate',
     name: 'Memory Consolidator',
     description: 'Folds unconsolidated journal entries into long-term memories.',
-    status: 'real',
     costBand: 'free',
     estimatedCostUsd: 0,
     tags: ['brain', 'maintenance'],
   },
 }
 
-/** Read-only access to the full descriptor map. */
-export function listAgents(): AgentDescriptor[] {
-  return AGENT_TASK_TYPES.map((t) => REGISTRY[t])
+/** Compute status of each handler dynamically based on available configuration */
+export async function getAgentStatus(type: AgentTaskType, env?: Env): Promise<AgentStatus> {
+  if (!env) {
+    if (type === 'research' || type === 'memory-consolidate' || type === 'write' || type === 'autonome-run' || type === 'analyse' || type === 'financial-analysis') {
+      return 'real_not_wired'
+    }
+    return 'stub_by_design'
+  }
+
+  switch (type) {
+    case 'research': {
+      const anthropicKey = env.SECRETS ? await env.SECRETS.get('ANTHROPIC_API_KEY').catch(() => null) : null
+      const tavilyKey = env.SECRETS ? await env.SECRETS.get('TAVILY_API_KEY').catch(() => null) : null
+      return (anthropicKey && tavilyKey) ? 'real_wired' : 'real_not_wired'
+    }
+    case 'write': {
+      const anthropicKey = env.SECRETS ? await env.SECRETS.get('ANTHROPIC_API_KEY').catch(() => null) : null
+      return anthropicKey ? 'real_wired' : 'real_not_wired'
+    }
+    case 'memory-consolidate':
+    case 'autonome-run':
+    case 'analyse': {
+      // Memory consolidator, autonome tick, and platform analytics are native
+      return 'real_wired'
+    }
+    case 'financial-analysis': {
+      const amazonReportUrl = env.SECRETS ? await env.SECRETS.get('AMAZON_REPORT_URL').catch(() => null) : null
+      const hasAdapter = env.GUMROAD_ACCESS_TOKEN || amazonReportUrl
+      return hasAdapter ? 'real_wired' : 'real_not_wired'
+    }
+    default:
+      return 'stub_by_design'
+  }
 }
 
-export function getAgent(type: string): AgentDescriptor | null {
+/** Read-only access to the full descriptor map. */
+export async function listAgents(env?: Env): Promise<AgentDescriptor[]> {
+  const list: AgentDescriptor[] = []
+  for (const t of AGENT_TASK_TYPES) {
+    const desc = REGISTRY[t]
+    const status = await getAgentStatus(t, env)
+    list.push({ ...desc, status })
+  }
+  return list
+}
+
+export async function getAgent(type: string, env?: Env): Promise<AgentDescriptor | null> {
   if (!isAgentTaskType(type)) return null
-  return REGISTRY[type]
+  const desc = REGISTRY[type]
+  const status = await getAgentStatus(type, env)
+  return { ...desc, status }
 }
 
 export function isAgentTaskType(value: unknown): value is AgentTaskType {
@@ -199,10 +230,12 @@ export function isAgentTaskType(value: unknown): value is AgentTaskType {
 }
 
 /** Quick group/filter helpers used by the registry route. */
-export function listAgentsByStatus(status: AgentStatus): AgentDescriptor[] {
-  return listAgents().filter((a) => a.status === status)
+export async function listAgentsByStatus(status: AgentStatus, env?: Env): Promise<AgentDescriptor[]> {
+  const list = await listAgents(env)
+  return list.filter((a) => a.status === status)
 }
 
-export function listAgentsByTag(tag: string): AgentDescriptor[] {
-  return listAgents().filter((a) => a.tags.includes(tag))
+export async function listAgentsByTag(tag: string, env?: Env): Promise<AgentDescriptor[]> {
+  const list = await listAgents(env)
+  return list.filter((a) => a.tags.includes(tag))
 }

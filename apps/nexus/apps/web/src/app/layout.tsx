@@ -4,6 +4,7 @@ import { AppShell } from '@/components/shell/AppShell'
 import ToastContainer from '@/components/shell/ToastContainer'
 import { ErrorBoundary } from '@/components/shell/ErrorBoundary'
 import KeyboardShortcuts from '@/components/shell/KeyboardShortcuts'
+import { FlagsProvider } from '@/components/shell/FlagsProvider'
 
 export const metadata: Metadata = {
   title: 'NEXUS — AI Product Engine',
@@ -37,9 +38,11 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
-        <ErrorBoundary fallbackTitle="Page failed to load">
-          <AppShell>{children}</AppShell>
-        </ErrorBoundary>
+        <FlagsProvider>
+          <ErrorBoundary fallbackTitle="Page failed to load">
+            <AppShell>{children}</AppShell>
+          </ErrorBoundary>
+        </FlagsProvider>
         <ToastContainer />
         <KeyboardShortcuts />
       </body>

@@ -20,7 +20,7 @@
 import type { LLMClient } from '@posteragent/agent-research'
 import type { AgentContext, AgentHandler, HandlerOutcome } from '../../types.js'
 
-export type WriteFormat = 'blog' | 'thread' | 'instagram' | 'linkedin' | 'newsletter' | 'tiktok' | 'youtube_script'
+export type WriteFormat = 'blog' | 'thread' | 'instagram' | 'linkedin' | 'newsletter' | 'tiktok' | 'youtube_script' | 'landing_page' | 'product_description'
 
 export interface WritePayload {
   brief: string
@@ -59,6 +59,8 @@ const FORMAT_INSTRUCTIONS: Record<WriteFormat, string> = {
   newsletter: 'A newsletter section: headline + 300–500 word body in markdown. End with one suggested CTA link placeholder ({CTA_URL}).',
   tiktok: 'A 45–60 second TikTok script. Hook (3s), 3 beats, CTA. Plain text, no scene directions.',
   youtube_script: 'A YouTube shorts script (60s). Cold open hook, payload, CTA. Plain text, no production notes.',
+  landing_page: 'A complete landing page copy in markdown. Include H1 hero headline, sub-headline, value proposition list, features/benefits section, pricing tiers, and FAQ.',
+  product_description: 'A high-converting product description (200-300 words). Include an attention-grabbing hook, key features & benefits bullet points, target audience specification, and a strong call-to-action.',
 }
 
 export function createWriteHandler(deps: WriteHandlerDeps): AgentHandler<WritePayload, WriteHandlerData> {
@@ -144,12 +146,21 @@ export function createWriteHandler(deps: WriteHandlerDeps): AgentHandler<WritePa
         tags: ['write', p.format],
       }))
 
+      const artifacts = pieces.map((p) => {
+        const isMarkdown = p.format === 'blog' || p.format === 'landing_page' || p.format === 'newsletter' || p.format === 'product_description'
+        return {
+          kind: isMarkdown ? 'markdown_doc' : 'social_post',
+          content: p.body ?? p.parts?.join('\n\n') ?? '',
+        }
+      })
+
       return {
         data: { pieces },
         summary,
         memories,
         nextActions,
         usage: { model, inputTokens, outputTokens },
+        artifacts,
       }
     },
   }
@@ -160,7 +171,7 @@ function parseFormat(format: WriteFormat, brief: string, raw: string): WritePiec
 
   if (format === 'thread' || format === 'instagram') {
     const parts = tryParseJsonArray(raw) ?? raw
-      .split(/\n\s*\n|\r?\n[•\-\d]+[\.\)]\s+/)
+      .split(/\n\s*\n|\r?\n[•\-\d]+[.)]\s+/)
       .map((s) => s.trim())
       .filter(Boolean)
       .slice(0, 12)

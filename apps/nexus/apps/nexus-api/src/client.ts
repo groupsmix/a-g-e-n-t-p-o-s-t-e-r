@@ -66,6 +66,8 @@ import type { revenueRoutes } from './routes/revenue'
 import type { budgetRoutes } from './routes/budget'
 import type { insightsRoutes } from './routes/insights'
 import type { moneyMachineRoutes } from './routes/money-machine'
+import type { announcementRoutes } from './routes/announcements'
+import type { flagRoutes } from './routes/flags'
 
 /** Mounted at /api/auth */
 export type AuthApi = typeof authRoutes
@@ -252,3 +254,9 @@ export type InsightsApi = typeof insightsRoutes
 
 /** Mounted at /api/money-machine */
 export type MoneyMachineApi = typeof moneyMachineRoutes
+
+/** Mounted at /api/announcements */
+export type AnnouncementsApi = typeof announcementRoutes
+
+/** Mounted at /api/flags */
+export type FlagsApi = typeof flagRoutes

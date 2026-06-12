@@ -58,6 +58,10 @@ describe('Failover Engine', () => {
     expect(res.models_tried).toContain('claude')
     expect(res.models_tried).toContain('deepseek-r1')
     expect(res.output).toBe('deepseek-success')
+    expect(res.attempts?.map((attempt) => `${attempt.model}:${attempt.status}`)).toEqual([
+      'claude:failed',
+      'deepseek-r1:success',
+    ])
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
@@ -112,6 +116,11 @@ describe('Failover Engine', () => {
     expect(res.models_tried).not.toContain('deepseek-r1')
     // The universal Groq fallback should have fired
     expect(res.model_used).toBe('groq-llama-3.3-70b')
+    expect(res.attempts?.at(-1)).toMatchObject({
+      model: 'groq-llama-3.3-70b',
+      provider: 'groq',
+      status: 'success',
+    })
   })
 
   it('offline fallback fires only when every provider fails', async () => {
@@ -123,6 +132,11 @@ describe('Failover Engine', () => {
     
     expect(res.model_used).toBe('offline-template')
     expect(res.output).toBeTruthy()
+    expect(res.attempts?.at(-1)).toMatchObject({
+      model: 'offline-template',
+      provider: 'offline',
+      status: 'success',
+    })
   })
 })
 

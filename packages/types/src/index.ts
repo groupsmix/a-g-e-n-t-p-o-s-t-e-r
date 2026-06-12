@@ -24,7 +24,7 @@ export type AgentTaskType =
   | 'memory-consolidate'
 
 /** Lifecycle status for a queued agent task. */
-export type AgentTaskStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
+export type AgentTaskStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled' | 'needs_me' | 'archived'
 
 /** A single unit of work dispatched to an agent. */
 export interface AgentTask {
@@ -51,7 +51,7 @@ export interface AgentTask {
 export interface AgentResult<T = unknown> {
   taskId: string
   type: AgentTaskType
-  status: 'done' | 'failed'
+  status: 'done' | 'failed' | 'needs_me'
   data?: T
   error?: string
   costUsd?: number
@@ -186,4 +186,59 @@ export interface PublishResult {
   externalId?: string
   success: boolean
   error?: string
+}
+
+// ─── Control Plane (Task 3.2) ────────────────────────────────────────────────
+
+export interface TaskEvent {
+  id: string
+  taskId: string
+  eventType: string
+  message: string
+  createdAt: Date
+}
+
+export interface AgentMessage {
+  id: string
+  taskId: string
+  sender: string
+  content: string
+  createdAt: Date
+}
+
+export interface ApprovalRequest {
+  id: string
+  taskId: string
+  actionType: string
+  riskLevel: 'low' | 'medium' | 'high'
+  status: 'pending' | 'approved' | 'rejected' | 'changes_requested'
+  createdAt: Date
+  resolvedAt?: Date
+  feedback?: string
+}
+
+export interface TaskArtifact {
+  id: string
+  taskId: string
+  kind: string
+  url?: string
+  content?: string
+  createdAt: Date
+}
+
+export interface LiveProcess {
+  id: string
+  taskId?: string
+  name: string
+  status: 'running' | 'done' | 'failed'
+  createdAt: Date
+}
+
+export interface Notification {
+  id: string
+  type: string
+  title: string
+  message: string
+  read: boolean
+  createdAt: Date
 }

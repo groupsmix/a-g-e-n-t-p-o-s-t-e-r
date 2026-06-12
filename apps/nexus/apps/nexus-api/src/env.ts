@@ -58,6 +58,11 @@ export interface Env {
   // Gumroad access token for auto-publish
   GUMROAD_ACCESS_TOKEN?: string
 
+  // Resend email delivery and verified sender identity for campaign sending.
+  RESEND_API_KEY?: string
+  EMAIL_FROM?: string
+  EMAIL_TO?: string
+
   // ── Legacy stats-pull (audit §2.2 — Workers port of stats-pull.yml) ──
   // Supabase project URL + service-role key for the LEGACY pipeline's
   // published_posts table. While unset, the legacy stats cron lane no-ops.

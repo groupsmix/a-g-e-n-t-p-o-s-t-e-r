@@ -102,7 +102,6 @@ describe('defaultRegistry', () => {
         },
         systemPrompt: 'soul',
         memories: [],
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         db: {} as any,
         log: silentLogger,
         signal: new AbortController().signal,
@@ -110,7 +109,6 @@ describe('defaultRegistry', () => {
       const outcome = await h.run(fakeCtx)
       expect(outcome.summary).toBeTypeOf('string')
       expect(outcome.summary.length).toBeGreaterThan(0)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect((outcome.data as any)?.stub).toBe(true)
     }
   })
