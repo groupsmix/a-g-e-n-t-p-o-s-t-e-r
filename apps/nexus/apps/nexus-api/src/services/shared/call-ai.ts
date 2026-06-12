@@ -3,6 +3,7 @@ import type { AIRunTaskResponse } from '@posteragent/types/nexus'
 import { createLogger } from '@posteragent/logger/workers'
 import { safeJson } from './json-parse'
 import { z } from 'zod'
+import { scheduleAICallLedgerWrite, type WaitUntilLike } from '../ai-call-ledger'
 
 const logger = createLogger({ service: 'nexus-api', module: 'call-ai' })
 
@@ -46,6 +47,12 @@ export async function callAI(
     allowOffline?: boolean
     /** Models to exclude from failover chain. */
     excludeModelIds?: string[]
+    /** Fire-and-forget context for ledger writes when available. */
+    executionCtx?: WaitUntilLike
+    /** Logical caller name for observability. */
+    caller?: string
+    /** Optional workflow run id to join AI calls to workflow traces. */
+    workflowId?: string
   } = {},
 ): Promise<AIRunTaskResponse> {
   const taskType = opts.taskType ?? 'generate_long_form'
@@ -53,47 +60,99 @@ export async function callAI(
   const timeoutMs = opts.timeoutMs ?? 60000
   const allowOffline = opts.allowOffline ?? false
   const excludeModelIds = opts.excludeModelIds
+  const executionCtx = opts.executionCtx
+  const caller = opts.caller ?? 'unknown'
+  const workflowId = opts.workflowId
   // Default to 1 (single attempt). Callers that need transport-retry can opt in.
   const maxAttempts = Math.max(1, opts.retries ?? 1)
   // One hard deadline for the whole call — no per-attempt stacking.
   const deadlineMs = timeoutMs + 10000
 
   let lastErr: unknown
+  const callStartedAt = Date.now()
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const ctl = new AbortController()
-    const deadlineTimer = setTimeout(() => ctl.abort(), deadlineMs)
+    const deadlinePromise = new Promise<Response>((_, reject) => {
+      setTimeout(() => reject(new Error(`AI worker ${taskType} timed out`)), deadlineMs)
+    })
 
     try {
-      const req = new Request('https://nexus-ai/task', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ taskType, prompt, outputFormat, timeoutMs, excludeModelIds }),
-        signal: ctl.signal,
-      })
-
-      const res = await env.AI_WORKER.fetch(req)
-      const body = (await res.json()) as AIRunTaskResponse & { error?: string }
+      const res = await Promise.race([
+        env.AI_WORKER.fetch('https://nexus-ai/task', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ taskType, prompt, outputFormat, timeoutMs, excludeModelIds }),
+        }),
+        deadlinePromise,
+      ])
+      const contentType = res.headers.get('content-type') || ''
+      const body = contentType.includes('application/json')
+        ? (await res.json().catch(() => null)) as (AIRunTaskResponse & {
+            error?: string
+            errorClass?: string
+            attempts?: unknown[]
+          }) | null
+        : null
 
       if (!res.ok) {
-        // Worker returned a structured error body.
         const msg = body?.error ?? res.statusText
+        const isStructuredWorkerError = Boolean(body?.errorClass || body?.attempts?.length)
 
         // "All AI models failed" = the internal chain is exhausted.
         // Retrying will just repeat the same exhausted chain — pure waste.
         if (msg.includes('All AI models failed')) {
-          logger.warn('AI chain exhausted — not retrying', { taskType, models_tried: body?.models_tried })
-          throw Object.assign(new Error(msg), { isChainExhausted: true })
+          logger.warn('AI chain exhausted — not retrying', {
+            taskType,
+            models_tried: body?.models_tried,
+            attempts: body?.attempts?.length ?? 0,
+          })
+          throw Object.assign(new Error(msg), {
+            isChainExhausted: true,
+            isStructuredWorkerError: true,
+            response: body,
+          })
+        }
+
+        // Any clean JSON worker error body is a logical failure, not transport.
+        // Retrying would replay the same worker logic and duplicate latency/spend.
+        if (isStructuredWorkerError) {
+          logger.warn('AI worker returned structured error — not retrying', {
+            taskType,
+            status: res.status,
+            errorClass: body?.errorClass,
+          })
+          throw Object.assign(new Error(msg), { isStructuredWorkerError: true, response: body })
         }
 
         // Worker infrastructure error (e.g. 503 deploy issue) — worth one retry.
         throw new Error(`AI worker ${taskType} failed: ${res.status} ${msg}`)
       }
 
+      if (!body) {
+        throw new Error(`AI worker ${taskType} returned a non-JSON success response`)
+      }
+
       if (body.source === 'offline' && !allowOffline) {
+        scheduleAICallLedgerWrite(env, executionCtx, {
+          taskType,
+          caller,
+          workflowId,
+          latencyMs: Date.now() - callStartedAt,
+          ok: false,
+          response: body,
+          errorMessage: 'Offline fallback returned but caller disallows offline output',
+        })
         logger.error('AI call returned offline template, but offline is not allowed', undefined, { taskType })
         throw new AIUnavailableError()
       }
 
+      scheduleAICallLedgerWrite(env, executionCtx, {
+        taskType,
+        caller,
+        workflowId,
+        latencyMs: Date.now() - callStartedAt,
+        ok: true,
+        response: body,
+      })
       logger.info('AI call succeeded', {
         taskType,
         model_used: body.model_used,
@@ -105,11 +164,11 @@ export async function callAI(
 
       return body
     } catch (err: any) {
-      clearTimeout(deadlineTimer)
       lastErr = err
 
-      // Hard deadline fired, AIUnavailableError or chain already exhausted — never retry.
-      if (err?.name === 'AbortError' || err?.isChainExhausted || err instanceof AIUnavailableError) break
+      // Hard deadline fired, AIUnavailableError, chain exhaustion, or any clean
+      // structured worker error — never retry.
+      if (/timed out/i.test(err?.message ?? '') || err?.isChainExhausted || err?.isStructuredWorkerError || err instanceof AIUnavailableError) break
 
       // Only retry on transport errors, not logical failures.
       if (attempt < maxAttempts) {
@@ -118,11 +177,18 @@ export async function callAI(
         await new Promise((r) => setTimeout(r, backoffMs))
       }
       continue
-    } finally {
-      clearTimeout(deadlineTimer)
     }
   }
 
+  scheduleAICallLedgerWrite(env, executionCtx, {
+    taskType,
+    caller,
+    workflowId,
+    latencyMs: Date.now() - callStartedAt,
+    ok: false,
+    response: (lastErr as { response?: AIRunTaskResponse } | null)?.response,
+    errorMessage: lastErr instanceof Error ? lastErr.message : String(lastErr),
+  })
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr))
 }
 
@@ -139,6 +205,9 @@ export async function callAISimple(
     outputFormat?: 'text' | 'json'
     timeoutMs?: number
     retries?: number
+    executionCtx?: WaitUntilLike
+    caller?: string
+    workflowId?: string
   } = {},
 ): Promise<string> {
   const res = await callAI(env, prompt, opts)
@@ -159,6 +228,9 @@ export async function callAIJson<T>(
     retries?: number
     excludeModelIds?: string[]
     meta?: { response?: AIRunTaskResponse }
+    executionCtx?: WaitUntilLike
+    caller?: string
+    workflowId?: string
   } = {},
 ): Promise<T> {
   const taskType = opts.taskType ?? 'generate_long_form'

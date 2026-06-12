@@ -132,13 +132,14 @@ describe('access gate — ACCESS_PASSWORD env secret (T1)', () => {
 })
 
 describe('sessions — generation-checked revocation (audit 1.5)', () => {
-  it('mints sessions that record createdAt, ip and generation', async () => {
+  it('mints sessions that record createdAt, ip, ua and generation', async () => {
     const kv = kvStub()
     const env = { CONFIG: kv } as unknown as Env
-    const token = await createSession(env, '203.0.113.7')
+    const token = await createSession(env, '203.0.113.7', 'Mozilla/5.0')
     const raw = kv._store.get('session:' + token)!
     const record = JSON.parse(raw)
     expect(record.ip).toBe('203.0.113.7')
+    expect(record.ua).toBe('Mozilla/5.0')
     expect(record.gen).toBe(0)
     expect(new Date(record.createdAt).getTime()).not.toBeNaN()
     expect(await validateSessionToken(env, token)).toBe(true)

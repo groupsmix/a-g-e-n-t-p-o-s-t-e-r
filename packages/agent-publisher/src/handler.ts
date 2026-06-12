@@ -47,6 +47,37 @@ export function createPublisherHandler(deps: PublisherDeps) {
             media: ctx.payload.media,
             meta: ctx.payload.meta,
           }]
+      // If a JobStore is wired, always create draft jobs (needs_approval) first
+      // instead of executing the publisher adapter directly.
+      if (deps.store) {
+        for (const job of jobs) {
+          await deps.store.enqueue({
+            ...job,
+            idempotencyKey: job.idempotencyKey ?? `${job.platform}:${Date.now()}`,
+            status: 'needs_approval',
+          })
+        }
+        return {
+          data: {
+            results: jobs.map((j) => ({
+              ok: true,
+              platform: j.platform,
+              scheduled: true,
+            })),
+            unrouted: [],
+          },
+          summary: `Created ${jobs.length} publish draft(s) awaiting approval.`,
+          memories: [],
+          nextActions: [
+            {
+              type: 'approval_required',
+              reason: 'Review and approve the publish drafts in the Publisher Queue',
+            },
+          ],
+          usage: { inputTokens: 0, outputTokens: 0 },
+        }
+      }
+
       const report = await runPublisher({ jobs }, deps)
       const ok = report.results.filter((r) => r.ok).length
       const scheduled = report.results.filter((r) => r.scheduled).length

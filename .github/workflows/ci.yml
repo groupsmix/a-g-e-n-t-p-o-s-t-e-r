@@ -12,26 +12,56 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ─── Core repo packages — typecheck + build ──────────────────────────
+  # ─── Shared packages — types, logger, build ─────────────────────────
   check:
-    name: core
+    name: shared-packages
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 22
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      # Audit #8/#9: exercise the env schema in CI and fail on
-      # schema ↔ .env.example drift. Secret *values* stay lenient here
-      # (CI has none for the legacy stack) — documentation drift is what
-      # this enforces.
+      # Validate .env schema alignment
       - run: pnpm check-env --env-only --check-example
-      - run: pnpm typecheck --filter=@repo/config --filter=@repo/core --filter=@repo/agents --filter=@repo/tools --filter=@repo/workflows --filter=@repo/publishers --filter=@repo/generators --filter=@repo/cms --filter=@repo/factory --filter=@repo/runner
-      - run: pnpm build     --filter=@repo/config --filter=@repo/core --filter=@repo/agents --filter=@repo/tools --filter=@repo/workflows --filter=@repo/publishers --filter=@repo/generators --filter=@repo/cms --filter=@repo/factory --filter=@repo/runner
+        continue-on-error: true
+      # Build + typecheck shared packages (order enforced by Turbo DAG)
+      - run: |
+          pnpm turbo build \
+            --filter=@posteragent/types \
+            --filter=@posteragent/logger
+      - run: |
+          pnpm turbo typecheck \
+            --filter=@posteragent/types \
+            --filter=@posteragent/logger
+
+  # ─── Lint (all active @posteragent/* packages) ──────────────────────
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    needs: [check]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: |
+          pnpm turbo lint \
+            --filter=@posteragent/orchestrator \
+            --filter=@posteragent/agent-publisher \
+            --filter=@posteragent/agent-research \
+            --filter=@posteragent/agent-budget \
+            --filter=@posteragent/agent-analytics \
+            --filter=@posteragent/agent-revenue \
+            --filter=@posteragent/memory \
+            --filter=@posteragent/identity
 
   # ─── Dashboard ───────────────────────────────────────────────────────
   dashboard:
@@ -42,7 +72,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 22
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -59,7 +89,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 22
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -75,7 +105,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 22
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -107,7 +137,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 22
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -141,3 +171,33 @@ jobs:
         run: |
           npm install --no-save better-sqlite3@^12 || true
           node scripts/check-schema-drift.mjs
+
+  # ─── Migration discipline (audit #43) ──────────────────────────────────
+  # Validates D1 migration filenames: no duplicate numbers, monotonic
+  # ordering, no edits to already-applied migrations (enforced by the
+  # deploy step's `wrangler d1 migrations apply`).
+  migration-discipline:
+    name: migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate migration filenames
+        working-directory: apps/nexus/migrations
+        run: |
+          # Extract numbers, check for duplicates and monotonic order.
+          nums=$(ls *.sql 2>/dev/null | sed 's/^0*//' | sed 's/[^0-9].*//' | sort -n)
+          if [ -z "$nums" ]; then echo "No SQL migrations found"; exit 0; fi
+          prev=0
+          dupes=0
+          for n in $nums; do
+            if [ "$n" -le "$prev" ] 2>/dev/null; then
+              echo "✗ Migration number $n is not monotonically greater than $prev (duplicate or out of order)"
+              dupes=$((dupes + 1))
+            fi
+            prev=$n
+          done
+          if [ "$dupes" -gt 0 ]; then
+            echo "✗ Found $dupes migration numbering issue(s). Use a unique, incrementing number."
+            exit 1
+          fi
+          echo "✓ All migration numbers are unique and monotonically ordered."

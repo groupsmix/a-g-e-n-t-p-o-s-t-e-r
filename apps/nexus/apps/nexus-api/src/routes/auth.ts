@@ -202,6 +202,7 @@ interface SessionRecord {
   v: 1
   createdAt: string
   ip: string
+  ua: string
   gen: number
 }
 
@@ -229,13 +230,14 @@ function generateToken(): string {
 }
 
 /** Mint a session bound to the current generation, recording origin
- *  metadata (audit 1.5: createdAt + IP, cheap forensics). */
-export async function createSession(env: Env, ip: string): Promise<string> {
+ *  metadata (audit 1.5: createdAt + IP + UA, cheap forensics). */
+export async function createSession(env: Env, ip: string, ua: string = 'unknown'): Promise<string> {
   const token = generateToken()
   const record: SessionRecord = {
     v: 1,
     createdAt: new Date().toISOString(),
     ip,
+    ua,
     gen: await getSessionGeneration(env),
   }
   await env.CONFIG.put(SESSION_PREFIX + token, JSON.stringify(record), {
@@ -323,7 +325,7 @@ export const authRoutes = new Hono<{ Bindings: Env }>()
     return c.json({ error: 'Wrong password' }, 401)
   }
 
-  const token = await createSession(c.env, ip)
+  const token = await createSession(c.env, ip, c.req.header('User-Agent') || 'unknown')
   return c.json({ token })
 })
 
@@ -429,6 +431,6 @@ export const authRoutes = new Hono<{ Bindings: Env }>()
     await bumpSessionGeneration(c.env)
   }
 
-  const token = await createSession(c.env, ip)
+  const token = await createSession(c.env, ip, c.req.header('User-Agent') || 'unknown')
   return c.json({ ok: true, token })
 })

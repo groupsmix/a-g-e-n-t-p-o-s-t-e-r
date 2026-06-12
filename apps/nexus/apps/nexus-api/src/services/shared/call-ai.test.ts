@@ -6,10 +6,12 @@ import { callAI } from './call-ai'
 // ============================================================
 
 function makeEnv(fetchImpl: () => Promise<any>) {
+  const run = vi.fn().mockResolvedValue(undefined)
+  const bind = vi.fn(() => ({ run }))
+  const prepare = vi.fn(() => ({ bind }))
   return {
     AI_WORKER: { fetch: vi.fn(fetchImpl) },
-    // Minimal env stubs
-    DB: {},
+    DB: { prepare },
     CONFIG: {},
   } as any
 }
@@ -41,12 +43,14 @@ describe('callAI — T1.3 retry semantics', () => {
         models_tried: ['deepseek-v3'],
         tokens_used: 42,
         cost_usd: 0.001,
+        attempts: [{ model: 'deepseek-v3', provider: 'deepseek', latencyMs: 10, status: 'success', tokensIn: 10, tokensOut: 32 }],
       }))
     )
     const res = await callAI(env, 'test prompt', { taskType: 'generate_long_form' })
     expect(res.output).toBe('hello')
     expect(res.model_used).toBe('deepseek-v3')
     expect(env.AI_WORKER.fetch).toHaveBeenCalledTimes(1)
+    expect(env.DB.prepare).toHaveBeenCalled()
   })
 
   it('does NOT retry when worker returns "All AI models failed"', async () => {
@@ -56,6 +60,15 @@ describe('callAI — T1.3 retry semantics', () => {
     await expect(callAI(env, 'test prompt', { taskType: 'generate_long_form', retries: 3 }))
       .rejects.toThrow('All AI models failed')
     // Only 1 attempt despite retries: 3
+    expect(env.AI_WORKER.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('does NOT retry on any structured worker JSON error body', async () => {
+    const env = makeEnv(() =>
+      Promise.resolve(makeErrorResponse({ error: 'Invalid JSON and repair failed', errorClass: 'BadOutputError' }, 500))
+    )
+    await expect(callAI(env, 'test prompt', { taskType: 'generate_long_form', retries: 3 }))
+      .rejects.toThrow('Invalid JSON and repair failed')
     expect(env.AI_WORKER.fetch).toHaveBeenCalledTimes(1)
   })
 
@@ -101,5 +114,25 @@ describe('callAI — T1.3 retry semantics', () => {
     const env = makeEnv(() => Promise.reject(new Error('network reset')))
     await expect(callAI(env, 'test', { retries: 2, timeoutMs: 1000 })).rejects.toThrow('network reset')
     expect(env.AI_WORKER.fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses executionCtx.waitUntil for ledger writes when provided', async () => {
+    const env = makeEnv(() =>
+      Promise.resolve(makeOkResponse({
+        output: 'hello',
+        model_used: 'deepseek-v3',
+        models_tried: ['deepseek-v3'],
+        tokens_used: 42,
+        cost_usd: 0.001,
+        attempts: [{ model: 'deepseek-v3', provider: 'deepseek', latencyMs: 10, status: 'success', tokensIn: 10, tokensOut: 32 }],
+      }))
+    )
+    const waitUntil = vi.fn()
+    await callAI(env, 'test prompt', {
+      taskType: 'generate_long_form',
+      executionCtx: { waitUntil },
+      caller: 'unit-test',
+    })
+    expect(waitUntil).toHaveBeenCalledOnce()
   })
 })

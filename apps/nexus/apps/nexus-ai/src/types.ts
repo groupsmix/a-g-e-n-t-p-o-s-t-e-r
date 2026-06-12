@@ -2,9 +2,14 @@
 // NEXUS-AI Types
 // ============================================================
 
-import type { TaskType, AIRunTaskRequest, AIRunTaskResponse } from '@posteragent/types/nexus'
+import type {
+  TaskType,
+  AIRunTaskRequest,
+  AIRunTaskResponse,
+  AIAttemptLog,
+} from '@posteragent/types/nexus'
 
-export type { TaskType, AIRunTaskRequest, AIRunTaskResponse }
+export type { TaskType, AIRunTaskRequest, AIRunTaskResponse, AIAttemptLog }
 
 // ============================================================
 // AI Registry Types
@@ -69,6 +74,7 @@ export interface FailoverResult {
   tokens_used: number
   cost_usd?: number
   source?: 'model' | 'universal' | 'offline'
+  attempts?: AIAttemptLog[]
 }
 
 // ============================================================

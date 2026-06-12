@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Radar, Loader2, RefreshCw, ExternalLink, Check, X, Trash2, MessageSquare,
-  Flame, Search, TrendingUp,
+  Flame, Search, TrendingUp, Save, RotateCcw, Mail, Building2,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
@@ -24,6 +24,35 @@ const SOURCE_LABEL: Record<string, string> = {
   hn: 'HN',
 }
 
+const STATUS_FILTER_OPTIONS = [
+  { v: 'new', label: 'New' },
+  { v: 'engaged', label: 'Engaged' },
+  { v: 'contacted', label: 'Contacted' },
+  { v: 'qualified', label: 'Qualified' },
+  { v: 'dismissed', label: 'Dismissed' },
+  { v: 'disqualified', label: 'Disqualified' },
+  { v: 'all', label: 'All' },
+] as const
+
+const STATUS_OPTIONS = [
+  { v: 'new', label: 'New' },
+  { v: 'engaged', label: 'Engaged' },
+  { v: 'contacted', label: 'Contacted' },
+  { v: 'qualified', label: 'Qualified' },
+  { v: 'dismissed', label: 'Dismissed' },
+  { v: 'disqualified', label: 'Disqualified' },
+] as const
+
+const CONTACT_STATUS_OPTIONS = [
+  { v: 'unresearched', label: 'Unresearched' },
+  { v: 'researching', label: 'Researching' },
+  { v: 'ready', label: 'Ready' },
+  { v: 'contacted', label: 'Contacted' },
+  { v: 'replied', label: 'Replied' },
+  { v: 'qualified', label: 'Qualified' },
+  { v: 'disqualified', label: 'Disqualified' },
+] as const
+
 function tsRelative(iso: string): string {
   const t = new Date(iso).getTime()
   if (Number.isNaN(t)) return iso
@@ -39,7 +68,7 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [stats, setStats] = useState<LeadStats | null>(null)
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState<'new' | 'engaged' | 'dismissed' | 'all'>('new')
+  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTER_OPTIONS)[number]['v']>('new')
   const [intentFilter, setIntentFilter] = useState<string>('')
   const [sourceFilter, setSourceFilter] = useState<string>('')
   const [minScore, setMinScore] = useState<number>(0)
@@ -112,6 +141,29 @@ export default function LeadsPage() {
     } finally {
       setBusyFp(null)
     }
+  }
+
+  function updateLeadDraft(fp: string, patch: Partial<Lead>) {
+    setLeads((current) =>
+      current.map((lead) => (lead.fingerprint === fp ? { ...lead, ...patch } : lead)),
+    )
+  }
+
+  async function saveLead(fp: string) {
+    const lead = leads.find((item) => item.fingerprint === fp)
+    if (!lead) return
+    await withBusy(fp, async () => {
+      await api.updateLead(fp, {
+        status: lead.status,
+        operator_note: lead.operator_note ?? null,
+        contact_email: lead.contact_email ?? null,
+        contact_name: lead.contact_name ?? null,
+        company_name: lead.company_name ?? null,
+        company_domain: lead.company_domain ?? null,
+        source_type: lead.source_type ?? null,
+        contact_status: lead.contact_status,
+      })
+    })
   }
 
   const counts = useMemo(() => {
@@ -207,12 +259,7 @@ export default function LeadsPage() {
           <Tabs
             value={statusFilter}
             onChange={(v) => setStatusFilter(v as typeof statusFilter)}
-            options={[
-              { v: 'new', label: 'New' },
-              { v: 'engaged', label: 'Engaged' },
-              { v: 'dismissed', label: 'Dismissed' },
-              { v: 'all', label: 'All' },
-            ]}
+            options={STATUS_FILTER_OPTIONS as unknown as Array<{ v: typeof statusFilter; label: string }>}
           />
           <Select
             label="Intent"
@@ -286,9 +333,100 @@ export default function LeadsPage() {
                         ))}
                       </div>
                     )}
+                    {(lead.company_name || lead.company_domain || lead.contact_email) && (
+                      <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                        {lead.company_name && (
+                          <span className="inline-flex items-center gap-1">
+                            <Building2 className="h-3 w-3" /> {lead.company_name}
+                          </span>
+                        )}
+                        {lead.company_domain && <span>{lead.company_domain}</span>}
+                        {lead.contact_email && (
+                          <span className="inline-flex items-center gap-1">
+                            <Mail className="h-3 w-3" /> {lead.contact_email}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-2">
+                <div className="mt-3 grid gap-3 rounded-lg border bg-background/50 p-3 md:grid-cols-2 xl:grid-cols-4">
+                  <label className="text-xs space-y-1">
+                    <span className="text-muted-foreground">Contact name</span>
+                    <input
+                      value={lead.contact_name ?? ''}
+                      onChange={(e) => updateLeadDraft(lead.fingerprint, { contact_name: e.target.value || null })}
+                      placeholder="Jane Doe"
+                      className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs space-y-1">
+                    <span className="text-muted-foreground">Contact email</span>
+                    <input
+                      value={lead.contact_email ?? ''}
+                      onChange={(e) => updateLeadDraft(lead.fingerprint, { contact_email: e.target.value || null })}
+                      placeholder="jane@company.com"
+                      className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs space-y-1">
+                    <span className="text-muted-foreground">Company</span>
+                    <input
+                      value={lead.company_name ?? ''}
+                      onChange={(e) => updateLeadDraft(lead.fingerprint, { company_name: e.target.value || null })}
+                      placeholder="Company name"
+                      className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs space-y-1">
+                    <span className="text-muted-foreground">Domain</span>
+                    <input
+                      value={lead.company_domain ?? ''}
+                      onChange={(e) => updateLeadDraft(lead.fingerprint, { company_domain: e.target.value || null })}
+                      placeholder="company.com"
+                      className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs space-y-1">
+                    <span className="text-muted-foreground">Lead status</span>
+                    <select
+                      value={lead.status}
+                      onChange={(e) => updateLeadDraft(lead.fingerprint, { status: e.target.value })}
+                      className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm"
+                    >
+                      {STATUS_OPTIONS.map((option) => (
+                        <option key={option.v} value={option.v}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs space-y-1">
+                    <span className="text-muted-foreground">Contact status</span>
+                    <select
+                      value={lead.contact_status}
+                      onChange={(e) => updateLeadDraft(lead.fingerprint, { contact_status: e.target.value })}
+                      className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm"
+                    >
+                      {CONTACT_STATUS_OPTIONS.map((option) => (
+                        <option key={option.v} value={option.v}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs space-y-1 xl:col-span-2">
+                    <span className="text-muted-foreground">Operator note</span>
+                    <textarea
+                      value={lead.operator_note ?? ''}
+                      onChange={(e) => updateLeadDraft(lead.fingerprint, { operator_note: e.target.value || null })}
+                      placeholder="What matters here, who to contact, next step..."
+                      rows={2}
+                      className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm"
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   <a
                     href={lead.url}
                     target="_blank"
@@ -315,11 +453,55 @@ export default function LeadsPage() {
                       </button>
                     </>
                   )}
+                  {(lead.status === 'new' || lead.status === 'engaged') && (
+                    <button
+                      onClick={() => withBusy(lead.fingerprint, () => api.contactLead(lead.fingerprint))}
+                      disabled={busyFp === lead.fingerprint}
+                      className="inline-flex items-center gap-1 rounded-md border bg-sky-500/10 px-2.5 py-1 text-xs text-sky-500 hover:bg-sky-500/20 disabled:opacity-50"
+                    >
+                      <MessageSquare className="h-3 w-3" /> Contacted
+                    </button>
+                  )}
+                  {(lead.status === 'engaged' || lead.status === 'contacted') && (
+                    <>
+                      <button
+                        onClick={() => withBusy(lead.fingerprint, () => api.qualifyLead(lead.fingerprint))}
+                        disabled={busyFp === lead.fingerprint}
+                        className="inline-flex items-center gap-1 rounded-md border bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-500 hover:bg-emerald-500/20 disabled:opacity-50"
+                      >
+                        <Check className="h-3 w-3" /> Qualify
+                      </button>
+                      <button
+                        onClick={() => withBusy(lead.fingerprint, () => api.disqualifyLead(lead.fingerprint))}
+                        disabled={busyFp === lead.fingerprint}
+                        className="inline-flex items-center gap-1 rounded-md border bg-amber-500/10 px-2.5 py-1 text-xs text-amber-500 hover:bg-amber-500/20 disabled:opacity-50"
+                      >
+                        <X className="h-3 w-3" /> Disqualify
+                      </button>
+                    </>
+                  )}
+                  {(lead.status === 'dismissed' || lead.status === 'disqualified') && (
+                    <button
+                      onClick={() => withBusy(lead.fingerprint, () => api.restoreLead(lead.fingerprint))}
+                      disabled={busyFp === lead.fingerprint}
+                      className="inline-flex items-center gap-1 rounded-md border bg-background px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted/40 disabled:opacity-50"
+                    >
+                      <RotateCcw className="h-3 w-3" /> Restore
+                    </button>
+                  )}
                   {lead.status !== 'new' && (
                     <span className="inline-flex items-center gap-1 rounded-md border bg-muted/30 px-2.5 py-1 text-xs text-muted-foreground">
                       <MessageSquare className="h-3 w-3" /> {lead.status}
                     </span>
                   )}
+                  <button
+                    onClick={() => saveLead(lead.fingerprint)}
+                    disabled={busyFp === lead.fingerprint}
+                    className="inline-flex items-center gap-1 rounded-md border bg-primary/10 px-2.5 py-1 text-xs text-primary hover:bg-primary/20 disabled:opacity-50"
+                  >
+                    {busyFp === lead.fingerprint ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                    Save
+                  </button>
                   <div className="ml-auto" />
                   <button
                     onClick={() => withBusy(lead.fingerprint, () => api.deleteLead(lead.fingerprint))}

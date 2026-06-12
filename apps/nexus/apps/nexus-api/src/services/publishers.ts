@@ -149,26 +149,7 @@ async function publishToWebhook(p: ListingPayload, env: Env): Promise<PublishOut
   return { status: 'success', url }
 }
 
-// ============================================================
-// Social posting (Ayrshare — one key fans out to IG / X / TikTok / FB / etc.)
-// ============================================================
 
-const AYRSHARE_PLATFORM: Record<string, string> = {
-  instagram: 'instagram',
-  'x-twitter': 'twitter',
-  xtwitter: 'twitter',
-  twitter: 'twitter',
-  'twitter-x': 'twitter',
-  facebook: 'facebook',
-  linkedin: 'linkedin',
-  tiktok: 'tiktok',
-  pinterest: 'pinterest',
-  youtube: 'youtube',
-  'youtube-shorts': 'youtube',
-  threads: 'threads',
-  reddit: 'reddit',
-  telegram: 'telegram',
-}
 
 export async function postToSocial(p: SocialPayload, env: Env): Promise<PublishOutcome> {
   // Audit #45: last-line brand-safety gate. The quality gate screens
@@ -182,11 +163,35 @@ export async function postToSocial(p: SocialPayload, env: Env): Promise<PublishO
     }
   }
 
-  const key = await getSecret(env, 'AYRSHARE_API_KEY')
-  if (!key) {
-    // Fall back to a generic webhook if configured.
+  // Map the channelSlug to agent-publisher platform identifiers
+  const slug = p.channelSlug.toLowerCase();
+  let resolvedPlatform: 'x' | 'linkedin' | 'instagram' | 'tiktok' | 'youtube' | 'newsletter' | 'blog' | null = null;
+  
+  if (slug === 'x' || slug === 'twitter' || slug === 'x-twitter' || slug === 'xtwitter' || slug === 'twitter-x') {
+    resolvedPlatform = 'x';
+  } else if (slug === 'linkedin') {
+    resolvedPlatform = 'linkedin';
+  } else if (slug.startsWith('instagram')) {
+    resolvedPlatform = 'instagram';
+  } else if (slug === 'tiktok') {
+    resolvedPlatform = 'tiktok';
+  } else if (slug.startsWith('youtube')) {
+    resolvedPlatform = 'youtube';
+  } else if (slug === 'newsletter' || slug === 'email') {
+    resolvedPlatform = 'newsletter';
+  } else if (slug === 'blog' || slug === 'cosmic') {
+    resolvedPlatform = 'blog';
+  }
+
+  // If no direct platform match, fall back to webhook
+  if (!resolvedPlatform) {
     const url = await getSecret(env, 'PUBLISH_WEBHOOK_URL')
-    if (!url) return notConfigured('AYRSHARE_API_KEY', 'Social posting')
+    if (!url) {
+      return {
+        status: 'failed',
+        error: `No publisher configured for social channel "${p.channelSlug}" and no PUBLISH_WEBHOOK_URL was set.`,
+      }
+    }
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -196,29 +201,71 @@ export async function postToSocial(p: SocialPayload, env: Env): Promise<PublishO
     return { status: 'success', url }
   }
 
-  const platform = AYRSHARE_PLATFORM[p.channelSlug]
-  if (!platform) {
-    return { status: 'failed', error: `Unsupported social channel "${p.channelSlug}" for Ayrshare.` }
+  let adapter: any = null;
+
+  if (resolvedPlatform === 'x') {
+    const xToken = await getSecret(env, 'X_BEARER_TOKEN')
+    if (!xToken) return notConfigured('X_BEARER_TOKEN', 'X/Twitter')
+    const { createXAdapter } = await import('@posteragent/agent-publisher/adapters')
+    adapter = createXAdapter({ bearerToken: xToken })
+  } else if (resolvedPlatform === 'linkedin') {
+    const liToken = await getSecret(env, 'LINKEDIN_ACCESS_TOKEN')
+    if (!liToken) return notConfigured('LINKEDIN_ACCESS_TOKEN', 'LinkedIn')
+    const { createLinkedInAdapter } = await import('@posteragent/agent-publisher/adapters')
+    adapter = createLinkedInAdapter({ accessToken: liToken })
+  } else if (resolvedPlatform === 'instagram') {
+    const igToken = await getSecret(env, 'INSTAGRAM_ACCESS_TOKEN')
+    if (!igToken) return notConfigured('INSTAGRAM_ACCESS_TOKEN', 'Instagram')
+    const { createInstagramAdapter } = await import('@posteragent/agent-publisher/adapters')
+    adapter = createInstagramAdapter({ accessToken: igToken })
+  } else if (resolvedPlatform === 'tiktok') {
+    const ttToken = await getSecret(env, 'TIKTOK_ACCESS_TOKEN')
+    if (!ttToken) return notConfigured('TIKTOK_ACCESS_TOKEN', 'TikTok')
+    const { createTikTokAdapter } = await import('@posteragent/agent-publisher/adapters')
+    adapter = createTikTokAdapter({ accessToken: ttToken })
+  } else if (resolvedPlatform === 'youtube') {
+    const ytToken = await getSecret(env, 'YOUTUBE_ACCESS_TOKEN')
+    if (!ytToken) return notConfigured('YOUTUBE_ACCESS_TOKEN', 'YouTube')
+    const { createYouTubeAdapter } = await import('@posteragent/agent-publisher/adapters')
+    adapter = createYouTubeAdapter({ accessToken: ytToken })
+  } else if (resolvedPlatform === 'newsletter') {
+    const nsToken = await getSecret(env, 'NEWSLETTER_API_KEY')
+    const nsBaseUrl = await getSecret(env, 'NEWSLETTER_BASE_URL')
+    if (!nsToken) return notConfigured('NEWSLETTER_API_KEY', 'Newsletter')
+    const { createNewsletterAdapter } = await import('@posteragent/agent-publisher/adapters')
+    adapter = createNewsletterAdapter({ apiKey: nsToken, baseUrl: nsBaseUrl ?? 'https://api.emailoctopus.com/v3' })
+  } else if (resolvedPlatform === 'blog') {
+    const slugVal = await getSecret(env, 'COSMIC_BUCKET_SLUG')
+    const readKey = await getSecret(env, 'COSMIC_READ_KEY')
+    const writeKey = await getSecret(env, 'COSMIC_WRITE_KEY')
+    if (!slugVal || !readKey || !writeKey) return notConfigured('COSMIC_BUCKET_SLUG + read/write keys', 'CosmicJS Blog')
+    const { createBlogAdapter } = await import('@posteragent/agent-publisher/adapters')
+    adapter = createBlogAdapter({ bucketSlug: slugVal, readKey, writeKey })
   }
 
-  const res = await fetch('https://app.ayrshare.com/api/post', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      post: p.content,
-      platforms: [platform],
-      mediaUrls: p.imageUrl ? [p.imageUrl] : undefined,
-    }),
-  })
-  const data = (await res.json().catch(() => ({}))) as {
-    status?: string
-    postIds?: { postUrl?: string }[]
-    errors?: { message?: string }[]
+  if (!adapter) {
+    return { status: 'failed', error: `Failed to construct adapter for platform: ${resolvedPlatform}` }
   }
-  if (!res.ok || data.status === 'error') {
-    return { status: 'failed', error: data.errors?.[0]?.message || `Ayrshare error ${res.status}` }
+
+  const authorUrnVal = resolvedPlatform === 'linkedin' ? (await getSecret(env, 'LINKEDIN_AUTHOR_URN')) : null;
+
+  try {
+    const result = await adapter.publish({
+      platform: resolvedPlatform,
+      title: p.channelName || p.channelSlug,
+      parts: [p.content],
+      media: p.imageUrl ? { type: 'image', url: p.imageUrl } : undefined,
+      meta: resolvedPlatform === 'linkedin' ? { authorUrn: authorUrnVal || undefined } : undefined,
+    })
+
+    if (result.ok) {
+      return { status: 'success', url: result.url }
+    } else {
+      return { status: 'failed', error: result.error }
+    }
+  } catch (err) {
+    return { status: 'failed', error: err instanceof Error ? err.message : String(err) }
   }
-  return { status: 'success', url: data.postIds?.[0]?.postUrl }
 }
 
 // ============================================================

@@ -33,6 +33,7 @@ import type {
   OrchestratorDB,
 } from './types.js'
 import { estimateCostUsd } from './cost.js'
+import { evaluateApprovalPolicy } from './approval-policy.js'
 
 // Re-cast our DB binding through `as any` at construction time — the
 // memory + identity packages declare their own `D1Database` shape and
@@ -89,6 +90,96 @@ export class BaseAgent {
       type: task.type,
     })
 
+    // ── 0. Check Approval Policy ──────────────────────────────────────
+    const decision = evaluateApprovalPolicy(task)
+    if (decision.requiresApproval && !opts.skipApproval) {
+      let approval: { status: string } | null = null
+      try {
+        approval = await this.db
+          .prepare(
+            `SELECT status FROM approval_requests WHERE task_id = ? ORDER BY created_at DESC LIMIT 1`
+          )
+          .bind(task.id)
+          .first<{ status: string }>()
+      } catch (err) {
+        taskLog.warn('failed to check approval request', {
+          taskId: task.id,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+
+      if (!approval) {
+        try {
+          const approvalId = crypto.randomUUID().replace(/-/g, '').slice(0, 32)
+          await this.db
+            .prepare(
+              `INSERT INTO approval_requests (id, task_id, action_type, risk_level, status) VALUES (?, ?, ?, ?, 'pending')`
+            )
+            .bind(approvalId, task.id, decision.actionType!, decision.riskLevel!)
+            .run()
+
+          const notificationId = crypto.randomUUID().replace(/-/g, '').slice(0, 32)
+          await this.db
+            .prepare(
+              `INSERT INTO notifications (id, type, title, message, read) VALUES (?, 'approval_needed', ?, ?, 0)`
+            )
+            .bind(notificationId, `Approval Required`, `Task ${task.id} (${task.type}) requires approval: ${decision.reason}`)
+            .run()
+        } catch (err) {
+          taskLog.warn('failed to create approval request/notification', {
+            taskId: task.id,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+
+        await this.logEventSafely(
+          task.id,
+          'approval_requested',
+          `Approval requested. Reason: ${decision.reason}`,
+          taskLog
+        )
+
+        return {
+          taskId: task.id,
+          type: task.type,
+          status: 'needs_me',
+          error: `Task requires manual approval: ${decision.reason}`,
+          costUsd: 0,
+          durationMs: Date.now() - startedAt,
+        }
+      } else if (approval.status === 'pending') {
+        return {
+          taskId: task.id,
+          type: task.type,
+          status: 'needs_me',
+          error: 'Task is awaiting approval.',
+          costUsd: 0,
+          durationMs: Date.now() - startedAt,
+        }
+      } else if (approval.status === 'changes_requested') {
+        return {
+          taskId: task.id,
+          type: task.type,
+          status: 'needs_me',
+          error: 'Changes were requested by user.',
+          costUsd: 0,
+          durationMs: Date.now() - startedAt,
+        }
+      } else if (approval.status === 'rejected') {
+        return {
+          taskId: task.id,
+          type: task.type,
+          status: 'failed',
+          error: 'Task was rejected by user.',
+          costUsd: 0,
+          durationMs: Date.now() - startedAt,
+        }
+      }
+    }
+
+    // Log start event
+    await this.logEventSafely(task.id, 'started', `Agent ${this.handler.name} started task execution`, taskLog)
+
     // ── 1. Retrieve memories (best-effort) ────────────────────────────
     const memories = await this.retrieveSafely(task, taskLog)
 
@@ -107,6 +198,10 @@ export class BaseAgent {
       })
     }
 
+    const logEvent = async (eventType: string, message: string) => {
+      await this.logEventSafely(task.id, eventType, message, taskLog)
+    }
+
     const ctx: AgentContext = {
       task,
       systemPrompt,
@@ -114,6 +209,7 @@ export class BaseAgent {
       log: taskLog,
       db: this.db,
       signal: controller.signal,
+      logEvent,
     }
 
     // ── 4. Run the handler ────────────────────────────────────────────
@@ -129,11 +225,43 @@ export class BaseAgent {
     }
 
     const durationMs = Date.now() - startedAt
-    const status: 'done' | 'failed' = runError ? 'failed' : 'done'
+    const status: 'done' | 'failed' | 'needs_me' = runError ? 'failed' : (outcome?.status ?? 'done')
+
+    // Log completion / failure event
+    if (status === 'failed') {
+      await this.logEventSafely(task.id, 'failed', `Task failed: ${runError?.message ?? outcome?.summary}`, taskLog)
+    } else {
+      await this.logEventSafely(task.id, 'completed', `Task completed: ${outcome?.summary}`, taskLog)
+    }
 
     // ── 5. Persist journal + memories (best-effort) ───────────────────
     if (!opts.skipPersist) {
       await this.persistSafely(task, outcome, runError, taskLog)
+    }
+
+    // Persist artifacts if any
+    if (outcome?.artifacts && outcome.artifacts.length > 0) {
+      for (const art of outcome.artifacts) {
+        try {
+          const artId = crypto.randomUUID().replace(/-/g, '').slice(0, 32)
+          await this.db
+            .prepare(`INSERT INTO artifacts (id, task_id, kind, url, content) VALUES (?, ?, ?, ?, ?)`)
+            .bind(artId, task.id, art.kind, art.url ?? null, art.content ?? null)
+            .run()
+
+          await this.logEventSafely(
+            task.id,
+            'artifact_created',
+            `Saved artifact: ${art.kind}${art.url ? ` (${art.url})` : ''}`,
+            taskLog
+          )
+        } catch (err) {
+          taskLog.warn('failed to persist artifact', {
+            taskId: task.id,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      }
     }
 
     // ── 6. Compute cost + build AgentResult ───────────────────────────
@@ -218,6 +346,27 @@ export class BaseAgent {
       })
     }
   }
+
+  private async logEventSafely(
+    taskId: string,
+    eventType: string,
+    message: string,
+    log: AgentLogger,
+  ): Promise<void> {
+    try {
+      const id = crypto.randomUUID().replace(/-/g, '').slice(0, 32)
+      await this.db
+        .prepare(`INSERT INTO task_events (id, task_id, event_type, message) VALUES (?, ?, ?, ?)`)
+        .bind(id, taskId, eventType, message)
+        .run()
+    } catch (err) {
+      log.warn('failed to insert task event', {
+        taskId,
+        eventType,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
 }
 
 // ─── Module-level helpers ──────────────────────────────────────────────
@@ -249,11 +398,11 @@ const consoleLogger: AgentLogger = {
     // BaseAgent without an explicit logger doesn't ReferenceError.
     // AUDIT-PR20 #6.
     if (typeof process !== 'undefined' && process.env?.ORCHESTRATOR_DEBUG === '1') {
-      console.debug(`[orch] ${msg}`, meta)
+      console.info(`[orch] ${msg}`, meta)
     }
   },
   info(msg, meta) {
-    console.log(`[orch] ${msg}`, meta ?? '')
+    console.info(`[orch] ${msg}`, meta ?? '')
   },
   warn(msg, meta) {
     console.warn(`[orch] ${msg}`, meta ?? '')

@@ -1,8 +1,70 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
 import type { StartWorkflowInput, WorkflowStatus } from '../types'
+import type { AIAttemptLog, WorkflowAICall } from '@posteragent/types/nexus'
 import { ProductWorkflow } from '../services/workflow-engine'
 import { checkNiche } from '../services/niche-dedup'
+
+interface AICallTraceRow {
+  id: string
+  ts: string
+  task_type: string
+  model_used: string | null
+  source: 'model' | 'universal' | 'offline' | null
+  models_tried_json: string | null
+  attempts_json: string | null
+  tokens_in: number | null
+  tokens_out: number | null
+  cost_usd: number | null
+  latency_ms: number | null
+  caller: string | null
+  workflow_id: string | null
+  ok: number | null
+}
+
+function parseJsonArray<T>(raw: string | null | undefined): T[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    return Array.isArray(parsed) ? (parsed as T[]) : []
+  } catch {
+    return []
+  }
+}
+
+export function mapAICallTraceRow(row: AICallTraceRow): WorkflowAICall {
+  return {
+    id: row.id,
+    ts: row.ts,
+    task_type: row.task_type,
+    model_used: row.model_used,
+    source: row.source,
+    models_tried: parseJsonArray<string>(row.models_tried_json),
+    attempts: parseJsonArray<AIAttemptLog>(row.attempts_json),
+    tokens_in: Number(row.tokens_in ?? 0),
+    tokens_out: Number(row.tokens_out ?? 0),
+    cost_usd: Number(row.cost_usd ?? 0),
+    latency_ms: Number(row.latency_ms ?? 0),
+    caller: row.caller ?? 'unknown',
+    workflow_id: row.workflow_id,
+    ok: Number(row.ok ?? 0) === 1,
+  }
+}
+
+async function fetchWorkflowAICalls(env: Env, runId: string): Promise<WorkflowAICall[]> {
+  try {
+    const rows = await env.DB.prepare(
+      `SELECT id, ts, task_type, model_used, source, models_tried_json, attempts_json,
+              tokens_in, tokens_out, cost_usd, latency_ms, caller, workflow_id, ok
+         FROM ai_calls
+        WHERE workflow_id = ?
+        ORDER BY ts ASC`,
+    ).bind(runId).all<AICallTraceRow>()
+    return (rows.results ?? []).map(mapAICallTraceRow)
+  } catch {
+    return []
+  }
+}
 
 export const workflowRoutes = new Hono<{ Bindings: Env }>()
 
@@ -106,11 +168,14 @@ export const workflowRoutes = new Hono<{ Bindings: Env }>()
       'SELECT id, step_name, step_type, step_order, status, started_at, completed_at, error, ai_model_used, ai_models_tried, tokens_used, cost_usd FROM workflow_steps WHERE run_id = ? ORDER BY step_order'
     ).bind(runId).all()
     
-    const status: WorkflowStatus = {
+    const aiCalls = await fetchWorkflowAICalls(c.env, runId)
+
+    const status: WorkflowStatus & { ai_calls: WorkflowAICall[] } = {
       id: run.id as string,
       product_id: run.product_id as string,
       status: run.status as WorkflowStatus['status'],
       current_step: run.current_step as string | null,
+      total_steps: Number(run.total_steps ?? 0),
       steps: steps.results.map((s: any) => ({
         id: s.id,
         step_name: s.step_name,
@@ -126,6 +191,7 @@ export const workflowRoutes = new Hono<{ Bindings: Env }>()
       error: run.error as string | null,
       started_at: run.started_at as string | null,
       completed_at: run.completed_at as string | null,
+      ai_calls: aiCalls,
     }
     
     return c.json(status)

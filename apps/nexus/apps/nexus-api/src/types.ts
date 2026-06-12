@@ -1,4 +1,5 @@
 import type { Env } from './env'
+import type { WorkflowAICall } from '@posteragent/types/nexus'
 
 // Re-export shared types
 export type {
@@ -46,6 +47,7 @@ export interface WorkflowStatus {
   product_id: string
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
   current_step: string | null
+  total_steps?: number
   steps: Array<{
     id: string
     step_name: string
@@ -61,6 +63,7 @@ export interface WorkflowStatus {
   error: string | null
   started_at: string | null
   completed_at: string | null
+  ai_calls?: WorkflowAICall[]
 }
 
 export interface ProductFilters {

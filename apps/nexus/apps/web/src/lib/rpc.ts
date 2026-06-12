@@ -78,6 +78,8 @@ import type {
   BudgetApi,
   InsightsApi,
   MoneyMachineApi,
+  AnnouncementsApi,
+  FlagsApi,
 } from '@nexus/nexus-api/client'
 
 const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL || ''
@@ -246,4 +248,6 @@ export const rpc = {
   budget: hc<BudgetApi>(at("/api/budget"), opts),
   insights: hc<InsightsApi>(at("/api/insights"), opts),
   moneyMachine: hc<MoneyMachineApi>(at("/api/money-machine"), opts),
+  announcements: hc<AnnouncementsApi>(at("/api/announcements"), opts),
+  flags: hc<FlagsApi>(at("/api/flags"), opts),
 }

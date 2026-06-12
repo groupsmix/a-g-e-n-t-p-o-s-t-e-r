@@ -26,7 +26,6 @@ const TASK_ROW = {
 /** In-memory fake D1: serves the task row for SELECTs, records writes. */
 function fakeDb(): OrchestratorDB & { writes: Array<{ sql: string; binds: unknown[] }> } {
   const writes: Array<{ sql: string; binds: unknown[] }> = []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prepare = (sql: string): any => {
     const stmt = {
       bind: (...binds: unknown[]) => {
@@ -39,7 +38,6 @@ function fakeDb(): OrchestratorDB & { writes: Array<{ sql: string; binds: unknow
     }
     return stmt
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return { prepare: prepare as any, writes }
 }
 
@@ -66,7 +64,7 @@ function makeRegistry(handler: AgentHandler): AgentRegistry {
 // ─── Audit #44: budget enforcement ────────────────────────────────────────
 
 describe('runAgentTask budget gate', () => {
-  it('blocks the task before the handler runs when a cap is breached', async () => {
+  it('blocks the task and creates an approval request when a cap is breached', async () => {
     let handlerRan = false
     let recorded = false
     const budget: TaskBudgetGuard = {
@@ -82,14 +80,53 @@ describe('runAgentTask budget gate', () => {
       budget,
     })
 
-    expect(result.status).toBe('failed')
+    // Budget cap breach now routes through the approval gate → needs_me
+    expect(result.status).toBe('needs_me')
     expect(result.error).toMatch(/budget cap exceeded/)
     expect(result.error).toMatch(/global day cap exhausted/)
     expect(handlerRan).toBe(false)
     expect(recorded).toBe(false)
-    // The block is persisted as a failed task, not left hanging in `queued`.
-    const failedWrite = db.writes.find((w) => /SET status = 'failed'/.test(w.sql))
-    expect(failedWrite).toBeDefined()
+    // An approval_requests record must be created so the operator can approve
+    const approvalWrite = db.writes.find((w) => /INSERT INTO approval_requests/.test(w.sql))
+    expect(approvalWrite).toBeDefined()
+    // A notification must be created
+    const notificationWrite = db.writes.find((w) => /INSERT INTO notifications/.test(w.sql))
+    expect(notificationWrite).toBeDefined()
+  })
+
+  it('marks failed when user actively rejects the budget approval request', async () => {
+    const budget: TaskBudgetGuard = {
+      approve: async () => ({ allowed: false, notes: ['global day cap exhausted'] }),
+      afterRun: async () => {},
+    }
+    // Mock DB to return a rejected approval status
+    const db = fakeDb()
+    const origPrepare = db.prepare
+    db.prepare = (sql: string) => {
+      if (/SELECT status FROM approval_requests/.test(sql)) {
+        return {
+          bind: () => ({
+            first: async () => ({ status: 'rejected' }),
+            run: async () => ({ success: true }),
+            all: async () => ({ results: [] }),
+          }),
+          first: async () => ({ status: 'rejected' }),
+          run: async () => ({ success: true }),
+          all: async () => ({ results: [] }),
+        } as any
+      }
+      return origPrepare(sql)
+    }
+
+    const result = await runAgentTask('task-1', {
+      db,
+      registry: makeRegistry(makeHandler()),
+      budget,
+    })
+
+    expect(result.status).toBe('failed')
+    expect(result.error).toMatch(/budget cap exceeded/)
+    expect(result.error).toMatch(/rejected by user/)
   })
 
   it('runs the task and records actual spend when allowed', async () => {

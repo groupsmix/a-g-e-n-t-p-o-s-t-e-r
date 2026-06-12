@@ -126,11 +126,11 @@ async function queueTaskFromSignal(
   if (!sig.suggestion) return null
 
   // Cheap idempotency — don't queue another same-type task while one
-  // is already queued/running.  Without this an hourly cron snowballs.
+  // is already queued/running/needs_me.  Without this an hourly cron snowballs.
   const existing = await db
     .prepare(
       `SELECT id FROM agent_tasks
-       WHERE type = ? AND status IN ('queued','running')
+       WHERE type = ? AND status IN ('queued','running','needs_me')
        LIMIT 1`,
     )
     .bind(sig.suggestion.taskType)
@@ -154,12 +154,46 @@ async function queueTaskFromSignal(
   await db
     .prepare(
       `INSERT INTO agent_tasks (id, type, status, payload, agent_id, created_at, updated_at)
-       VALUES (?, ?, 'queued', ?, 'proactivity-engine', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+       VALUES (?, ?, 'needs_me', ?, 'proactivity-engine', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
     )
     .bind(id, sig.suggestion.taskType, JSON.stringify(payload))
     .run()
 
-  log.info('proactivity auto-queued task', {
+  try {
+    const approvalId = newTaskId()
+    await db
+      .prepare(
+        `INSERT INTO approval_requests (id, task_id, action_type, risk_level, status)
+         VALUES (?, ?, 'proactivity_suggestion', 'low', 'pending')`
+      )
+      .bind(approvalId, id)
+      .run()
+
+    const notificationId = newTaskId()
+    await db
+      .prepare(
+        `INSERT INTO notifications (id, type, title, message, read)
+         VALUES (?, 'proactivity_suggestion', 'Proactivity Suggestion', ?, 0)`
+      )
+      .bind(notificationId, `Proactive engine suggests running task '${sig.suggestion.taskType}': ${sig.suggestion.reason}`)
+      .run()
+
+    const eventId = newTaskId()
+    await db
+      .prepare(
+        `INSERT INTO task_events (id, task_id, event_type, message)
+         VALUES (?, ?, 'proactivity_suggested', ?)`
+      )
+      .bind(eventId, id, sig.suggestion.reason)
+      .run()
+  } catch (err) {
+    log.warn('failed to insert proactivity approval/notification records', {
+      taskId: id,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+
+  log.info('proactivity enqueued suggestion', {
     taskId: id,
     type: sig.suggestion.taskType,
     signalKey: sig.key,

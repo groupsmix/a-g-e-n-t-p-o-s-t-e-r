@@ -37,6 +37,7 @@ export function defineStub(input: DefineStubInput): AgentHandler {
         phase: input.phase,
       })
       return {
+        status: 'failed',
         data: {
           stub: true,
           phase: input.phase,

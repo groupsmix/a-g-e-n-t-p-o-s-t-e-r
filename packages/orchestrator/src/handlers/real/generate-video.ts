@@ -95,6 +95,12 @@ export function createGenerateVideoHandler(
         ],
         nextActions: ['Upload the rendered video and queue a publish task'],
         usage: {},
+        artifacts: [
+          {
+            kind: 'video',
+            url: videoPath,
+          },
+        ],
       }
     },
   }

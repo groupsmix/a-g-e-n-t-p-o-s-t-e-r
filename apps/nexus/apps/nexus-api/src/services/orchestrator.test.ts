@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import {
   RunError,
-  defaultStubHandler,
   inflateTask,
   validateRunBody,
+} from './orchestrator-bridge'
+import {
+  defaultStubHandler,
   type AgentTaskRow,
-} from './orchestrator'
+} from './orchestrator-stub.legacy'
 
 /**
  * Pure-logic tests for the orchestrator service.  D1-touching paths

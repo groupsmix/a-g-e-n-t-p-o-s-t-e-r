@@ -32,6 +32,7 @@ export default function EmailPage() {
   const [customSubject, setCustomSubject] = useState('')
 
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoadError(null)
@@ -52,6 +53,7 @@ export default function EmailPage() {
 
   async function handleCreate() {
     setCreating(true)
+    setActionMessage(null)
     try {
       await api.createCampaign({
         product_id: productId || undefined,
@@ -68,15 +70,26 @@ export default function EmailPage() {
 
   async function handleSend(id: string) {
     setSending(id)
+    setActionMessage(null)
     try {
-      await api.sendCampaign(id)
+      const result = await api.sendCampaign(id)
+      if (!result.ok) {
+        setActionMessage(result.errors[0] || 'Campaign send failed')
+      } else if (result.failed_to > 0) {
+        setActionMessage(`Sent to ${result.sent_to} recipients with ${result.failed_to} failures.`)
+      } else {
+        setActionMessage(`Sent to ${result.sent_to} recipients.`)
+      }
       await refresh()
+    } catch (err: unknown) {
+      setActionMessage(err instanceof Error ? err.message : 'Failed to send campaign')
     } finally {
       setSending(null)
     }
   }
 
   async function handleUnsubscribe(id: string) {
+    setActionMessage(null)
     await api.unsubscribe(id)
     await refresh()
   }
@@ -123,6 +136,11 @@ export default function EmailPage() {
               <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm">
                 <p className="font-medium text-destructive">Couldn&apos;t load email data</p>
                 <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
+              </div>
+            )}
+            {actionMessage && (
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-4 text-sm text-foreground">
+                {actionMessage}
               </div>
             )}
 

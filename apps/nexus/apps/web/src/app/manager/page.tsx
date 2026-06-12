@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { LayoutGrid, Globe2, Megaphone, FileCode, Cpu } from 'lucide-react'
+import { LayoutGrid, Globe2, Megaphone, FileCode, Cpu, BellRing, Flag } from 'lucide-react'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
 
 const tiles = [
@@ -10,6 +10,8 @@ const tiles = [
   { href: '/manager/social', label: 'Social channels', icon: Megaphone, blurb: 'Promo channels' },
   { href: '/manager/prompts', label: 'Prompts', icon: FileCode, blurb: 'Layered templates' },
   { href: '/manager/ai', label: 'AI models', icon: Cpu, blurb: 'Registry & cost' },
+  { href: '/manager/announcements', label: 'Announcements', icon: BellRing, blurb: 'Persistent dashboard banner' },
+  { href: '/manager/flags', label: 'Feature flags', icon: Flag, blurb: 'Runtime toggles and caps' },
 ]
 
 export default function ManagerIndexPage() {

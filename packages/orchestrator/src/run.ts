@@ -23,7 +23,7 @@ import type { IdentityLayer } from '@posteragent/identity'
 
 import { BaseAgent } from './base-agent.js'
 import type { AgentLogger, DispatchOptions, OrchestratorDB, TaskBudgetGuard } from './types.js'
-import { AgentRegistry } from './registry.js'
+import type { AgentRegistry } from './registry.js'
 
 export interface RunAgentTaskDeps {
   db: OrchestratorDB
@@ -97,10 +97,73 @@ export async function runAgentTask(
       })
     }
     if (!allowed) {
-      const msg = `budget cap exceeded: ${notes.join(' ') || 'estimated cost exceeds remaining budget'}`
-      deps.log?.warn('task blocked by budget cap', { taskId, type: task.type, notes })
-      await markFailed(deps.db, taskId, msg)
-      return { taskId, type: task.type, status: 'failed', error: msg, durationMs: 0 }
+      // Check if there is an existing approval request for this budget breach.
+      let approval: { status: string } | null = null
+      try {
+        approval = await deps.db
+          .prepare(
+            `SELECT status FROM approval_requests WHERE task_id = ? AND action_type = 'spend_money' ORDER BY created_at DESC LIMIT 1`
+          )
+          .bind(taskId)
+          .first<{ status: string }>()
+      } catch (err) {
+        deps.log?.warn('failed to check budget approval request', {
+          taskId,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
+
+      if (approval) {
+        if (approval.status === 'approved') {
+          // Allowed by operator override
+          allowed = true
+        } else if (approval.status === 'rejected') {
+          const msg = `budget cap exceeded: Task was rejected by user. ${notes.join(' ')}`
+          await markFailed(deps.db, taskId, msg)
+          return { taskId, type: task.type, status: 'failed', error: msg, durationMs: 0 }
+        } else {
+          // pending or changes_requested -> return needs_me
+          const msg = `budget cap exceeded (awaiting approval): ${notes.join(' ')}`
+          await markNeedsMe(deps.db, taskId, msg)
+          return { taskId, type: task.type, status: 'needs_me', error: msg, durationMs: 0 }
+        }
+      } else {
+        // No approval request yet, create one and mark needs_me
+        const msg = `budget cap exceeded: ${notes.join(' ')}`
+        try {
+          const approvalId = crypto.randomUUID().replace(/-/g, '').slice(0, 32)
+          await deps.db
+            .prepare(
+              `INSERT INTO approval_requests (id, task_id, action_type, risk_level, status) VALUES (?, ?, 'spend_money', 'medium', 'pending')`
+            )
+            .bind(approvalId, taskId)
+            .run()
+
+          const notificationId = crypto.randomUUID().replace(/-/g, '').slice(0, 32)
+          await deps.db
+            .prepare(
+              `INSERT INTO notifications (id, type, title, message, read) VALUES (?, 'budget_cap_hit', 'Budget Approval Required', ?, 0)`
+            )
+            .bind(notificationId, `Task ${taskId} (${task.type}) requires budget approval: ${msg}`)
+            .run()
+
+          // Log task event
+          await deps.db
+            .prepare(
+              `INSERT INTO task_events (id, task_id, event_type, message) VALUES (?, ?, 'approval_requested', ?)`
+            )
+            .bind(crypto.randomUUID().replace(/-/g, '').slice(0, 32), taskId, `Budget approval requested. Reason: ${msg}`)
+            .run()
+        } catch (err) {
+          deps.log?.warn('failed to create budget approval/notification', {
+            taskId,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+
+        await markNeedsMe(deps.db, taskId, msg)
+        return { taskId, type: task.type, status: 'needs_me', error: msg, durationMs: 0 }
+      }
     }
   }
 
@@ -193,6 +256,21 @@ async function markRunning(db: OrchestratorDB, id: string): Promise<void> {
       `UPDATE agent_tasks SET status = 'running', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
     )
     .bind(id)
+    .run()
+}
+
+async function markNeedsMe(
+  db: OrchestratorDB,
+  id: string,
+  error: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE agent_tasks
+       SET status = 'needs_me', error = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+    )
+    .bind(error.slice(0, 1000), id)
     .run()
 }
 
@@ -289,7 +367,6 @@ function safeJson(v: unknown): string | null {
     // AUDIT-PR20 #14: previously this silently returned null, so a row
     // with `result = NULL` could mean either "no data" or "data had a
     // circular ref". Log the failure so future-us can tell them apart.
-    // eslint-disable-next-line no-console
     console.warn('[orch] safeJson failed — result will be stored as NULL', {
       error: err instanceof Error ? err.message : String(err),
     })

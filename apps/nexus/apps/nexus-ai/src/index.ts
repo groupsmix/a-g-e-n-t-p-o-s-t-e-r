@@ -7,6 +7,7 @@ import { Hono } from 'hono'
 import { runWithFailover, getSpendToday, getDailyCap } from './failover'
 import { generateImage } from './image'
 import { AI_REGISTRY } from './registry'
+import { AllModelsFailedError } from './errors'
 import type { TaskType, AIRunTaskRequest, AIRunTaskResponse } from './types'
 
 interface Env {
@@ -47,16 +48,20 @@ app.post('/task', async (c) => {
       tokens_used: result.tokens_used,
       cost_usd: result.cost_usd || 0,
       source: result.source,
+      attempts: result.attempts,
     }
 
     return c.json(response)
   } catch (error) {
     console.error(`[NEXUS-AI] All models failed for task: ${taskType}`, error)
+    const attempts = error instanceof AllModelsFailedError ? error.attempts : undefined
     return c.json(
       {
         error: 'All AI models failed',
+        errorClass: error instanceof Error ? error.name : 'UnknownError',
         taskType,
         message: error instanceof Error ? error.message : 'Unknown error',
+        attempts,
       },
       500
     )

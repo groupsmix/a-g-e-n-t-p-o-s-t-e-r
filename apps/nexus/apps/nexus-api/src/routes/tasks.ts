@@ -44,7 +44,7 @@ const VALID_TYPES = [
 type TaskType = (typeof VALID_TYPES)[number]
 
 
-const VALID_STATUSES = ['queued', 'running', 'done', 'failed', 'cancelled'] as const
+const VALID_STATUSES = ['queued', 'running', 'done', 'failed', 'cancelled', 'needs_me', 'archived'] as const
 
 type TaskStatus = (typeof VALID_STATUSES)[number]
 
@@ -398,6 +398,64 @@ export const tasksRoutes = new Hono<{ Bindings: Env }>()
     .first<AgentTaskRow>()
 
   return c.json({ task: updated ? inflate(updated) : null })
+})
+
+// ── GET /api/tasks/:id/events ──────────────────────────────────────────────
+  .get('/:id/events', async (c) => {
+  const taskId = c.req.param('id')
+  const { results } = await c.env.DB
+    .prepare(`SELECT * FROM task_events WHERE task_id = ? ORDER BY created_at ASC`)
+    .bind(taskId)
+    .all()
+  return c.json({ events: results ?? [] })
+})
+
+// ── GET/POST /api/tasks/:id/messages ─────────────────────────────────────────
+  .get('/:id/messages', async (c) => {
+  const taskId = c.req.param('id')
+  const { results } = await c.env.DB
+    .prepare(`SELECT * FROM agent_messages WHERE task_id = ? ORDER BY created_at ASC`)
+    .bind(taskId)
+    .all()
+  return c.json({ messages: results ?? [] })
+})
+  .post('/:id/messages', async (c) => {
+  const taskId = c.req.param('id')
+  const body = await c.req.json<{ sender: string; content: string }>().catch(() => null)
+  if (!body || !body.sender || !body.content) {
+    return c.json({ error: 'sender and content are required' }, 400)
+  }
+  const id = crypto.randomUUID().replace(/-/g, '').slice(0, 32)
+  const now = new Date().toISOString()
+  await c.env.DB
+    .prepare(`INSERT INTO agent_messages (id, task_id, sender, content, created_at) VALUES (?, ?, ?, ?, ?)`)
+    .bind(id, taskId, body.sender, body.content, now)
+    .run()
+  return c.json({ message: { id, taskId, sender: body.sender, content: body.content, createdAt: now } }, 201)
+})
+
+// ── GET/POST /api/tasks/:id/artifacts ────────────────────────────────────────
+  .get('/:id/artifacts', async (c) => {
+  const taskId = c.req.param('id')
+  const { results } = await c.env.DB
+    .prepare(`SELECT * FROM artifacts WHERE task_id = ? ORDER BY created_at ASC`)
+    .bind(taskId)
+    .all()
+  return c.json({ artifacts: results ?? [] })
+})
+  .post('/:id/artifacts', async (c) => {
+  const taskId = c.req.param('id')
+  const body = await c.req.json<{ kind: string; url?: string; content?: string }>().catch(() => null)
+  if (!body || !body.kind) {
+    return c.json({ error: 'kind is required' }, 400)
+  }
+  const id = crypto.randomUUID().replace(/-/g, '').slice(0, 32)
+  const now = new Date().toISOString()
+  await c.env.DB
+    .prepare(`INSERT INTO artifacts (id, task_id, kind, url, content, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
+    .bind(id, taskId, body.kind, body.url ?? null, body.content ?? null, now)
+    .run()
+  return c.json({ artifact: { id, taskId, kind: body.kind, url: body.url, content: body.content, createdAt: now } }, 201)
 })
 
 // Re-export under the older alias used during scaffolding so either symbol works.

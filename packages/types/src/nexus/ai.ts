@@ -97,6 +97,7 @@ export interface FailoverResult {
   models_tried: string[]
   tokens_used: number
   cost_usd?: number
+  attempts?: AIAttemptLog[]
 }
 
 // AI Task Request/Response
@@ -109,6 +110,20 @@ export interface AIRunTaskRequest {
   excludeModelIds?: string[]
 }
 
+export type AIAttemptStatus = 'success' | 'failed'
+
+export interface AIAttemptLog {
+  model: string
+  provider: string
+  latencyMs: number
+  status: AIAttemptStatus
+  errorClass?: string
+  errorMessage?: string
+  tokensIn?: number
+  tokensOut?: number
+  costUsd?: number
+}
+
 export interface AIRunTaskResponse {
   output: string
   model_used: string
@@ -116,6 +131,7 @@ export interface AIRunTaskResponse {
   tokens_used: number
   cost_usd: number
   source?: 'model' | 'universal' | 'offline'
+  attempts?: AIAttemptLog[]
 }
 
 // AI Model Status for Dashboard

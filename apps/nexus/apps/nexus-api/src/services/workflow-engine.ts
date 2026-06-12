@@ -518,9 +518,10 @@ export class ProductWorkflow {
       // time budget. A cron backfill + manual button cover any that miss.
       if (this.env.SELF) {
         this.env.SELF.fetch(
-          new Request(`https://nexus-api/api/products/${productId}/generate-deliverable`, {
+          `https://nexus-api/api/products/${productId}/generate-deliverable`,
+          {
             method: 'POST',
-          }),
+          },
         ).catch(() => void 0)
       }
     } catch (err) {
@@ -606,6 +607,9 @@ export class ProductWorkflow {
               taskType: step.taskType,
               excludeModelIds,
               timeoutMs: 90000,
+              meta,
+              caller: 'workflow-engine',
+              workflowId: runId,
             }
           )
           const res = meta.response!
@@ -625,6 +629,8 @@ export class ProductWorkflow {
               excludeModelIds,
               timeoutMs: 90000,
               allowOffline: false,
+              caller: 'workflow-engine',
+              workflowId: runId,
             }
           )
           output = res.output
@@ -700,16 +706,17 @@ export class ProductWorkflow {
   private async generateAndStoreImage(ctx: WorkflowContext): Promise<void> {
     const prompt = String(ctx.data.image_prompt || '').trim()
     if (!prompt) return
-    const ctl = new AbortController()
-    const timer = setTimeout(() => ctl.abort(), 60000)
     try {
-      const req = new Request('https://nexus-ai/image', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-        signal: ctl.signal,
-      })
-      const res = await this.env.AI_WORKER.fetch(req)
+      const res = await Promise.race([
+        this.env.AI_WORKER.fetch('https://nexus-ai/image', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ prompt }),
+        }),
+        new Promise<Response>((_, reject) =>
+          setTimeout(() => reject(new Error('nexus-ai image request timed out')), 60000),
+        ),
+      ])
       if (res.status !== 200) return // 204 = no provider configured
       const img = (await res.json()) as { base64: string; contentType: string }
       const bytes = Uint8Array.from(atob(img.base64), (ch) => ch.charCodeAt(0))
@@ -719,8 +726,6 @@ export class ProductWorkflow {
       ctx.data.image_url = `/api/assets/r2/${key}`
     } catch (err) {
       console.error(`[workflow:${ctx.runId}] image generation failed:`, err)
-    } finally {
-      clearTimeout(timer)
     }
   }
 

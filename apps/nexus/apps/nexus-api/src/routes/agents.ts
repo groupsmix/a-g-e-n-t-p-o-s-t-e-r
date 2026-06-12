@@ -30,18 +30,18 @@ import {
 import {
   RunError,
   inflateTask,
-  runAgentTask,
+  runSingleAgentTask,
   validateRunBody,
-} from '../services/orchestrator'
+} from '../services/orchestrator-bridge'
 
 export const agentsRoutes = new Hono<{ Bindings: Env }>()
 
 // ── GET /api/agents/registry ────────────────────────────────────────────
-  .get('/registry', (c) => {
+  .get('/registry', async (c) => {
   const statusFilter = c.req.query('status') as AgentStatus | undefined
   const tagFilter = c.req.query('tag')
 
-  let agents = listAgents()
+  let agents = await listAgents(c.env)
   if (statusFilter) agents = agents.filter((a) => a.status === statusFilter)
   if (tagFilter) agents = agents.filter((a) => a.tags.includes(tagFilter))
 
@@ -55,8 +55,8 @@ export const agentsRoutes = new Hono<{ Bindings: Env }>()
 
 
 // ── GET /api/agents/registry/:type ──────────────────────────────────────
-  .get('/registry/:type', (c) => {
-  const descriptor = getAgent(c.req.param('type'))
+  .get('/registry/:type', async (c) => {
+  const descriptor = await getAgent(c.req.param('type'), c.env)
   if (!descriptor) {
     return c.json({ error: `unknown agent type: ${c.req.param('type')}` }, 404)
   }
@@ -84,9 +84,9 @@ export const agentsRoutes = new Hono<{ Bindings: Env }>()
   }
 
   try {
-    const { task, ranInline, reason } = await runAgentTask(c.env.DB, args)
+    const { task, ranInline, reason } = await runSingleAgentTask(c.env, args)
     return c.json({
-      task: inflateTask(task),
+      task: task ? inflateTask(task) : null,
       ranInline,
       ...(reason ? { reason } : {}),
     })

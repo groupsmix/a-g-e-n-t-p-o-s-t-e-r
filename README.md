@@ -2,6 +2,14 @@
 
 Personal AI content machine: NEXUS orchestration, site factory, Mastra agents, Remotion video, multi-platform publishing.
 
+## Scope
+
+This project is a personal, single-operator system.
+
+- It is not a shared SaaS product.
+- It does not need multi-user collaboration, tenant separation, team roles, or per-user ownership models unless that direction is explicitly chosen later.
+- Default architecture decisions should optimize for one owner/operator using the system privately.
+
 ## Two stacks, on purpose
 
 This repo has two coexisting stacks. They share `packages/*` and run from
@@ -32,13 +40,12 @@ the `@repo` runners still ship. CI proves it:
 
 | Path | Purpose |
 |------|---------|
-| `apps/nexus/` | NEXUS monorepo — API + AI worker (Cloudflare Workers) + web UI (Cloudflare Pages). **Own pnpm workspace** — see install note below. |
+| `apps/nexus/` | NEXUS monorepo — API + AI worker (Cloudflare Workers) + web UI (Cloudflare Pages). |
 | `apps/dashboard/` | Next.js 14 dashboard (port 3030) — `@posteragent/dashboard` |
 | `apps/factory/` | CosmicJS site generator (TASK 6.x) — `@repo/factory` |
 | `apps/runner/` | Cron entrypoints for legacy pipeline — `@repo/runner` |
 | `packages/*` | Mixed: `@repo/*` (legacy) and `@posteragent/*` (NEXUS) |
 | `ref/` | Cloned reference repos — local only, not tracked in git (do not import directly in production code) |
-| `docs/AGENT_TASKS.md` | Full build plan — one task per agent session |
 
 ## One workspace, one lockfile
 
@@ -62,12 +69,12 @@ root installs everything.
 ## Quick start
 
 ```bash
-cp .env.example .env
-# fill in keys
-pnpm install
-pnpm build
+corepack enable && corepack prepare pnpm@9.15.0 --activate
+pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm test
 ```
 
 ## Tasks
 
-Follow `docs/AGENT_TASKS.md` in order (Phase 0 → 10). Do not skip dependencies.
+Follow the implementation plan and the task tracker in `docs/history/` and root configurations.

@@ -5,7 +5,7 @@ export const runtime = 'edge'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { api, type QualityGateResult } from '@/lib/api'
-import type { WorkflowStatusResponse, WorkflowStep } from '@posteragent/types/nexus'
+import type { WorkflowAICall, WorkflowStatusResponse, WorkflowStep } from '@posteragent/types/nexus'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, Check, X, Clock, AlertCircle, ChevronRight } from 'lucide-react'
@@ -63,6 +63,44 @@ function StepItem({ step, index }: { step: WorkflowStep; index: number }) {
         <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
           {step.ai_model_used}
         </span>
+      )}
+    </div>
+  )
+}
+
+function AICallTraceItem({ call }: { call: WorkflowAICall }) {
+  const attemptSummary = call.attempts
+    .map((attempt) => `${attempt.model}:${attempt.status}${attempt.errorClass ? ` (${attempt.errorClass})` : ''}`)
+    .join(' -> ')
+
+  return (
+    <div className={`rounded-lg border p-4 text-xs space-y-2 ${call.ok ? 'border-border bg-card' : 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40'}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium">{STEP_LABELS[call.task_type] || call.task_type}</span>
+          <span className="rounded bg-muted px-2 py-1 text-[10px]">{call.caller}</span>
+          {call.source && (
+            <span className="rounded bg-muted px-2 py-1 text-[10px]">{call.source}</span>
+          )}
+        </div>
+        <span className={call.ok ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+          {call.ok ? 'success' : 'failed'}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
+        <span>{new Date(call.ts).toLocaleTimeString()}</span>
+        <span>{call.model_used ?? 'no model'}</span>
+        <span>{call.latency_ms} ms</span>
+        {(call.tokens_in > 0 || call.tokens_out > 0) && (
+          <span>{call.tokens_in.toLocaleString()} in / {call.tokens_out.toLocaleString()} out</span>
+        )}
+        {call.cost_usd > 0 && <span>${call.cost_usd.toFixed(4)}</span>}
+      </div>
+      {call.models_tried.length > 0 && (
+        <p className="text-muted-foreground">tried: {call.models_tried.join(', ')}</p>
+      )}
+      {attemptSummary && (
+        <p className="text-muted-foreground break-words">attempts: {attemptSummary}</p>
       )}
     </div>
   )
@@ -172,6 +210,21 @@ export default function WorkflowPage() {
             <StepItem key={step.id || index} step={step} index={index} />
           ))}
         </div>
+
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>AI Call Trace</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {!workflow.ai_calls?.length ? (
+              <p className="text-sm text-muted-foreground">No workflow-linked AI calls recorded yet.</p>
+            ) : (
+              workflow.ai_calls.map((call) => (
+                <AICallTraceItem key={call.id} call={call} />
+              ))
+            )}
+          </CardContent>
+        </Card>
 
         {workflow.status === 'completed' && qualityGate && (
           <div className="mt-6">

@@ -1,7 +1,99 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
 import { callAISimple } from '../services/shared'
+import { getSecret } from '../services/publishers'
 
+interface SubscriberRow {
+  id: string
+  email: string
+  name: string | null
+}
+
+interface SendAttempt {
+  recipient: string
+  trackingId: string
+  sentAt: string
+  ok: boolean
+  providerId: string | null
+  error: string | null
+}
+
+async function sendViaResend(
+  config: { key: string; from: string },
+  to: string,
+  subject: string,
+  html: string,
+): Promise<{ ok: boolean; providerId: string | null; error: string | null }> {
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${config.key}`,
+      },
+      body: JSON.stringify({
+        from: config.from,
+        to: [to],
+        subject,
+        html,
+      }),
+    })
+
+    const payload = await res.json().catch(() => null) as { id?: string; message?: string; name?: string } | null
+    if (res.ok) {
+      return { ok: true, providerId: payload?.id ?? null, error: null }
+    }
+
+    return {
+      ok: false,
+      providerId: null,
+      error: payload?.message ?? payload?.name ?? `Resend HTTP ${res.status}`,
+    }
+  } catch (err) {
+    return {
+      ok: false,
+      providerId: null,
+      error: err instanceof Error ? err.message : 'Unknown email delivery error',
+    }
+  }
+}
+
+async function recordSendAttempt(
+  env: Env,
+  campaignId: string,
+  attempt: SendAttempt,
+): Promise<void> {
+  const errorText = attempt.error ? attempt.error.slice(0, 1000) : null
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO email_sends
+         (tracking_id, campaign_id, step_id, recipient, provider, provider_id, ok, error, sent_at)
+       VALUES (?, ?, ?, ?, 'resend', ?, ?, ?, ?)`,
+    ).bind(
+      attempt.trackingId,
+      campaignId,
+      'campaign-send',
+      attempt.recipient,
+      attempt.providerId,
+      attempt.ok ? 1 : 0,
+      errorText,
+      attempt.sentAt,
+    ),
+    env.DB.prepare(
+      `INSERT INTO email_events (tracking_id, kind, at, meta)
+       VALUES (?, ?, ?, ?)`,
+    ).bind(
+      attempt.trackingId,
+      attempt.ok ? 'sent' : 'failed',
+      attempt.sentAt,
+      JSON.stringify({
+        provider: 'resend',
+        provider_id: attempt.providerId,
+        error: errorText,
+      }),
+    ),
+  ])
+}
 
 async function ensureTables(env: Env): Promise<void> {
   await env.DB.batch([
@@ -19,6 +111,17 @@ async function ensureTables(env: Env): Promise<void> {
          sent_at TEXT, open_count INTEGER NOT NULL DEFAULT 0,
          click_count INTEGER NOT NULL DEFAULT 0,
          created_at TEXT NOT NULL DEFAULT (datetime('now')))`,
+    ),
+    env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS email_sends (
+         tracking_id TEXT PRIMARY KEY, campaign_id TEXT NOT NULL, step_id TEXT NOT NULL,
+         recipient TEXT NOT NULL, provider TEXT NOT NULL, provider_id TEXT,
+         ok INTEGER NOT NULL, error TEXT, sent_at TEXT NOT NULL DEFAULT (datetime('now')))`,
+    ),
+    env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS email_events (
+         id INTEGER PRIMARY KEY AUTOINCREMENT, tracking_id TEXT NOT NULL,
+         kind TEXT NOT NULL, at TEXT NOT NULL, meta TEXT)`,
     ),
   ]).catch(() => void 0)
 }
@@ -172,23 +275,62 @@ Return JSON: {"subject":"catchy email subject line","body":"HTML email body with
   if (!campaign) return c.json({ error: 'Campaign not found' }, 404)
   if (campaign.status === 'sent') return c.json({ error: 'Campaign already sent' }, 400)
 
+  const resendKey = await getSecret(c.env, 'RESEND_API_KEY')
+  if (!resendKey) {
+    return c.json({ error: 'RESEND_API_KEY not configured' }, 503)
+  }
+  const resendFrom = (await getSecret(c.env, 'EMAIL_FROM')) || 'NEXUS <onboarding@resend.dev>'
+
   const subs = await c.env.DB.prepare(
-    `SELECT email FROM subscribers WHERE unsubscribed_at IS NULL`,
-  ).all<{ email: string }>()
+    `SELECT id, email, name FROM subscribers WHERE unsubscribed_at IS NULL`,
+  ).all<SubscriberRow>()
   const recipients = subs.results ?? []
+  if (recipients.length === 0) {
+    return c.json({ error: 'No active subscribers to send to' }, 400)
+  }
 
-  // Log the send (actual email delivery would use an email service)
   const now = new Date().toISOString()
-  console.log(`[email] Sending campaign "${campaign.subject}" to ${recipients.length} subscribers`)
+  let sentCount = 0
+  let failedCount = 0
+  const errors: string[] = []
 
+  for (const recipient of recipients) {
+    const trackingId = crypto.randomUUID()
+    const sentAt = new Date().toISOString()
+    const result = await sendViaResend(
+      { key: resendKey, from: resendFrom },
+      recipient.email,
+      campaign.subject,
+      campaign.body,
+    )
+    await recordSendAttempt(c.env, id, {
+      recipient: recipient.email,
+      trackingId,
+      sentAt,
+      ok: result.ok,
+      providerId: result.providerId,
+      error: result.error,
+    })
+    if (result.ok) {
+      sentCount++
+    } else {
+      failedCount++
+      errors.push(`${recipient.email}: ${result.error ?? 'send failed'}`)
+    }
+  }
+
+  const finalStatus = sentCount > 0 ? 'sent' : 'failed'
   await c.env.DB.prepare(
-    `UPDATE email_campaigns SET status = 'sent', sent_at = ? WHERE id = ?`,
-  ).bind(now, id).run()
+    `UPDATE email_campaigns SET status = ?, sent_at = ? WHERE id = ?`,
+  ).bind(finalStatus, sentCount > 0 ? now : null, id).run()
 
   return c.json({
-    ok: true,
-    sent_to: recipients.length,
+    ok: sentCount > 0,
+    sent_to: sentCount,
+    failed_to: failedCount,
     campaign_id: id,
-    sent_at: now,
+    sent_at: sentCount > 0 ? now : null,
+    status: finalStatus,
+    errors: errors.slice(0, 10),
   })
 })

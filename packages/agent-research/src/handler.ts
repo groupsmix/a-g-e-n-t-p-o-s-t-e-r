@@ -66,6 +66,11 @@ export interface ResearchHandlerOutcome {
     inputTokens: number
     outputTokens: number
   }
+  artifacts?: Array<{
+    kind: string
+    url?: string
+    content?: string
+  }>
 }
 
 export function createResearchHandler(deps: ResearchHandlerDeps) {
@@ -135,6 +140,12 @@ export function createResearchHandler(deps: ResearchHandlerDeps) {
           inputTokens: report.usage.plannerInputTokens + report.usage.synthInputTokens,
           outputTokens: report.usage.plannerOutputTokens + report.usage.synthOutputTokens,
         },
+        artifacts: [
+          {
+            kind: 'research_report',
+            content: report.narrative,
+          },
+        ],
       }
     },
   }

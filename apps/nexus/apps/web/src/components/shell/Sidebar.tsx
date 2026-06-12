@@ -8,8 +8,9 @@ import {
   Settings as SettingsIcon, Globe2, History,
   Bot, CalendarClock, Rocket, LayoutDashboard, ChevronDown, DollarSign,
   Menu, X, LayoutGrid, Workflow, Brain, Sunrise, Shirt,
-  ShoppingCart, Briefcase, Link2, FileText, FlaskConical, PenLine, Mail, Eye, Radar,
-  Sun, Moon, Monitor, Layers, BarChart3, Activity, Wallet, Send, Sparkles,
+  Briefcase, Link2, FileText, FlaskConical, PenLine, Mail, Eye, Radar,
+  Sun, Moon, Monitor, Layers, BarChart3, Activity, Wallet, Send, Sparkles, Flag,
+  Terminal, BellRing,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
@@ -18,9 +19,9 @@ import { BuildBadge } from '@/components/shared/BuildBadge'
 type Item = { to: string; label: string; icon: React.ComponentType<{ className?: string }> }
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  LayoutDashboard, Bot, Package, Shirt, FileText, Briefcase, Link2, ShoppingCart,
+  LayoutDashboard, Bot, Package, Shirt, FileText, Briefcase, Link2,
   Rocket, ShieldCheck, DollarSign, Brain, Sunrise, Globe2, CalendarClock, History, BarChart3, Activity,
-  SettingsIcon, LayoutGrid, Workflow, Wallet, Send, Sparkles,
+  SettingsIcon, LayoutGrid, Workflow, Wallet, Send, Sparkles, Flag, Terminal, BellRing,
 }
 
 const topItems: Item[] = [
@@ -45,6 +46,8 @@ const defaultSections: { title: string; items: Item[]; collapsible?: boolean }[]
     title: 'Engine',
     collapsible: true,
     items: [
+      { to: '/command-center', label: 'Command Center', icon: Terminal },
+      { to: '/notifications',  label: 'Notifications',  icon: BellRing },
       { to: '/money-workflow', label: 'Money Workflow', icon: BarChart3 },
       { to: '/autopilot',      label: 'Autopilot',      icon: Rocket },
       { to: '/autonome',       label: 'Autonome',       icon: Rocket },
@@ -55,6 +58,7 @@ const defaultSections: { title: string; items: Item[]; collapsible?: boolean }[]
       { to: '/analytics', label: 'Analytics', icon: BarChart3 },
       { to: '/insights', label: 'Insights', icon: Sparkles },
       { to: '/publisher-queue', label: 'Publisher Queue', icon: Send },
+      { to: '/brain', label: 'Brain Cockpit', icon: Brain },
       { to: '/learning', label: 'Learning Loop', icon: Brain },
       { to: '/ab-testing', label: 'A/B Testing', icon: FlaskConical },
       { to: '/blog', label: 'Blog Engine', icon: PenLine },
@@ -74,6 +78,8 @@ const defaultSections: { title: string; items: Item[]; collapsible?: boolean }[]
       { to: '/schedules', label: 'Schedules', icon: CalendarClock },
       { to: '/observability', label: 'Observability', icon: Eye },
       { to: '/history', label: 'History', icon: History },
+      { to: '/manager', label: 'Manage', icon: LayoutGrid },
+      { to: '/manager/flags', label: 'Feature Flags', icon: Flag },
       { to: '/settings', label: 'Settings', icon: SettingsIcon },
     ],
   },

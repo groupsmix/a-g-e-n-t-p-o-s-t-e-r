@@ -11,7 +11,6 @@ function fakeDb(): OrchestratorDB & { writes: Array<{ sql: string; binds: unknow
   const exec = async () => ({ success: true, meta: { changes: 0 } })
   const first = async () => null
   const all = async () => ({ results: [] })
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prepare = (sql: string): any => {
     return {
       bind: (...binds: unknown[]) => {
@@ -23,7 +22,6 @@ function fakeDb(): OrchestratorDB & { writes: Array<{ sql: string; binds: unknow
       all,
     }
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return { prepare: prepare as any, writes }
 }
 
@@ -40,12 +38,14 @@ function makeTask(): AgentTask {
 
 describe('BaseAgent', () => {
   it('runs a handler and returns a done AgentResult', async () => {
-    const handler = defineStub({
+    const handler: AgentHandler = {
       type: 'research',
       name: 'Researcher',
       description: 'd',
-      phase: 'P4',
-    })
+      async run() {
+        return { data: { success: true }, summary: 'done research' }
+      },
+    }
     const db = fakeDb()
     const agent = new BaseAgent(handler, { db })
     const result = await agent.run(makeTask())
@@ -94,7 +94,7 @@ describe('BaseAgent', () => {
   it('respects timeoutMs by signalling the handler', async () => {
     let abortFired = false
     const slow: AgentHandler = {
-      type: 'publish',
+      type: 'research',
       name: 'Slow',
       description: 'd',
       async run(ctx: AgentContext) {
@@ -110,11 +110,120 @@ describe('BaseAgent', () => {
     const db = fakeDb()
     const agent = new BaseAgent(slow, { db })
     const result = await agent.run(
-      { ...makeTask(), type: 'publish' },
+      { ...makeTask(), type: 'research' },
       { timeoutMs: 30 },
     )
     expect(abortFired).toBe(true)
     expect(result.status).toBe('done')
+  })
+
+  it('blocks execution and creates pending approval + notification + event for risky tasks', async () => {
+    const handler: AgentHandler = {
+      type: 'publish',
+      name: 'Publisher',
+      description: 'd',
+      async run() {
+        return { data: null, summary: 'published' }
+      },
+    }
+    const db = fakeDb()
+    const agent = new BaseAgent(handler, { db })
+    const result = await agent.run({ ...makeTask(), type: 'publish' })
+
+    expect(result.status).toBe('needs_me')
+    expect(result.error).toContain('requires manual approval')
+
+    // Verify database inserts (approval request + notification + task event)
+    const approvalWrite = db.writes.find(w => w.sql.includes('INSERT INTO approval_requests'))
+    expect(approvalWrite).toBeDefined()
+    expect(approvalWrite?.binds[2]).toBe('publish_content') // action_type
+    expect(approvalWrite?.binds[3]).toBe('high') // risk_level
+
+    const notificationWrite = db.writes.find(w => w.sql.includes('INSERT INTO notifications'))
+    expect(notificationWrite).toBeDefined()
+
+    const eventWrite = db.writes.find(w => w.sql.includes('INSERT INTO task_events') && w.binds[2] === 'approval_requested')
+    expect(eventWrite).toBeDefined()
+  })
+
+  it('allows execution of risky task when approved request exists', async () => {
+    const handler: AgentHandler = {
+      type: 'publish',
+      name: 'Publisher',
+      description: 'd',
+      async run() {
+        return { data: { success: true }, summary: 'published' }
+      },
+    }
+    const db = fakeDb()
+    // Mock the SELECT statement to return an approved status
+    const origPrepare = db.prepare
+    db.prepare = (sql: string) => {
+      if (sql.includes('SELECT status FROM approval_requests')) {
+        return {
+          bind: () => ({
+            first: async () => ({ status: 'approved' }),
+            run: async () => ({ success: true }),
+            all: async () => ({ results: [] }),
+          }),
+          first: async () => ({ status: 'approved' }),
+          run: async () => ({ success: true }),
+          all: async () => ({ results: [] }),
+        } as any
+      }
+      return origPrepare(sql)
+    }
+
+    const agent = new BaseAgent(handler, { db })
+    const result = await agent.run({ ...makeTask(), type: 'publish' })
+    expect(result.status).toBe('done')
+    expect(result.data).toEqual({ success: true })
+  })
+
+  it('logs started, completed and failed task events', async () => {
+    const handler: AgentHandler = {
+      type: 'research',
+      name: 'Researcher',
+      description: 'd',
+      async run() {
+        return { data: null, summary: 'done research' }
+      },
+    }
+    const db = fakeDb()
+    const agent = new BaseAgent(handler, { db })
+    await agent.run(makeTask())
+
+    const startEvent = db.writes.find(w => w.sql.includes('INSERT INTO task_events') && w.binds[2] === 'started')
+    expect(startEvent).toBeDefined()
+
+    const completeEvent = db.writes.find(w => w.sql.includes('INSERT INTO task_events') && w.binds[2] === 'completed')
+    expect(completeEvent).toBeDefined()
+  })
+
+  it('persists artifacts when handler returns them', async () => {
+    const handler: AgentHandler = {
+      type: 'research',
+      name: 'Researcher',
+      description: 'd',
+      async run() {
+        return {
+          data: null,
+          summary: 'done',
+          artifacts: [{ kind: 'research_report', url: 'https://r2/123.md' }],
+        }
+      },
+    }
+    const db = fakeDb()
+    const agent = new BaseAgent(handler, { db })
+    await agent.run(makeTask())
+
+    const artifactWrite = db.writes.find(w => w.sql.includes('INSERT INTO artifacts'))
+    expect(artifactWrite).toBeDefined()
+    expect(artifactWrite?.binds[2]).toBe('research_report')
+    expect(artifactWrite?.binds[3]).toBe('https://r2/123.md')
+
+    const artifactEvent = db.writes.find(w => w.sql.includes('INSERT INTO task_events') && w.binds[2] === 'artifact_created')
+    expect(artifactEvent).toBeDefined()
   })
 
   it('exposes handler metadata via type+name getters', () => {

@@ -133,6 +133,10 @@ export function createGenerateImageHandler(
         ],
         nextActions: ['Use the generated image in a publish task'],
         usage: { model },
+        artifacts: urls.map((url) => ({
+          kind: 'image',
+          url,
+        })),
       }
     },
   }

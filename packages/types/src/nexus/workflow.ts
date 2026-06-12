@@ -1,3 +1,5 @@
+import type { AIAttemptLog } from './ai'
+
 export type WorkflowStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export type StepStatus = 'waiting' | 'running' | 'completed' | 'failed' | 'skipped'
@@ -73,6 +75,24 @@ export interface WorkflowStatusResponse {
   total_steps: number
   error: string | null
   steps: WorkflowStep[]
+  ai_calls?: WorkflowAICall[]
+}
+
+export interface WorkflowAICall {
+  id: string
+  ts: string
+  task_type: string
+  model_used: string | null
+  source: 'model' | 'universal' | 'offline' | null
+  models_tried: string[]
+  attempts: AIAttemptLog[]
+  tokens_in: number
+  tokens_out: number
+  cost_usd: number
+  latency_ms: number
+  caller: string
+  workflow_id: string | null
+  ok: boolean
 }
 
 export interface StartWorkflowInput {

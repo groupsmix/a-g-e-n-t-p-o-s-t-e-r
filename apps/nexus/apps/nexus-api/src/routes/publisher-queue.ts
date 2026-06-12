@@ -18,7 +18,7 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 
 
-type Status = 'scheduled' | 'done' | 'failed'
+type Status = 'draft' | 'needs_approval' | 'scheduled' | 'published' | 'failed' | 'cancelled' | 'done'
 
 
 interface JobRow {
@@ -194,6 +194,47 @@ export const publisherQueueRoutes = new Hono<{ Bindings: Env }>()
          SET status = 'scheduled', result = NULL, completed_at = NULL,
              publish_at = COALESCE(publish_at, datetime('now'))
        WHERE idempotency_key = ?`,
+    ).bind(id).run()
+    return c.json({ ok: true })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
+  }
+})
+
+
+  .post('/jobs/:id/approve', async (c) => {
+  const id = c.req.param('id')
+  try {
+    const row = await c.env.DB.prepare(
+      `SELECT status, payload FROM publish_jobs WHERE idempotency_key = ?`,
+    ).bind(id).first<{ status: Status; payload: string }>()
+    if (!row) return c.json({ error: 'not found' }, 404)
+    if (row.status !== 'draft' && row.status !== 'needs_approval') {
+      return c.json({ error: 'only draft or needs_approval jobs can be approved' }, 400)
+    }
+    
+    await c.env.DB.prepare(
+      `UPDATE publish_jobs
+          SET status = 'scheduled',
+              publish_at = COALESCE(publish_at, datetime('now'))
+        WHERE idempotency_key = ?`,
+    ).bind(id).run()
+    return c.json({ ok: true })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
+  }
+})
+
+
+  .post('/jobs/:id/reject', async (c) => {
+  const id = c.req.param('id')
+  try {
+    const row = await c.env.DB.prepare(
+      `SELECT status FROM publish_jobs WHERE idempotency_key = ?`,
+    ).bind(id).first<{ status: Status }>()
+    if (!row) return c.json({ error: 'not found' }, 404)
+    await c.env.DB.prepare(
+      `UPDATE publish_jobs SET status = 'cancelled' WHERE idempotency_key = ?`,
     ).bind(id).run()
     return c.json({ ok: true })
   } catch (err) {

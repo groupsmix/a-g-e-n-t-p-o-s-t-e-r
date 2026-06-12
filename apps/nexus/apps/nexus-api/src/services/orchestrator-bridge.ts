@@ -23,9 +23,12 @@
 
 import type { Env } from '../env'
 import { createLogger } from '@posteragent/logger/workers'
+import { getAgent, isAgentTaskType, type AgentTaskType } from './agent-registry'
 
 import { wireRegistry, runAgentTask, type WireDeps } from '@posteragent/orchestrator'
 import { createAnthropicLLM, createTavilySearch } from '@posteragent/agent-research/adapters'
+import { drainScheduled } from '@posteragent/agent-publisher'
+import { createD1JobStore } from '@posteragent/agent-publisher/adapters'
 import { BudgetGuard, D1BudgetStore } from '@posteragent/agent-budget'
 import { D1SnapshotStore } from '@posteragent/agent-analytics'
 import {
@@ -147,11 +150,63 @@ async function buildRegistry(env: Env): Promise<Registry> {
     notifier: new ConsoleNotificationSink(),
   }
 
-  // Publisher adapters are platform-specific and configured per
-  // deployment in apps/nexus/apps/nexus-api/src/routes/publisher-queue.ts.
-  // Leave the publish handler as its stub until that route exports its
-  // adapter array — wireRegistry will keep dispatching to the stub
-  // until then.
+  // Publisher — read secrets for each platform and instantiate adapters.
+  const store = createD1JobStore(env.DB as any)
+  const publisherAdapters: any[] = []
+
+  const [xToken, liToken, igToken, ttToken, ytToken, nsToken, nsBaseUrl, cosmicSlug, cosmicReadKey, cosmicWriteKey, reacherUrl, reacherApiKey] = await Promise.all([
+    env.SECRETS.get('X_BEARER_TOKEN').catch(() => null),
+    env.SECRETS.get('LINKEDIN_ACCESS_TOKEN').catch(() => null),
+    env.SECRETS.get('INSTAGRAM_ACCESS_TOKEN').catch(() => null),
+    env.SECRETS.get('TIKTOK_ACCESS_TOKEN').catch(() => null),
+    env.SECRETS.get('YOUTUBE_ACCESS_TOKEN').catch(() => null),
+    env.SECRETS.get('NEWSLETTER_API_KEY').catch(() => null),
+    env.SECRETS.get('NEWSLETTER_BASE_URL').catch(() => null),
+    env.SECRETS.get('COSMIC_BUCKET_SLUG').catch(() => null),
+    env.SECRETS.get('COSMIC_READ_KEY').catch(() => null),
+    env.SECRETS.get('COSMIC_WRITE_KEY').catch(() => null),
+    env.SECRETS.get('AGENT_REACHER_URL').catch(() => null),
+    env.SECRETS.get('AGENT_REACHER_API_KEY').catch(() => null),
+  ])
+
+  if (xToken) {
+    const { createXAdapter } = await import('@posteragent/agent-publisher/adapters')
+    publisherAdapters.push(createXAdapter({ bearerToken: xToken }))
+  }
+  if (liToken) {
+    const { createLinkedInAdapter } = await import('@posteragent/agent-publisher/adapters')
+    publisherAdapters.push(createLinkedInAdapter({ accessToken: liToken }))
+  }
+  if (igToken) {
+    const { createInstagramAdapter } = await import('@posteragent/agent-publisher/adapters')
+    publisherAdapters.push(createInstagramAdapter({ accessToken: igToken }))
+  }
+  if (ttToken) {
+    const { createTikTokAdapter } = await import('@posteragent/agent-publisher/adapters')
+    publisherAdapters.push(createTikTokAdapter({ accessToken: ttToken }))
+  }
+  if (ytToken) {
+    const { createYouTubeAdapter } = await import('@posteragent/agent-publisher/adapters')
+    publisherAdapters.push(createYouTubeAdapter({ accessToken: ytToken }))
+  }
+  if (nsToken) {
+    const { createNewsletterAdapter } = await import('@posteragent/agent-publisher/adapters')
+    publisherAdapters.push(createNewsletterAdapter({ apiKey: nsToken, baseUrl: nsBaseUrl ?? 'https://api.emailoctopus.com/v3' }))
+  }
+  if (cosmicSlug && cosmicReadKey && cosmicWriteKey) {
+    const { createBlogAdapter } = await import('@posteragent/agent-publisher/adapters')
+    publisherAdapters.push(createBlogAdapter({
+      bucketSlug: cosmicSlug,
+      readKey: cosmicReadKey,
+      writeKey: cosmicWriteKey,
+    }))
+  }
+
+  deps.publisher = {
+    adapters: publisherAdapters,
+    store,
+    agentReacher: reacherUrl ? { url: reacherUrl, apiKey: reacherApiKey ?? undefined } : undefined,
+  }
 
   return wireRegistry(deps)
 }
@@ -297,11 +352,88 @@ export async function tickOrchestrator(env: Env): Promise<void> {
     logger.info('orchestrator drain', { ...drained } as unknown as Record<string, unknown>)
   } catch (err) {
     // Bubbled D1 errors land here. Previously hidden by the in-loop
-    // `.catch(() => ({ results: [] }))`.
+    // catch; now correctly surfaced so logs trace actual DB outages.
     logger.error(
-      'orchestrator-bridge: drain failed',
+      'orchestrator-bridge: drain error',
       err instanceof Error ? err : new Error(String(err)),
     )
+  }
+
+  // 4. Drain scheduled publisher queue.
+  try {
+    await runPublisherDrain(env)
+  } catch (err) {
+    logger.error('orchestrator-bridge: publisher drain error', err instanceof Error ? err : new Error(String(err)))
+  }
+}
+
+async function runPublisherDrain(env: Env): Promise<void> {
+  const store = createD1JobStore(env.DB as any)
+  const publisherAdapters: any[] = []
+
+  const [xToken, liToken, igToken, ttToken, ytToken, nsToken, nsBaseUrl, cosmicSlug, cosmicReadKey, cosmicWriteKey, reacherUrl, reacherApiKey] = await Promise.all([
+    env.SECRETS.get('X_BEARER_TOKEN').catch(() => null),
+    env.SECRETS.get('LINKEDIN_ACCESS_TOKEN').catch(() => null),
+    env.SECRETS.get('INSTAGRAM_ACCESS_TOKEN').catch(() => null),
+    env.SECRETS.get('TIKTOK_ACCESS_TOKEN').catch(() => null),
+    env.SECRETS.get('YOUTUBE_ACCESS_TOKEN').catch(() => null),
+    env.SECRETS.get('NEWSLETTER_API_KEY').catch(() => null),
+    env.SECRETS.get('NEWSLETTER_BASE_URL').catch(() => null),
+    env.SECRETS.get('COSMIC_BUCKET_SLUG').catch(() => null),
+    env.SECRETS.get('COSMIC_READ_KEY').catch(() => null),
+    env.SECRETS.get('COSMIC_WRITE_KEY').catch(() => null),
+    env.SECRETS.get('AGENT_REACHER_URL').catch(() => null),
+    env.SECRETS.get('AGENT_REACHER_API_KEY').catch(() => null),
+  ])
+
+  if (xToken) {
+    const { createXAdapter } = await import('@posteragent/agent-publisher/adapters')
+    publisherAdapters.push(createXAdapter({ bearerToken: xToken }))
+  }
+  if (liToken) {
+    const { createLinkedInAdapter } = await import('@posteragent/agent-publisher/adapters')
+    publisherAdapters.push(createLinkedInAdapter({ accessToken: liToken }))
+  }
+  if (igToken) {
+    const { createInstagramAdapter } = await import('@posteragent/agent-publisher/adapters')
+    publisherAdapters.push(createInstagramAdapter({ accessToken: igToken }))
+  }
+  if (ttToken) {
+    const { createTikTokAdapter } = await import('@posteragent/agent-publisher/adapters')
+    publisherAdapters.push(createTikTokAdapter({ accessToken: ttToken }))
+  }
+  if (ytToken) {
+    const { createYouTubeAdapter } = await import('@posteragent/agent-publisher/adapters')
+    publisherAdapters.push(createYouTubeAdapter({ accessToken: ytToken }))
+  }
+  if (nsToken) {
+    const { createNewsletterAdapter } = await import('@posteragent/agent-publisher/adapters')
+    publisherAdapters.push(createNewsletterAdapter({ apiKey: nsToken, baseUrl: nsBaseUrl ?? 'https://api.emailoctopus.com/v3' }))
+  }
+  if (cosmicSlug && cosmicReadKey && cosmicWriteKey) {
+    const { createBlogAdapter } = await import('@posteragent/agent-publisher/adapters')
+    publisherAdapters.push(createBlogAdapter({
+      bucketSlug: cosmicSlug,
+      readKey: cosmicReadKey,
+      writeKey: cosmicWriteKey,
+    }))
+  }
+
+  const report = await drainScheduled({
+    adapters: publisherAdapters,
+    store,
+    agentReacher: reacherUrl ? { url: reacherUrl, apiKey: reacherApiKey ?? undefined } : undefined,
+  })
+
+  const ok = report.results.filter((r) => r.ok).length
+  const failed = report.results.filter((r) => !r.ok).length
+  if (ok > 0 || failed > 0) {
+    logger.info('publisher queue drain', {
+      attempted: report.results.length,
+      succeeded: ok,
+      failed,
+      unrouted: report.unrouted.length,
+    })
   }
 }
 
@@ -322,5 +454,182 @@ export async function buildIdentityLayer(env: Env): Promise<IdentityLayer | unde
       error: err instanceof Error ? err.message : String(err),
     })
     return undefined
+  }
+}
+
+// ─── Direct Sync run support (Task 3.1) ──────────────────────────────────
+
+export class RunError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message)
+    this.name = 'RunError'
+  }
+}
+
+export interface RunArgs {
+  taskId?: string
+  create?: {
+    type: AgentTaskType
+    payload?: Record<string, unknown>
+    agentId?: string | null
+    origin?: string
+    parentTaskId?: string | null
+  }
+  force?: boolean
+}
+
+export function validateRunBody(body: unknown): RunArgs {
+  if (!body || typeof body !== 'object') {
+    throw new RunError('invalid JSON body', 400)
+  }
+  const b = body as Record<string, unknown>
+
+  if (typeof b.taskId === 'string' && b.taskId.length > 0) {
+    return { taskId: b.taskId, force: b.force === true }
+  }
+
+  if (b.create && typeof b.create === 'object') {
+    const c = b.create as Record<string, unknown>
+    if (!isAgentTaskType(c.type)) {
+      throw new RunError(`invalid create.type: ${String(c.type)}`, 400)
+    }
+    return {
+      create: {
+        type: c.type,
+        payload: (c.payload as Record<string, unknown>) ?? {},
+        agentId: typeof c.agentId === 'string' ? c.agentId : null,
+        origin: typeof c.origin === 'string' ? c.origin : 'api',
+        parentTaskId: typeof c.parentTaskId === 'string' ? c.parentTaskId : null,
+      },
+      force: b.force === true,
+    }
+  }
+
+  if (isAgentTaskType(b.type)) {
+    return {
+      create: {
+        type: b.type,
+        payload: (b.payload as Record<string, unknown>) ?? {},
+        agentId: typeof b.agentId === 'string' ? b.agentId : null,
+        origin: typeof b.origin === 'string' ? b.origin : 'api',
+        parentTaskId: typeof b.parentTaskId === 'string' ? b.parentTaskId : null,
+      },
+      force: false,
+    }
+  }
+
+  throw new RunError(
+    'body must contain taskId, create{type,payload}, or top-level {type,payload}',
+    400,
+  )
+}
+
+export function inflateTask(row: any): Record<string, unknown> {
+  const parse = (s: string | null): unknown => {
+    if (s == null) return null
+    try {
+      return JSON.parse(s)
+    } catch {
+      return s
+    }
+  }
+  return {
+    ...row,
+    payload: parse(row.payload),
+    result: parse(row.result),
+  }
+}
+
+export async function runSingleAgentTask(
+  env: Env,
+  args: RunArgs,
+): Promise<{ task: any; ranInline: boolean; reason?: string }> {
+  const registry = await getWiredRegistry(env)
+  const identity = await buildIdentityLayer(env)
+
+  let taskId = args.taskId ?? ''
+  if (!taskId && args.create) {
+    const desc = await getAgent(args.create.type, env)
+    taskId = crypto.randomUUID().replace(/-/g, '').slice(0, 32)
+    const now = new Date().toISOString()
+    await env.DB
+      .prepare(
+        `INSERT INTO agent_tasks (
+           id, type, status, payload, agent_id, origin,
+           parent_task_id, estimated_cost_usd, created_at, updated_at
+         )
+         VALUES (?, ?, 'queued', ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        taskId,
+        args.create.type,
+        JSON.stringify(args.create.payload ?? {}),
+        args.create.agentId ?? null,
+        args.create.origin ?? 'api',
+        args.create.parentTaskId ?? null,
+        desc?.estimatedCostUsd ?? null,
+        now,
+        now,
+      )
+      .run()
+  }
+
+  const initial = await env.DB
+    .prepare(`SELECT * FROM agent_tasks WHERE id = ?`)
+    .bind(taskId)
+    .first<any>()
+
+  if (!initial) {
+    return { task: null, ranInline: false, reason: 'Task not found' }
+  }
+
+  if (initial.status !== 'queued' && !args.force) {
+    logger.info('skip non-queued task', { taskId, status: initial.status })
+    return {
+      task: initial,
+      ranInline: false,
+      reason: `status=${initial.status} (use force=true to re-run)`,
+    }
+  }
+
+  try {
+    await runAgentTask(
+      taskId,
+      {
+        db: env.DB as never,
+        registry,
+        identity,
+        log: logger as never,
+        budget: buildBudgetGuard(env),
+      },
+      { force: args.force },
+    )
+
+    const updated = await env.DB
+      .prepare(`SELECT * FROM agent_tasks WHERE id = ?`)
+      .bind(taskId)
+      .first<any>()
+
+    return {
+      task: updated,
+      ranInline: true,
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    logger.error('orchestrator-bridge: runSingleAgentTask crashed', err instanceof Error ? err : new Error(msg), { taskId })
+    
+    const updated = await env.DB
+      .prepare(`SELECT * FROM agent_tasks WHERE id = ?`)
+      .bind(taskId)
+      .first<any>()
+      
+    return {
+      task: updated,
+      ranInline: true,
+      reason: msg,
+    }
   }
 }
