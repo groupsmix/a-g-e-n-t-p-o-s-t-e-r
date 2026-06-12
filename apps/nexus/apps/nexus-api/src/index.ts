@@ -84,6 +84,7 @@ import { repoIntelRoutes } from './routes/repo-intelligence'
 import { codeOpsRoutes } from './routes/code-ops'
 import { docGeneratorRoutes } from './routes/doc-generator'
 import { multiAgentRoutes } from './routes/multi-agent-coordinator'
+import { securityAuditRoutes } from './routes/security-audit'
 import {
   D1SnapshotStore,
   collectAnalytics,
@@ -285,6 +286,7 @@ api.route('/repo-intel', repoIntelRoutes)
 api.route('/code-ops', codeOpsRoutes)
 api.route('/doc-gen', docGeneratorRoutes)
 api.route('/multi-agent', multiAgentRoutes)
+api.route('/security-audit', securityAuditRoutes)
 // Auto money machine — end-to-end chain (research → write → generate → publish)
 // backed by the orchestrator's BaseAgent (memory + identity + journal).
 api.route('/money-machine', moneyMachineRoutes)
