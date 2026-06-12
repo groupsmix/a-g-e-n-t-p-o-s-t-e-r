@@ -10,7 +10,7 @@ import {
   Menu, X, LayoutGrid, Workflow, Brain, Sunrise, Shirt,
   Briefcase, Link2, FileText, FlaskConical, PenLine, Mail, Eye, Radar,
   Sun, Moon, Monitor, Layers, BarChart3, Activity, Wallet, Send, Sparkles, Flag,
-  Terminal, BellRing,
+  Terminal, BellRing, GitBranch, FileCode2, Network,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
@@ -22,6 +22,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   LayoutDashboard, Bot, Package, Shirt, FileText, Briefcase, Link2,
   Rocket, ShieldCheck, DollarSign, Brain, Sunrise, Globe2, CalendarClock, History, BarChart3, Activity,
   SettingsIcon, LayoutGrid, Workflow, Wallet, Send, Sparkles, Flag, Terminal, BellRing,
+  GitBranch, FileCode2, Network,
 }
 
 const topItems: Item[] = [
@@ -67,6 +68,9 @@ const defaultSections: { title: string; items: Item[]; collapsible?: boolean }[]
       { to: '/competitors', label: 'Competitors', icon: Eye },
       { to: '/opportunities', label: 'Opportunity Radar', icon: Radar },
       { to: '/queue',          label: 'Job Queue',         icon: Activity },
+      { to: '/repo-intel',    label: 'Repo Intelligence',  icon: GitBranch },
+      { to: '/code-agent',    label: 'Code Agent',         icon: FileCode2 },
+      { to: '/multi-agent',   label: 'Multi-Agent',        icon: Network },
     ],
   },
   {
