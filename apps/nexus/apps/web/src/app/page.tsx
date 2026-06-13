@@ -11,7 +11,7 @@ import { api, API_BASE, type AutopilotStatus, type RevenueResponse, type Digest,
 import { PageBody } from '@/components/shell/AppShell'
 import { SetupBanner } from '@/components/shared/SetupBanner'
 import { formatCost } from '@/lib/utils'
-import type { PipelineSummary } from '@posteragent/types'
+import type { PipelineSummary } from '@posteragent/types/nexus/api-contract'
 
 interface Counts { total: number; pending: number; approved: number; published: number }
 
