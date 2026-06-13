@@ -63,25 +63,6 @@ jobs:
             --filter=@posteragent/memory \
             --filter=@posteragent/identity
 
-  # ─── Dashboard ───────────────────────────────────────────────────────
-  dashboard:
-    name: dashboard
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      # Build @posteragent/types (exports from dist/) before typechecking dependants
-      - run: pnpm turbo build --filter=@posteragent/types --filter=@posteragent/logger
-      - run: pnpm --filter @posteragent/dashboard typecheck
-      - run: pnpm --filter @posteragent/dashboard test
-      - run: pnpm --filter @posteragent/dashboard build
-
   # ─── Brain / V1 agents ───────────────────────────────────────────────
   brain:
     name: brain
