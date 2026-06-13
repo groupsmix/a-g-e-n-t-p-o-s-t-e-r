@@ -14,16 +14,17 @@
   },
   "dependencies": {
     "@posteragent/types": "workspace:*",
+    "@posteragent/ui": "workspace:*",
     "@radix-ui/react-slot": "^1.0.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
+    "hono": "^4.12.25",
     "lucide-react": "^0.312.0",
     "next": "14.2.35",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tailwind-merge": "^2.2.1",
-    "tailwindcss-animate": "^1.0.7",
-    "hono": "^4.12.25"
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@cloudflare/next-on-pages": "^1.13.16",
