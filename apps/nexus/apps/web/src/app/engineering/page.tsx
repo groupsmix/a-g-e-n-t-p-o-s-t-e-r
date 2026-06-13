@@ -23,12 +23,15 @@ type TabId = typeof TABS[number]['id']
 
 // ── Shared API helper ──────────────────────────────────────────────────────
 
-async function apiFetch(path: string, init?: RequestInit) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function apiFetch(path: string, init?: RequestInit): Promise<any> {
   const token = getToken()
-  return fetch(`${API_BASE}${path}`, {
+  const r = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...(token ? { 'x-access-token': token } : {}), ...(init?.headers ?? {}) },
   })
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  return r.json()
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────
@@ -98,7 +101,7 @@ function CodeAgentPanel() {
   const [tab,           setTab]           = useState<'files' | 'prs'>('files')
 
   useEffect(() => {
-    apiFetch('/api/code-agent/repos').then(r => r.json()).then(d => {
+    apiFetch('/api/code-agent/repos').then(d => {
       setRepos(d.repos || [])
       setLoading(false)
     }).catch(() => setLoading(false))
@@ -112,8 +115,8 @@ function CodeAgentPanel() {
     setLoadingFiles(true)
     try {
       const [fr, pr] = await Promise.all([
-        apiFetch(`/api/code-agent/repos/${repo.id}/files?path=`).then(r => r.json()),
-        apiFetch(`/api/code-agent/repos/${repo.id}/prs`).then(r => r.json()),
+        apiFetch(`/api/code-agent/repos/${repo.id}/files?path=`),
+        apiFetch(`/api/code-agent/repos/${repo.id}/prs`),
       ])
       setFiles(fr.files || [])
       setPrs(pr.prs || [])
@@ -125,7 +128,7 @@ function CodeAgentPanel() {
     setViewingFile(null); setFileContent(null)
     setLoadingFiles(true)
     try {
-      const d = await apiFetch(`/api/code-agent/repos/${selectedRepo.id}/files?path=${encodeURIComponent(entry.path)}`).then(r => r.json())
+      const d = await apiFetch(`/api/code-agent/repos/${selectedRepo.id}/files?path=${encodeURIComponent(entry.path)}`)
       setFiles(d.files || [])
       setCurrentPath(entry.path)
     } finally { setLoadingFiles(false) }
@@ -134,7 +137,7 @@ function CodeAgentPanel() {
   async function viewFile(entry: FileEntry) {
     if (!selectedRepo) return
     setViewingFile(entry); setFileContent(null)
-    const d = await apiFetch(`/api/code-agent/repos/${selectedRepo.id}/file?path=${encodeURIComponent(entry.path)}`).then(r => r.json())
+    const d = await apiFetch(`/api/code-agent/repos/${selectedRepo.id}/file?path=${encodeURIComponent(entry.path)}`)
     setFileContent(d.content ?? '')
   }
 
@@ -144,7 +147,7 @@ function CodeAgentPanel() {
     const parentPath = parts.slice(0, -1).join('/')
     setLoadingFiles(true); setViewingFile(null); setFileContent(null)
     try {
-      const d = await apiFetch(`/api/code-agent/repos/${selectedRepo.id}/files?path=${encodeURIComponent(parentPath)}`).then(r => r.json())
+      const d = await apiFetch(`/api/code-agent/repos/${selectedRepo.id}/files?path=${encodeURIComponent(parentPath)}`)
       setFiles(d.files || [])
       setCurrentPath(parentPath)
     } finally { setLoadingFiles(false) }
@@ -279,8 +282,8 @@ function MultiAgentPanel() {
   const refresh = async () => {
     try {
       const [sd, rd] = await Promise.all([
-        apiFetch('/api/multi-agent/sessions').then(r => r.json()),
-        apiFetch('/api/code-agent/repos').then(r => r.json()),
+        apiFetch('/api/multi-agent/sessions'),
+        apiFetch('/api/code-agent/repos'),
       ])
       setSessions(sd.sessions || [])
       setRepos(rd.repos || [])
@@ -294,7 +297,7 @@ function MultiAgentPanel() {
   }, [])
 
   async function loadSteps(sessionId: string) {
-    const d = await apiFetch(`/api/multi-agent/sessions/${sessionId}/steps`).then(r => r.json())
+    const d = await apiFetch(`/api/multi-agent/sessions/${sessionId}/steps`)
     setSteps(prev => ({ ...prev, [sessionId]: d.steps || [] }))
   }
 
@@ -429,8 +432,8 @@ function RepoIntelPanel() {
     setLoading(true)
     try {
       const [rd, od] = await Promise.all([
-        apiFetch('/api/repo-intel/repos').then(r => r.json()),
-        apiFetch('/api/repo-intel/ops').then(r => r.json()),
+        apiFetch('/api/repo-intel/repos'),
+        apiFetch('/api/repo-intel/ops'),
       ])
       setRepos(rd.repos || [])
       setOps(od.ops || [])
