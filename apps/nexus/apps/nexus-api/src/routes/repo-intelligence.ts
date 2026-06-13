@@ -145,7 +145,7 @@ repoIntelRoutes.post('/projects', async (c) => {
 
   const existing = await c.env.DB
     .prepare('SELECT id FROM repo_projects WHERE url = ? LIMIT 1')
-    .first<{ id: string }>({ url })
+    .bind(url).first<{ id: string }>()
   if (existing) return c.json({ error: 'repo already tracked', id: existing.id }, 409)
 
   const id = crypto.randomUUID()

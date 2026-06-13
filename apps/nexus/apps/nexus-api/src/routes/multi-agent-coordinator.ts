@@ -40,13 +40,6 @@ interface SessionRow {
   completed_at: string | null
 }
 
-interface AgentStep {
-  step_index: number
-  agent_type: AgentType
-  description: string
-  depends_on: number[]
-}
-
 // Agent capability descriptions for prompting
 const AGENT_PERSONAS: Record<AgentType, string> = {
   planner: 'You are the Planner Agent. Analyze the task and repository context, then create a detailed implementation plan decomposed into concrete steps for the Code, Documentation, Testing, Review, and Browser agents. Output a JSON plan array.',
@@ -87,7 +80,7 @@ async function runAgentStep(
   env: Env,
   session: SessionRow,
   agentType: AgentType,
-  stepIndex: number,
+  _stepIndex: number,
   previousOutputs: string[]
 ): Promise<string> {
   const persona = AGENT_PERSONAS[agentType]

@@ -179,7 +179,7 @@ storageRoutes.get('/kv/list', async (c) => {
   return c.json({
     keys:      result.keys.map(k => ({ name: k.name, expiration: k.expiration ?? null, metadata: k.metadata ?? null })),
     truncated: result.list_complete === false,
-    cursor:    result.cursor ?? null,
+    cursor:    result.list_complete === false ? result.cursor : null,
     count:     result.keys.length,
   })
 })
@@ -194,7 +194,7 @@ storageRoutes.get('/kv/stats', async (c) => {
     const result = await c.env.CONFIG.list({ limit: 1000, cursor })
     count += result.keys.length
     if (result.list_complete !== false) break
-    cursor = result.cursor
+    cursor = result.list_complete === false ? result.cursor : undefined
   }
 
   return c.json({ count })

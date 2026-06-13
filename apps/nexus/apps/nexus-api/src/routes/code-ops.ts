@@ -131,7 +131,7 @@ codeOpsRoutes.put('/:repoId/files/*', async (c) => {
   }
   const data = await res.json() as { commit?: { sha?: string } }
   await logOperation(c.env, repo.id, sha ? 'update' : 'create', { path: filePath, commit: data.commit?.sha })
-  await safetyLog(c.env, sha ? 'file_update' : 'file_create', filePath, `${message ?? 'agent update'} on ${repo.owner}/${repo.name}`)
+  await safetyLog(c.env, sha ? 'file_update' : 'file_create', filePath ?? '', `${message ?? 'agent update'} on ${repo.owner}/${repo.name}`)
   return c.json({ ok: true, commit_sha: data.commit?.sha, path: filePath })
 })
 
@@ -155,7 +155,7 @@ codeOpsRoutes.delete('/:repoId/files/*', async (c) => {
   })
   if (!res.ok) return c.json({ error: 'GitHub API error', status: res.status }, 502)
   await logOperation(c.env, repo.id, 'delete', { path: filePath })
-  await safetyLog(c.env, 'file_delete', filePath, `Deleted from ${repo.owner}/${repo.name}`)
+  await safetyLog(c.env, 'file_delete', filePath ?? '', `Deleted from ${repo.owner}/${repo.name}`)
   return c.json({ ok: true, path: filePath })
 })
 

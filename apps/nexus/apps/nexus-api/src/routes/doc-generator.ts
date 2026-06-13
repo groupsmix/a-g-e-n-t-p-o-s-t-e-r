@@ -109,7 +109,7 @@ docGeneratorRoutes.post('/:repoId/generate', async (c) => {
   let body: { doc_type?: DocType; custom_prompt?: string; custom_title?: string; custom_filename?: string } = {}
   try { body = await c.req.json() } catch { return c.json({ error: 'invalid JSON' }, 400) }
 
-  const { doc_type = 'readme', custom_prompt, custom_title, custom_filename } = body
+  const { doc_type = 'readme', custom_prompt, custom_title } = body
   if (!DOC_TYPES.includes(doc_type)) return c.json({ error: `invalid doc_type; use one of: ${DOC_TYPES.join(', ')}` }, 400)
 
   const meta = DOC_META[doc_type]
