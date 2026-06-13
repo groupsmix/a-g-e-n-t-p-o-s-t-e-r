@@ -11,20 +11,11 @@ import { api, API_BASE, type AutopilotStatus, type RevenueResponse, type Digest,
 import { PageBody } from '@/components/shell/AppShell'
 import { SetupBanner } from '@/components/shared/SetupBanner'
 import { formatCost } from '@/lib/utils'
+import type { PipelineSummary } from '@posteragent/types/nexus/api-contract'
 
 interface Counts { total: number; pending: number; approved: number; published: number }
 
-// Mirror of /api/pipeline/summary — the canonical pipeline counter the
-// dashboard, /money-workflow, and /review all read from. BUG-P1-4: keep
-// this in lockstep with the inline type in app/money-workflow/page.tsx.
-interface PipelineSummary {
-  stages: {
-    building: { running: number; built_today: number }
-    review:   { pending: number; pending_raw?: number; approved: number; rejected: number }
-    publish:  { ready: number; published: number; failed: number }
-  }
-  total_products: number
-}
+// PipelineSummary is now in @posteragent/types — see packages/types/src/nexus/api-contract.ts
 
 export default function HomePage() {
   // /api/stats is the single source for every count widget (T3). The other

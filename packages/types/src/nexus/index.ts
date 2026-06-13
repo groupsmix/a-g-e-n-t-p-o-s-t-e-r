@@ -30,3 +30,4 @@ export * from './flags'
 // bindings varies per worker and depends on @cloudflare/workers-types, which
 // is a worker-only dependency. Keep shared type exports in this package
 // platform-agnostic.
+export type { PipelineSummary } from './api-contract.js'
