@@ -8,9 +8,10 @@ import {
   Settings as SettingsIcon, Globe2, History,
   Bot, CalendarClock, Rocket, LayoutDashboard, ChevronDown, DollarSign,
   Menu, X, LayoutGrid, Workflow, Brain, Sunrise, Shirt,
-  Briefcase, Link2, FileText, FlaskConical, PenLine, Mail, Eye, Radar,
+  Briefcase, FlaskConical, PenLine, Mail, Eye, Radar,
   Sun, Moon, Monitor, Layers, BarChart3, Activity, Wallet, Send, Sparkles, Flag,
   Terminal, BellRing, GitBranch, FileCode2, Network, ShieldAlert, HardDrive,
+  TrendingUp, Cpu, Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
@@ -19,10 +20,11 @@ import { BuildBadge } from '@/components/shared/BuildBadge'
 type Item = { to: string; label: string; icon: React.ComponentType<{ className?: string }> }
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
-  LayoutDashboard, Bot, Package, Shirt, FileText, Briefcase, Link2,
+  LayoutDashboard, Bot, Package, Shirt, Briefcase,
   Rocket, ShieldCheck, DollarSign, Brain, Sunrise, Globe2, CalendarClock, History, BarChart3, Activity,
   SettingsIcon, LayoutGrid, Workflow, Wallet, Send, Sparkles, Flag, Terminal, BellRing,
-  GitBranch, FileCode2, Network, ShieldAlert, HardDrive,
+  GitBranch, FileCode2, Network, ShieldAlert, HardDrive, TrendingUp, Cpu, Zap,
+  PenLine, Mail, Radar, Eye, FlaskConical,
 }
 
 const topItems: Item[] = [
@@ -32,48 +34,63 @@ const topItems: Item[] = [
 
 const defaultSections: { title: string; items: Item[]; collapsible?: boolean }[] = [
   {
-    title: 'Domains',
+    title: 'Create',
     collapsible: true,
     items: [
       { to: '/jobs', label: 'Freelance Jobs', icon: Briefcase },
       { to: '/jobs/new?type=digital_product', label: 'Digital Products', icon: Package },
       { to: '/jobs/new?type=pod_product', label: 'Print on Demand', icon: Shirt },
-      // Content / Affiliate / E-Commerce domains intentionally omitted —
-      // no /api/content, /api/affiliate-marketing, or /api/ecommerce-retail
-      // backend exists yet. Add them back when the routes ship.
+      { to: '/blog', label: 'Blog Engine', icon: PenLine },
+      { to: '/publisher-queue', label: 'Publisher Queue', icon: Send },
+      { to: '/review', label: 'Review Queue', icon: ShieldCheck },
     ],
   },
   {
-    title: 'Engine',
+    title: 'Grow',
     collapsible: true,
     items: [
-      { to: '/command-center', label: 'Command Center', icon: Terminal },
-      { to: '/notifications',  label: 'Notifications',  icon: BellRing },
-      { to: '/money-workflow', label: 'Money Workflow', icon: BarChart3 },
-      { to: '/autopilot',      label: 'Autopilot',      icon: Rocket },
-      { to: '/autonome',       label: 'Autonome',       icon: Rocket },
-      { to: '/sleep-mode',     label: 'Sleep Mode',     icon: Moon },
-      { to: '/review', label: 'Review Queue', icon: ShieldCheck },
       { to: '/revenue', label: 'Revenue', icon: DollarSign },
       { to: '/budget', label: 'Budget', icon: Wallet },
       { to: '/analytics', label: 'Analytics', icon: BarChart3 },
       { to: '/insights', label: 'Insights', icon: Sparkles },
-      { to: '/publisher-queue', label: 'Publisher Queue', icon: Send },
-      { to: '/brain', label: 'Brain Cockpit', icon: Brain },
-      { to: '/learning', label: 'Learning Loop', icon: Brain },
       { to: '/ab-testing', label: 'A/B Testing', icon: FlaskConical },
-      { to: '/blog', label: 'Blog Engine', icon: PenLine },
       { to: '/email', label: 'Email Lists', icon: Mail },
       { to: '/leads', label: 'Leads', icon: Radar },
+    ],
+  },
+  {
+    title: 'Intelligence',
+    collapsible: true,
+    items: [
+      { to: '/brain', label: 'Brain Cockpit', icon: Brain },
+      { to: '/learning', label: 'Learning Loop', icon: TrendingUp },
       { to: '/competitors', label: 'Competitors', icon: Eye },
       { to: '/opportunities', label: 'Opportunity Radar', icon: Radar },
-      { to: '/queue',          label: 'Job Queue',         icon: Activity },
-      { to: '/repo-intel',    label: 'Repo Intelligence',  icon: GitBranch },
-      { to: '/code-agent',    label: 'Code Agent',         icon: FileCode2 },
-      { to: '/multi-agent',   label: 'Multi-Agent',        icon: Network },
-      { to: '/security-audit', label: 'Security Audit',     icon: ShieldAlert },
-      { to: '/storage',        label: 'Storage Manager',    icon: HardDrive },
-      { to: '/e2e-tests',      label: 'E2E Test Runner',     icon: FlaskConical },
+    ],
+  },
+  {
+    title: 'Automate',
+    collapsible: true,
+    items: [
+      { to: '/command-center', label: 'Command Center', icon: Terminal },
+      { to: '/autopilot', label: 'Autopilot', icon: Rocket },
+      { to: '/autonome', label: 'Autonome', icon: Zap },
+      { to: '/sleep-mode', label: 'Sleep Mode', icon: Moon },
+      { to: '/money-workflow', label: 'Money Workflow', icon: BarChart3 },
+      { to: '/queue', label: 'Job Queue', icon: Activity },
+      { to: '/notifications', label: 'Notifications', icon: BellRing },
+    ],
+  },
+  {
+    title: 'Engineering',
+    collapsible: true,
+    items: [
+      { to: '/repo-intel', label: 'Repo Intelligence', icon: GitBranch },
+      { to: '/code-agent', label: 'Code Agent', icon: FileCode2 },
+      { to: '/multi-agent', label: 'Multi-Agent', icon: Network },
+      { to: '/security-audit', label: 'Security Audit', icon: ShieldAlert },
+      { to: '/storage', label: 'Storage Manager', icon: HardDrive },
+      { to: '/e2e-tests', label: 'E2E Tests', icon: FlaskConical },
     ],
   },
   {
@@ -83,7 +100,7 @@ const defaultSections: { title: string; items: Item[]; collapsible?: boolean }[]
       { to: '/digest', label: 'Digest', icon: Sunrise },
       { to: '/platforms', label: 'Platforms', icon: Globe2 },
       { to: '/schedules', label: 'Schedules', icon: CalendarClock },
-      { to: '/observability', label: 'Observability', icon: Eye },
+      { to: '/observability', label: 'Observability', icon: Cpu },
       { to: '/history', label: 'History', icon: History },
       { to: '/manager', label: 'Manage', icon: LayoutGrid },
       { to: '/manager/flags', label: 'Feature Flags', icon: Flag },
@@ -181,9 +198,6 @@ function useLayout() {
     return 'expanded'
   })
   useEffect(() => {
-    // Reflect the current value to the DOM immediately so the CSS density
-    // rules take effect (previously the value was stored but never applied,
-    // so the toggle had no visible effect).
     applyLayout(layout)
     api.getUserPreference('dashboard_layout').then((res) => {
       if (res?.value && ['compact', 'expanded', 'minimal'].includes(res.value)) {
@@ -231,11 +245,8 @@ function NavList({ onNavigate, sections }: { onNavigate?: () => void; sections: 
   const isActive = (to: string) =>
     to === '/' ? pathname === '/' :
     to === '/settings' ? pathname === '/settings' :
-    pathname === to || (to !== '/' && to !== '/settings' && pathname.startsWith(to))
-  // Persist open/closed state across navigation. Previously this state was
-  // local and re-initialized on every mount, so collapsing a group reset as
-  // soon as you navigated. We seed from localStorage and fall back to the
-  // "open if it contains the active route" default for groups we haven't seen.
+    pathname === to || (to !== '/' && to !== '/settings' && pathname.startsWith(to.split('?')[0]))
+
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
     let stored: Record<string, boolean> = {}
     if (typeof window !== 'undefined') {
@@ -253,18 +264,13 @@ function NavList({ onNavigate, sections }: { onNavigate?: () => void; sections: 
     return initial
   })
 
-  // Persist whenever the user toggles a group.
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
       localStorage.setItem('nexus_sidebar_open', JSON.stringify(openSections))
-    } catch { /* ignore quota / serialization errors */ }
+    } catch { /* ignore */ }
   }, [openSections])
 
-  // Reconcile when the section set changes (e.g. a custom sidebar order loads
-  // from the API after mount). Add unseen groups with their default open-state
-  // and drop groups that no longer exist, preserving the user's existing
-  // choices — so persisted state never drifts or accumulates stale keys.
   useEffect(() => {
     setOpenSections((prev) => {
       const next: Record<string, boolean> = {}
@@ -305,7 +311,7 @@ function NavList({ onNavigate, sections }: { onNavigate?: () => void; sections: 
   }
 
   return (
-    <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+    <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
       <ul className="space-y-0.5">{topItems.map(renderItem)}</ul>
       {sections.map((sec) => {
         const isOpen = openSections[sec.title] ?? true
@@ -314,13 +320,13 @@ function NavList({ onNavigate, sections }: { onNavigate?: () => void; sections: 
             {sec.collapsible ? (
               <button
                 onClick={() => setOpenSections((prev) => ({ ...prev, [sec.title]: !prev[sec.title] }))}
-                className="w-full flex items-center justify-between px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+                className="w-full flex items-center justify-between px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 hover:text-muted-foreground transition-colors"
               >
                 {sec.title}
                 <ChevronDown className={cn('h-3 w-3 transition-transform duration-200', isOpen ? '' : '-rotate-90')} />
               </button>
             ) : (
-              <div className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+              <div className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
                 {sec.title}
               </div>
             )}
