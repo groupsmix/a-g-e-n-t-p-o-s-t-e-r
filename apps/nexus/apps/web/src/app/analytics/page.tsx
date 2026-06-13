@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { BarChart3, Eye, MousePointer, Heart } from 'lucide-react'
 import { api } from '@/lib/api'
 import { PageHeader, PageBody } from '@/components/shell/AppShell'
-import { EmptyState } from '@/components/shared/EmptyState'
+import { EmptyState, MetricCard } from '@posteragent/ui'
 
 type Summary = {
   source: 'live' | 'unconfigured'
@@ -22,7 +22,7 @@ export default function AnalyticsPage() {
     api.getAnalyticsSummary().then(setData).catch(() => setData(null)).finally(() => setLoading(false))
   }, [])
 
-  const totals = data?.totals ?? { posts: 0, impressions: 0, engagements: 0, clicks: 0 }
+  const totals     = data?.totals     ?? { posts: 0, impressions: 0, engagements: 0, clicks: 0 }
   const byPlatform = data?.by_platform ?? []
   const unconfigured = data?.source === 'unconfigured'
 
@@ -42,11 +42,28 @@ export default function AnalyticsPage() {
           </div>
         )}
 
+        {/* Summary metrics — using MetricCard from @posteragent/ui */}
         <div className="grid gap-3 sm:grid-cols-4">
-          <Stat icon={<BarChart3 className="h-5 w-5 text-primary" />} label="Posts" value={loading ? '…' : String(totals.posts ?? 0)} />
-          <Stat icon={<Eye className="h-5 w-5 text-blue-500" />} label="Impressions" value={loading ? '…' : (totals.impressions ?? 0).toLocaleString()} />
-          <Stat icon={<Heart className="h-5 w-5 text-rose-500" />} label="Engagements" value={loading ? '…' : (totals.engagements ?? 0).toLocaleString()} />
-          <Stat icon={<MousePointer className="h-5 w-5 text-emerald-500" />} label="Clicks" value={loading ? '…' : (totals.clicks ?? 0).toLocaleString()} />
+          <MetricCard
+            icon={<BarChart3 className="h-5 w-5 text-primary" />}
+            label="Posts"
+            value={loading ? '…' : String(totals.posts ?? 0)}
+          />
+          <MetricCard
+            icon={<Eye className="h-5 w-5 text-blue-500" />}
+            label="Impressions"
+            value={loading ? '…' : (totals.impressions ?? 0).toLocaleString()}
+          />
+          <MetricCard
+            icon={<Heart className="h-5 w-5 text-rose-500" />}
+            label="Engagements"
+            value={loading ? '…' : (totals.engagements ?? 0).toLocaleString()}
+          />
+          <MetricCard
+            icon={<MousePointer className="h-5 w-5 text-emerald-500" />}
+            label="Clicks"
+            value={loading ? '…' : (totals.clicks ?? 0).toLocaleString()}
+          />
         </div>
 
         <div className="rounded-xl border border-border bg-card">
@@ -56,6 +73,7 @@ export default function AnalyticsPage() {
               <div className="px-5 py-8 text-center text-sm text-muted-foreground">Loading…</div>
             ) : (
               <div className="px-5 py-4">
+                {/* EmptyState now from @posteragent/ui */}
                 <EmptyState
                   icon={<BarChart3 className="h-5 w-5" />}
                   title="No platform data yet"
@@ -76,10 +94,18 @@ export default function AnalyticsPage() {
               {byPlatform.map((p) => (
                 <div key={p.platform} className="grid grid-cols-5 gap-4 px-5 py-3 text-sm">
                   <div className="font-medium capitalize">{p.platform}</div>
-                  <div className="text-muted-foreground"><span className="text-foreground">{p.posts ?? 0}</span> posts</div>
-                  <div className="text-muted-foreground"><span className="text-foreground">{(p.impressions ?? 0).toLocaleString()}</span> impr</div>
-                  <div className="text-muted-foreground"><span className="text-foreground">{(p.engagements ?? 0).toLocaleString()}</span> eng</div>
-                  <div className="text-muted-foreground"><span className="text-foreground">{(p.clicks ?? 0).toLocaleString()}</span> clicks</div>
+                  <div className="text-muted-foreground">
+                    <span className="text-foreground">{p.posts ?? 0}</span> posts
+                  </div>
+                  <div className="text-muted-foreground">
+                    <span className="text-foreground">{(p.impressions ?? 0).toLocaleString()}</span> impr
+                  </div>
+                  <div className="text-muted-foreground">
+                    <span className="text-foreground">{(p.engagements ?? 0).toLocaleString()}</span> eng
+                  </div>
+                  <div className="text-muted-foreground">
+                    <span className="text-foreground">{(p.clicks ?? 0).toLocaleString()}</span> clicks
+                  </div>
                 </div>
               ))}
             </div>
@@ -87,14 +113,5 @@ export default function AnalyticsPage() {
         </div>
       </PageBody>
     </>
-  )
-}
-
-function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">{icon} {label}</div>
-      <div className="mt-2 text-2xl font-semibold">{value}</div>
-    </div>
   )
 }
