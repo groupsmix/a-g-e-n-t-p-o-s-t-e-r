@@ -87,6 +87,7 @@ import { multiAgentRoutes } from './routes/multi-agent-coordinator'
 import { securityAuditRoutes } from './routes/security-audit'
 import { storageRoutes } from './routes/storage-manager'
 import { e2eTestRoutes } from './routes/e2e-tests'
+import { notesRoutes } from './routes/notes'
 import {
   D1SnapshotStore,
   collectAnalytics,
@@ -291,6 +292,7 @@ api.route('/multi-agent', multiAgentRoutes)
 api.route('/security-audit', securityAuditRoutes)
 api.route('/storage', storageRoutes)
 api.route('/e2e-tests', e2eTestRoutes)
+api.route('/notes', notesRoutes)
 // Auto money machine — end-to-end chain (research → write → generate → publish)
 // backed by the orchestrator's BaseAgent (memory + identity + journal).
 api.route('/money-machine', moneyMachineRoutes)

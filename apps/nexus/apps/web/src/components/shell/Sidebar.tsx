@@ -37,6 +37,7 @@ const defaultSections: { title: string; items: Item[]; collapsible?: boolean }[]
     title: 'Create',
     collapsible: true,
     items: [
+      { to: '/notes', label: 'Notes', icon: PenLine },
       { to: '/jobs', label: 'Freelance Jobs', icon: Briefcase },
       { to: '/jobs/new?type=digital_product', label: 'Digital Products', icon: Package },
       { to: '/jobs/new?type=pod_product', label: 'Print on Demand', icon: Shirt },
