@@ -315,7 +315,7 @@ export default function NotesPage() {
             <FileText className="h-12 w-12 mb-4 opacity-20" />
             <p className="text-sm font-medium">No note selected</p>
             <p className="text-xs mt-1 max-w-xs">
-              Pick a note from the list or create a new one. The AI can read your notes — just ask it to "check my notes" or "what are my ideas about X".
+              Pick a note from the list or create a new one. The AI can read your notes — just ask it to {`"`}check my notes{`"`} or {`"`}what are my ideas about X{`"`}.
             </p>
             <button
               onClick={newNote}
