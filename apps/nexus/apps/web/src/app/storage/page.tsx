@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { PageHeader } from '@/components/shell/AppShell'
-import { HardDrive, Database, Trash2, Loader2, RefreshCw, FolderOpen, File, ChevronRight, Download, Upload, AlertTriangle, X, Check, ChevronLeft, Search } from 'lucide-react'
+import { HardDrive, Database, Trash2, Loader2, RefreshCw, FolderOpen, File, ChevronRight, Download, Upload, AlertTriangle, X, Check, ChevronLeft, Search, Table2, Play, Code2 } from 'lucide-react'
 import { API_BASE, getToken } from '@/lib/rpc'
 
 async function apiFetch(path: string, init?: RequestInit) {
@@ -548,11 +548,200 @@ function KVTab() {
   )
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// D1 Database Browser
+// ══════════════════════════════════════════════════════════════════════════════
+interface D1TableInfo { name: string; type: string }
+interface D1Col { name: string; type: string; notnull: number; dflt_value: string | null; pk: number }
+interface D1QResult { rows: Record<string, unknown>[]; count: number; elapsed_ms: number; error?: string }
+
+function D1Tab() {
+  const [tables, setTables] = useState<D1TableInfo[]>([])
+  const [selectedTable, setSelectedTable] = useState<string | null>(null)
+  const [tableRows, setTableRows] = useState<Record<string, unknown>[]>([])
+  const [tableSchema, setTableSchema] = useState<D1Col[]>([])
+  const [tableTotal, setTableTotal] = useState(0)
+  const [loadingTables, setLoadingTables] = useState(true)
+  const [loadingRows, setLoadingRows] = useState(false)
+  const [sql, setSql] = useState('')
+  const [queryResult, setQueryResult] = useState<D1QResult | null>(null)
+  const [queryRunning, setQueryRunning] = useState(false)
+  const [mode, setMode] = useState<'browse' | 'query'>('browse')
+
+  const fetchTables = useCallback(async () => {
+    setLoadingTables(true)
+    const res = await apiFetch('/api/storage/d1/tables')
+    const d = await res.json() as { tables: D1TableInfo[] }
+    setTables(d.tables ?? [])
+    setLoadingTables(false)
+  }, [])
+
+  const openTable = async (name: string) => {
+    setSelectedTable(name)
+    setMode('browse')
+    setQueryResult(null)
+    setLoadingRows(true)
+    setSql('SELECT * FROM "' + name + '" LIMIT 100')
+    const res = await apiFetch('/api/storage/d1/table/' + encodeURIComponent(name))
+    const d = await res.json() as { rows: Record<string, unknown>[]; schema: D1Col[]; total: number }
+    setTableRows(d.rows ?? [])
+    setTableSchema(d.schema ?? [])
+    setTableTotal(d.total ?? 0)
+    setLoadingRows(false)
+  }
+
+  const runQuery = async () => {
+    if (!sql.trim()) return
+    setQueryRunning(true)
+    setQueryResult(null)
+    const upper = sql.trim().toUpperCase()
+    const isWrite = upper.startsWith('INSERT') || upper.startsWith('UPDATE') || upper.startsWith('DELETE')
+    const res = await apiFetch('/api/storage/d1/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sql: sql.trim(), readonly: !isWrite }),
+    })
+    const d = await res.json() as D1QResult
+    setQueryResult(d)
+    setMode('query')
+    setQueryRunning(false)
+  }
+
+  useEffect(() => { fetchTables() }, [fetchTables])
+
+  const columns = mode === 'query' && queryResult
+    ? (queryResult.rows.length > 0 ? Object.keys(queryResult.rows[0]) : [])
+    : tableSchema.map(c => c.name)
+  const displayRows = mode === 'query' && queryResult ? queryResult.rows : tableRows
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Table list */}
+      <div className="md:col-span-1">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-semibold uppercase text-muted-foreground">Tables</h3>
+          <button onClick={fetchTables} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        {loadingTables
+          ? <div className="flex justify-center py-8"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
+          : tables.length === 0
+            ? <p className="text-xs text-muted-foreground text-center py-6">No tables found</p>
+            : (
+              <div className="space-y-0.5 max-h-[500px] overflow-y-auto">
+                {tables.map(t => (
+                  <button key={t.name} onClick={() => openTable(t.name)}
+                    className={`w-full text-left px-3 py-2 rounded text-sm transition-colors flex items-center gap-2 ${selectedTable === t.name && mode === 'browse' ? 'bg-primary/10 text-primary' : 'hover:bg-muted/40 text-foreground'}`}>
+                    <Table2 className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+                    <span className="truncate">{t.name}</span>
+                  </button>
+                ))}
+              </div>
+            )
+        }
+      </div>
+
+      {/* Main panel */}
+      <div className="md:col-span-3 space-y-3">
+        {/* SQL editor */}
+        <div className="bg-card border border-border rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Code2 className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs font-semibold text-muted-foreground uppercase">SQL Editor</span>
+            <span className="text-xs text-muted-foreground">(SELECT, INSERT, UPDATE, DELETE — DROP/ALTER blocked)</span>
+          </div>
+          <textarea
+            className="w-full h-24 font-mono text-xs bg-background border border-border rounded px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+            value={sql}
+            onChange={e => { setSql(e.target.value); setMode('query') }}
+            placeholder='SELECT * FROM my_table LIMIT 50'
+            spellCheck={false}
+          />
+          <div className="flex items-center gap-3 mt-2">
+            <button onClick={runQuery} disabled={queryRunning || !sql.trim()}
+              className="flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground rounded text-xs font-medium disabled:opacity-50 hover:bg-primary/90">
+              {queryRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />} Run Query
+            </button>
+            {mode === 'query' && queryResult && !queryResult.error && (
+              <span className="text-xs text-muted-foreground">{queryResult.count} row{queryResult.count !== 1 ? 's' : ''} · {queryResult.elapsed_ms}ms</span>
+            )}
+          </div>
+          {queryResult?.error && (
+            <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-400 font-mono">{queryResult.error}</div>
+          )}
+        </div>
+
+        {/* Schema */}
+        {selectedTable && mode === 'browse' && tableSchema.length > 0 && (
+          <div className="bg-card border border-border rounded-lg p-3">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">
+              {selectedTable} <span className="text-muted-foreground/60 font-normal">— {tableTotal.toLocaleString()} rows total</span>
+            </h4>
+            <div className="flex flex-wrap gap-1.5">
+              {tableSchema.map(col => (
+                <span key={col.name} className="text-xs px-2 py-0.5 rounded border border-border bg-muted/30 font-mono">
+                  {col.pk ? '🔑 ' : ''}{col.name} <span className="text-muted-foreground">{col.type || 'TEXT'}{col.notnull ? ' !' : ''}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Data grid */}
+        {loadingRows
+          ? <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+          : columns.length > 0
+            ? (
+              <div className="bg-card border border-border rounded-lg overflow-hidden">
+                <div className="overflow-x-auto max-h-[450px] overflow-y-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead className="sticky top-0 bg-muted/90 backdrop-blur-sm z-10">
+                      <tr>
+                        {columns.map(col => (
+                          <th key={col} className="px-3 py-2 text-left font-semibold text-muted-foreground border-b border-border whitespace-nowrap">{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayRows.map((row, i) => (
+                        <tr key={i} className="border-b border-border/50 last:border-0 hover:bg-muted/20">
+                          {columns.map(col => {
+                            const val = row[col]
+                            const str = val === null ? 'NULL' : val === undefined ? '' : String(val)
+                            return (
+                              <td key={col} className={`px-3 py-1.5 font-mono whitespace-nowrap max-w-[220px] truncate ${val === null ? 'text-muted-foreground italic' : ''}`} title={str}>
+                                {str}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+            : !selectedTable && !queryResult
+              ? (
+                <div className="flex flex-col items-center justify-center h-40 text-muted-foreground text-sm">
+                  <Table2 className="w-7 h-7 mb-2 opacity-30" />
+                  <p>Select a table from the left or write a SQL query above</p>
+                </div>
+              )
+              : null
+        }
+      </div>
+    </div>
+  )
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // Page
 // ══════════════════════════════════════════════════════════════════════════════
 export default function StoragePage() {
-  const [tab, setTab] = useState<'r2' | 'kv'>('r2')
+  const [tab, setTab] = useState<'r2' | 'kv' | 'd1'>('r2')
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
@@ -571,10 +760,14 @@ export default function StoragePage() {
           className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium transition-colors ${tab === 'kv' ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
           <Database className="w-4 h-4" /> KV Config <span className="ml-1 text-xs text-muted-foreground">(CONFIG namespace)</span>
         </button>
+        <button onClick={() => setTab('d1')}
+          className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium transition-colors ${tab === 'd1' ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+          <Table2 className="w-4 h-4" /> D1 Database
+        </button>
       </div>
 
       <div className="mt-6">
-        {tab === 'r2' ? <R2Tab /> : <KVTab />}
+        {tab === 'r2' ? <R2Tab /> : tab === 'kv' ? <KVTab /> : <D1Tab />}
       </div>
     </div>
   )

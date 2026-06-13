@@ -73,6 +73,7 @@ const defaultSections: { title: string; items: Item[]; collapsible?: boolean }[]
       { to: '/multi-agent',   label: 'Multi-Agent',        icon: Network },
       { to: '/security-audit', label: 'Security Audit',     icon: ShieldAlert },
       { to: '/storage',        label: 'Storage Manager',    icon: HardDrive },
+      { to: '/e2e-tests',      label: 'E2E Test Runner',     icon: FlaskConical },
     ],
   },
   {

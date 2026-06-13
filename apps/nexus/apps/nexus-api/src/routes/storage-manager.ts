@@ -256,3 +256,55 @@ storageRoutes.delete('/kv/empty', async (c) => {
 
   return c.json({ ok: true, deleted, prefix: prefix || '(all)' })
 })
+
+// ── D1 — list tables ──────────────────────────────────────────────────────────
+storageRoutes.get('/d1/tables', async (c) => {
+  const rows = await c.env.DB
+    .prepare("SELECT name, type FROM sqlite_master WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name ASC")
+    .all<{ name: string; type: string }>()
+  return c.json({ tables: rows.results ?? [] })
+})
+
+// ── D1 — table info + first rows ──────────────────────────────────────────────
+storageRoutes.get('/d1/table/:name', async (c) => {
+  const name = c.req.param('name').replace(/[^a-zA-Z0-9_]/g, '')
+  if (!name) return c.json({ error: 'invalid table name' }, 400)
+  try {
+    const [schema, rows] = await Promise.all([
+      c.env.DB.prepare(`PRAGMA table_info("${name}")`).all<Record<string, unknown>>(),
+      c.env.DB.prepare(`SELECT * FROM "${name}" LIMIT 100`).all<Record<string, unknown>>(),
+    ])
+    const count = await c.env.DB.prepare(`SELECT COUNT(*) as n FROM "${name}"`).first<{ n: number }>()
+    return c.json({ table: name, schema: schema.results ?? [], rows: rows.results ?? [], total: count?.n ?? 0 })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
+  }
+})
+
+// ── D1 — execute SQL ──────────────────────────────────────────────────────────
+storageRoutes.post('/d1/query', async (c) => {
+  let body: { sql?: string; readonly?: boolean } = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'invalid JSON' }, 400) }
+  const { sql = '', readonly = true } = body
+  if (!sql.trim()) return c.json({ error: 'sql is required' }, 400)
+
+  // Safety: block destructive schema ops
+  const upper = sql.trim().toUpperCase()
+  const blocked = ['DROP TABLE','DROP DATABASE','TRUNCATE','ALTER TABLE','ATTACH','DETACH','VACUUM','PRAGMA']
+  const blocked_stmt = blocked.find(b => upper.startsWith(b))
+  if (blocked_stmt) return c.json({ error: `${blocked_stmt} is not allowed from the dashboard` }, 403)
+
+  // If readonly mode, only allow SELECT/EXPLAIN/PRAGMA table_info
+  if (readonly && !upper.startsWith('SELECT') && !upper.startsWith('EXPLAIN') && !upper.startsWith('WITH')) {
+    return c.json({ error: 'Only SELECT statements are allowed in read-only mode' }, 403)
+  }
+
+  try {
+    const t0 = Date.now()
+    const result = await c.env.DB.prepare(sql).all<Record<string, unknown>>()
+    const elapsed = Date.now() - t0
+    return c.json({ rows: result.results ?? [], count: (result.results ?? []).length, elapsed_ms: elapsed })
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
+  }
+})
