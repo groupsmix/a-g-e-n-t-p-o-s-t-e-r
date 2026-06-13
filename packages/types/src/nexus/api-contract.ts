@@ -1015,3 +1015,26 @@ export interface Stats {
   kill_switch_active: boolean
 }
 
+
+// ── PipelineSummary ─────────────────────────────────────────────────────────
+// Canonical shape for GET /api/pipeline/summary — single source of truth so
+// app/page.tsx and the /automation Money Flow tab stay in sync automatically.
+// Previously duplicated with a "BUG-P1-4: keep in lockstep" comment.
+export interface PipelineSummary {
+  meta?: {
+    autopilot_enabled:  boolean
+    kill_switch_active: boolean
+  }
+  stages: {
+    trends?:        { new: number; acted: number; total: number }
+    opportunities?: { new: number; scored: number; approved: number; rejected: number; total: number }
+    building:       { running: number; built_today: number }
+    review:         { pending: number; pending_raw?: number; approved: number; rejected: number }
+    publish:        { ready: number; published: number; failed: number }
+    marketing?:     { packaged: number; missing: number }
+    revenue?:       { total_products: number }
+    learning?:      { patterns_discovered: number; last_sync: string | null }
+  }
+  spend_today_usd?: number
+  total_products:   number
+}
