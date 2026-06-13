@@ -218,15 +218,27 @@ export default function CeoManagerPage() {
   const [browserOpen, setBrowserOpen] = useState(false)
   const [riskWarning, setRiskWarning] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const userSentRef = useRef(false)
+
+  const isNearBottom = () => {
+    const el = scrollContainerRef.current
+    if (!el) return true
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 120
+  }
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (userSentRef.current || isNearBottom()) {
+      endRef.current?.scrollIntoView({ behavior: 'smooth' })
+      userSentRef.current = false
+    }
   }, [turns, busy])
 
   const send = async (text: string) => {
     const message = text.trim()
     if (!message || busy) return
     const history: ManagerMessage[] = turns.map((t) => ({ role: t.role, content: t.content }))
+    userSentRef.current = true
     setTurns((prev) => [...prev, { role: 'user', content: message }])
     setInput('')
     setBusy(true)
@@ -265,7 +277,7 @@ export default function CeoManagerPage() {
         {/* Chat pane */}
         <div className={`flex flex-col min-h-0 transition-all duration-300 ${browserOpen ? 'w-1/2 border-r border-border' : 'w-full'}`}>
           {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {turns.map((t, i) => (
             <div key={i} className={t.role === 'user' ? 'flex justify-end' : 'flex items-start gap-3'}>
               {t.role === 'assistant' && (

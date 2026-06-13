@@ -305,6 +305,16 @@ export const agentRoutes = new Hono<{ Bindings: Env }>()
     return c.json({ reply: emptyDataReply(), steps: [], short_circuited: true })
   }
 
+  // Load owner notes so the agent can reference them when asked.
+  const notesRows = await c.env.DB.prepare(
+    'SELECT id, title, content, tags, pinned FROM notes ORDER BY pinned DESC, updated_at DESC LIMIT 50'
+  ).all<{ id: string; title: string; content: string; tags: string; pinned: number }>().catch(() => ({ results: [] }))
+  const notesSummary = (notesRows.results ?? []).length > 0
+    ? (notesRows.results ?? []).map((n, i) =>
+        `${i + 1}. ${n.pinned ? '📌 ' : ''}**${n.title || 'Untitled'}**${n.tags ? ` [${n.tags}]` : ''}\n   ${n.content.slice(0, 300)}${n.content.length > 300 ? '…' : ''}`
+      ).join('\n')
+    : '(no notes yet)'
+
   const convo = history.map((m) => `${m.role === 'user' ? 'CEO' : 'You'}: ${m.content}`).join('\n')
 
   const steps: AgentStep[] = []
@@ -362,6 +372,11 @@ Do NOT execute the risky action unless the owner explicitly confirms after the w
 
 CATALOG (valid domain/category slugs):
 ${catalog.length ? catalog.join('\n') : '(none configured yet)'}
+
+OWNER NOTES (personal ideas and context written by the owner — reference these when asked):
+${notesSummary}
+
+- {"tool":"read_notes","args":{"query":"<optional keyword filter>"}}  // search and return owner's notes
 
 LIVE SNAPSHOT:
 ${overview}`
@@ -437,6 +452,30 @@ Respond with ONLY one JSON object (a tool call or a final {"reply"}).`
         const summary = await getKeyStatus(c.env)
         steps.push({ tool, args, ok: true, summary })
         scratch.push(`key_status → ${summary}`)
+        continue
+      }
+
+      if (tool === 'read_notes') {
+        const query = typeof args.query === 'string' ? args.query.trim() : ''
+        let sql = 'SELECT id, title, content, tags, pinned FROM notes'
+        const binds: unknown[] = []
+        if (query) {
+          sql += ' WHERE (title LIKE ? OR content LIKE ? OR tags LIKE ?)'
+          binds.push(`%${query}%`, `%${query}%`, `%${query}%`)
+        }
+        sql += ' ORDER BY pinned DESC, updated_at DESC LIMIT 30'
+        const rows = await c.env.DB.prepare(sql).bind(...binds).all<{ id: string; title: string; content: string; tags: string; pinned: number }>().catch(() => ({ results: [] }))
+        const found = rows.results ?? []
+        if (found.length === 0) {
+          const msg = query ? `No notes matched "${query}".` : 'You have no notes yet. Visit /notes to add some.'
+          steps.push({ tool, args, ok: true, summary: msg })
+          scratch.push(`read_notes → ${msg}`)
+        } else {
+          const detail = found.map((n, i) => `${i + 1}. ${n.pinned ? '[pinned] ' : ''}"${n.title || 'Untitled'}"${n.tags ? ` tags:${n.tags}` : ''}: ${n.content.slice(0, 400)}`).join('\n')
+          const card = `Found ${found.length} note${found.length > 1 ? 's' : ''}${query ? ` matching "${query}"` : ''}.`
+          steps.push({ tool, args, ok: true, summary: card })
+          scratch.push(`read_notes → ${detail}`)
+        }
         continue
       }
 

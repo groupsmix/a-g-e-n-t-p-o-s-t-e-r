@@ -778,4 +778,16 @@ export const api = {
   setFlag: (key: string, value: any) =>
     apiFetch<{ key: string; value: any; updated: boolean }>(`/api/flags/${key}`, { method: 'PATCH', body: JSON.stringify({ value }) }),
   resetFlags: () => apiFetch<{ reset: boolean; defaults: any }>('/api/flags/reset', { method: 'POST' }),
+
+  // Notes
+  getNotes: (q?: string) => {
+    const qs = q ? `?q=${encodeURIComponent(q)}` : ''
+    return apiFetch<{ notes: any[] }>(`/api/notes${qs}`)
+  },
+  createNote: (body: { title?: string; content?: string; tags?: string; pinned?: boolean }) =>
+    apiFetch<{ note: any }>('/api/notes', { method: 'POST', body: JSON.stringify(body) }),
+  updateNote: (id: string, body: { title?: string; content?: string; tags?: string; pinned?: boolean }) =>
+    apiFetch<{ note: any }>(`/api/notes/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteNote: (id: string) =>
+    apiFetch<{ ok: boolean }>(`/api/notes/${id}`, { method: 'DELETE' }),
 }
