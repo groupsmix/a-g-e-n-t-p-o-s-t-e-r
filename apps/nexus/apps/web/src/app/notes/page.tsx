@@ -18,6 +18,8 @@ interface Note {
   updated_at: string
 }
 
+type NotePatch = { title?: string; content?: string; tags?: string; pinned?: boolean }
+
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60000)
@@ -76,7 +78,7 @@ export default function NotesPage() {
     } catch { /* ignore */ }
   }
 
-  const saveNote = useCallback(async (id: string, patch: Partial<Note>) => {
+  const saveNote = useCallback(async (id: string, patch: NotePatch) => {
     setSaving(true)
     try {
       const res = await api.updateNote(id, patch)
@@ -89,7 +91,7 @@ export default function NotesPage() {
     }
   }, [])
 
-  const scheduleSave = useCallback((id: string, patch: Partial<Note>) => {
+  const scheduleSave = useCallback((id: string, patch: NotePatch) => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => saveNote(id, patch), AUTOSAVE_DELAY)
   }, [saveNote])
