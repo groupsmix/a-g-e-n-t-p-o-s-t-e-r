@@ -23,14 +23,17 @@ type TabId = typeof TABS[number]['id']
 
 // ── Shared API helper ──────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// The web app's local ESLint config extends only `next/core-web-vitals`, which
+// does not load `@typescript-eslint/*` rules. Disable directives referencing
+// those rules cause ESLint to hard-error ("Definition for rule ... not found"),
+// failing the CF Pages build. `any` here is the intentional escape hatch for
+// the shared fetch helper — no disable directive needed in this config.
 async function apiFetch(path: string, init?: RequestInit): Promise<any> {
   const token = getToken()
   const r = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...(token ? { 'x-access-token': token } : {}), ...(init?.headers ?? {}) },
   })
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return r.json()
 }
 
