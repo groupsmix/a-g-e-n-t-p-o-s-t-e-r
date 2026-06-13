@@ -12,7 +12,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ─── Shared packages — types, ui, logger ────────────────────────────
+  # ─── Shared packages — types, logger, build ─────────────────────────
+  # Note: @posteragent/ui will be added here once packages/ui lands on main
+  # (chore/phase-2-packages-ui). That PR includes the CI update for the new package.
   check:
     name: shared-packages
     runs-on: ubuntu-latest
@@ -28,17 +30,14 @@ jobs:
       # Validate .env schema alignment
       - run: pnpm check-env --env-only --check-example
         continue-on-error: true
-      # Build + typecheck shared packages (order enforced by Turbo DAG).
-      # @posteragent/ui added in Phase 2 (packages/ui component kit).
+      # Build + typecheck shared packages (order enforced by Turbo DAG)
       - run: |
           pnpm turbo build \
             --filter=@posteragent/types \
-            --filter=@posteragent/ui \
             --filter=@posteragent/logger
       - run: |
           pnpm turbo typecheck \
             --filter=@posteragent/types \
-            --filter=@posteragent/ui \
             --filter=@posteragent/logger
 
   # ─── Lint (all active @posteragent/* packages) ──────────────────────
@@ -131,31 +130,15 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      # Run via turbo from the single root workspace (audit §2.1). The old
-      # `pnpm typecheck` here executed the nexus package's no-op
-      # "Run from root" scripts, so this job validated nothing.
       - run: pnpm turbo run typecheck --filter="@nexus/*"
       - run: pnpm turbo run test --filter="@nexus/*"
-      # Workers build with tsc. The web app is built by Cloudflare Pages
-      # (pages:build) with its own env, so CI builds only the workers.
       - run: pnpm turbo run build --filter=@nexus/nexus-api --filter=@nexus/nexus-ai
-      # D1 migrations syntax check — runs against an ephemeral local DB
-      # so we catch broken SQL before deploy. Audit #13: this used to end
-      # in `|| true`, which meant broken migrations sailed through CI —
-      # wrangler is installed right here, so let failures fail.
       - name: D1 migrations dry-run
         working-directory: apps/nexus
         run: |
           npm install -g wrangler@3
           cd apps/nexus-api
           wrangler d1 migrations list nexus-db --local
-      # D1 schema-drift check — applies every migration to an in-memory
-      # SQLite DB and prepares every static query in the worker, failing on
-      # any NEW "no such column/table" drift (the class of bug that broke
-      # /observability). Known pre-existing drift is tolerated via
-      # scripts/schema-drift-baseline.json. better-sqlite3 is installed
-      # ad-hoc (outside the frozen lockfile); the script also falls back to
-      # node:sqlite.
       - name: D1 schema-drift check
         working-directory: apps/nexus
         run: |
@@ -163,9 +146,6 @@ jobs:
           node scripts/check-schema-drift.mjs
 
   # ─── Migration discipline (audit #43) ──────────────────────────────────
-  # Validates D1 migration filenames: no duplicate numbers, monotonic
-  # ordering, no edits to already-applied migrations (enforced by the
-  # deploy step's `wrangler d1 migrations apply`).
   migration-discipline:
     name: migrations
     runs-on: ubuntu-latest
@@ -174,9 +154,6 @@ jobs:
       - name: Validate migration filenames
         working-directory: apps/nexus/migrations
         run: |
-          # Extract full prefix including optional letter suffix (e.g. "11", "11a", "18b")
-          # to support the sub-migration naming convention (NNNa, NNNb, ...) used in this repo.
-          # Only files starting with a digit are considered (excludes seed_*.sql etc.).
           nums=$(ls [0-9]*.sql 2>/dev/null | sed 's/\.sql$//' | sed 's/^0*\([1-9][0-9]*[a-z]*\).*/\1/' | sort -V)
           if [ -z "$nums" ]; then echo "No SQL migrations found"; exit 0; fi
           prev=""
