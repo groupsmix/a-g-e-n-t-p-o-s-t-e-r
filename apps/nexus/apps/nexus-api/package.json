@@ -28,7 +28,7 @@
     "@posteragent/types": "workspace:*",
     "hono": "^4.12.25",
     "nanoid": "^3.3.11",
-    "zod": "^3.22.0"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240117.0",
