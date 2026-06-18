@@ -67,7 +67,24 @@ jobs:
       # No workspace install needed: wrangler only reads wrangler.toml and
       # the migrations dir (audit §2.1 — nested lockfile removed).
       - name: Install wrangler
-        run: npm install -g wrangler@3
+        run: npm install -g wrangler@4
+      - name: Verify Cloudflare token permissions
+        run: |
+          set -euo pipefail
+          # Quick permission check: token must be able to list D1 databases
+          resp=$(curl -fsS --max-time 15 \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
+            || true)
+          if echo "$resp" | grep -q '"success":true'; then
+            echo "✅ Token has D1 access"
+          else
+            echo "::error::Cloudflare API token cannot access D1 databases."
+            echo "Error response: $resp"
+            echo "Fix: go to https://dash.cloudflare.com/profile/api-tokens"
+            echo "  and add 'Account > D1:Edit' (or 'Account > Cloudflare Workers:Edit') to the token."
+            exit 1
+          fi
       - name: Apply D1 migrations
         run: wrangler d1 migrations apply nexus-db --remote
 
@@ -96,7 +113,7 @@ jobs:
       - run: pnpm turbo run test --filter="@nexus/*"
       - run: pnpm turbo run build --filter=@nexus/nexus-api --filter=@nexus/nexus-ai
       - name: Install wrangler
-        run: npm install -g wrangler@3
+        run: npm install -g wrangler@4
       - name: Deploy nexus-ai
         run: wrangler deploy
         working-directory: apps/nexus/apps/nexus-ai
