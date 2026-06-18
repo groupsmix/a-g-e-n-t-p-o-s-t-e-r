@@ -1,6 +1,6 @@
 # API Documentation
 
-**Base URL (production):** `https://nexus-api.professional-inbox-simo.workers.dev`
+**Base URL (production):** `https://nexus-api.simohamed.workers.dev`
 **Base URL (local dev):** `http://localhost:8787`
 
 ## Authentication

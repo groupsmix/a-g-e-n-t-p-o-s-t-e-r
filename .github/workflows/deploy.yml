@@ -108,7 +108,7 @@ jobs:
       # access gate (see nexus-api src/index.ts), so it needs no token.
       - name: Smoke test live API
         env:
-          NEXUS_API_URL: ${{ vars.NEXUS_API_URL || 'https://nexus-api.professional-inbox-simo.workers.dev' }}
+          NEXUS_API_URL: ${{ vars.NEXUS_API_URL || 'https://nexus-api.simohamed.workers.dev' }}
         run: |
           set -euo pipefail
           ok=0

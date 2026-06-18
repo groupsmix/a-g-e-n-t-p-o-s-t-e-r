@@ -19,8 +19,8 @@ Solo-owner dashboard for building, scoring, and publishing digital products with
 | What | URL |
 |------|-----|
 | Dashboard | https://nexus-web-cl2.pages.dev |
-| API | https://nexus-api.professional-inbox-simo.workers.dev |
-| Health | https://nexus-api.professional-inbox-simo.workers.dev/health |
+| API | https://nexus-api.simohamed.workers.dev |
+| Health | https://nexus-api.simohamed.workers.dev/health |
 
 Dashboard password: set via the `/api/auth/setup` endpoint on first visit.
 

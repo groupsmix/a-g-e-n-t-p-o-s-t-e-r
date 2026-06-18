@@ -21,7 +21,7 @@ where the legacy one is "to be retired" with no deadline. Plus serious feature s
 ### 1.1 Make the repo private (or genuinely scrub it)
 The repo is public and contains:
 - Your live API endpoint hardcoded in `apps/nexus/apps/web/package.json`:
-  `https://nexus-api.professional-inbox-simo.workers.dev`
+  `https://nexus-api.simohamed.workers.dev`
 - Your D1 `database_id` in `wrangler.toml`
 - `NEXUS-ARCHITECTURE-V4-COMPLETE.md` (3,279 lines) + `docs/money-machine/` + `docs/AGENT_TASKS.md`:
   your full revenue strategy, niches, platform plans, agent prompts

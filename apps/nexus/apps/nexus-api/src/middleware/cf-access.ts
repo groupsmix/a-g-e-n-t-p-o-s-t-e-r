@@ -3,7 +3,7 @@
 // HOW TO ENABLE:
 // 1. Go to Cloudflare Zero Trust → Access → Applications → Add an application.
 // 2. Set the application domain to your nexus-api worker route
-//    (e.g. nexus-api.professional-inbox-simo.workers.dev).
+//    (e.g. nexus-api.simohamed.workers.dev).
 // 3. Set the team domain to your Cloudflare Access team
 //    (e.g. yourteam.cloudflareaccess.com) and note it for CF_ACCESS_TEAM_DOMAIN.
 // 4. Set the Application Audience (AUD) tag from the Access app settings page.

@@ -7,8 +7,8 @@ NEXUS runs entirely on Cloudflare's free tier with real AI (no paid providers).
 | Component | URL | Notes |
 |---|---|---|
 | Dashboard | https://nexus-web-cl2.pages.dev | Cloudflare Pages (`nexus-web` project) |
-| API | https://nexus-api.professional-inbox-simo.workers.dev | Worker + D1 + KV + R2 |
-| AI | https://nexus-ai.professional-inbox-simo.workers.dev | Worker + Workers AI binding |
+| API | https://nexus-api.simohamed.workers.dev | Worker + D1 + KV + R2 |
+| AI | https://nexus-ai.simohamed.workers.dev | Worker + Workers AI binding |
 
 ## AI providers (all free)
 
@@ -49,7 +49,7 @@ cd apps/nexus-api && wrangler d1 migrations apply nexus-db --remote
 
 # Dashboard (Cloudflare Pages)
 cd apps/web
-NEXT_PUBLIC_API_URL=https://nexus-api.professional-inbox-simo.workers.dev pnpm pages:build
+NEXT_PUBLIC_API_URL=https://nexus-api.simohamed.workers.dev pnpm pages:build
 pnpm pages:deploy
 ```
 
