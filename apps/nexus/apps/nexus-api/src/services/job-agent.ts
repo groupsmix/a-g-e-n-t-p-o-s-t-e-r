@@ -174,7 +174,7 @@ async function raiseApprovalRequest(
     const taskRow = await env.DB
       .prepare(`
         SELECT id FROM agent_tasks
-        WHERE metadata LIKE ? LIMIT 1
+        WHERE payload LIKE ? LIMIT 1
       `)
       .bind(`%${run.pipeline_item_id}%`)
       .first<{ id: string }>()
@@ -187,8 +187,8 @@ async function raiseApprovalRequest(
       await env.DB
         .prepare(`
           INSERT INTO agent_tasks
-            (id, type, status, metadata, created_at, updated_at)
-          VALUES (?, 'job_work', 'needs_me', ?, datetime('now'), datetime('now'))
+            (id, type, status, payload, created_at, updated_at)
+          VALUES (?, 'write', 'needs_me', ?, datetime('now'), datetime('now'))
         `)
         .bind(taskId, JSON.stringify({ pipeline_item_id: run.pipeline_item_id, run_id: run.id }))
         .run()
