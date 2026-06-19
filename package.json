@@ -22,9 +22,9 @@
     "eslint": "^9",
     "prettier": "^3.8.4",
     "tsx": "^4.7.0",
-    "turbo": "^2.9.17",
+    "turbo": "^2.9.18",
     "typescript": "^5.3.3",
-    "typescript-eslint": "^8.61.0"
+    "typescript-eslint": "^8.61.1"
   },
   "engines": {
     "node": ">=20.0.0",

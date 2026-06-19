@@ -1,0 +1,13 @@
+-- ============================================================
+-- 043_product_metrics.sql
+-- ============================================================
+-- Adds the `metrics` column to `products`. Written by the feedback-loop
+-- route (POST /api/feedback-loop/publish-result) to record per-platform
+-- publish engagement as a JSON blob, e.g.
+--   {"platform":"tiktok","views":1200,"likes":80,"comments":4,"shares":2}
+-- Stored as TEXT (JSON), matching the analytics convention in
+-- 026_platform_analytics.sql. Nullable: pre-existing products have none.
+-- (Numbered 043 to avoid colliding with 042_approval_binding.sql on the
+--  parallel approval feature branches.)
+-- ============================================================
+ALTER TABLE products ADD COLUMN metrics TEXT;
