@@ -19,19 +19,27 @@ approvalsRoutes.post('/:id/approve', async (c) => {
   const feedback = body?.feedback ?? null
   const now = new Date().toISOString()
 
-  // Find the approval request to get its task_id
+  // Find the approval request — also read binding fields (migration 042) so we
+  // can stay idempotent and surface whether this approval is payload-bound.
   const request = await c.env.DB
-    .prepare(`SELECT task_id FROM approval_requests WHERE id = ?`)
+    .prepare(`SELECT task_id, status, payload_hash, executed_at FROM approval_requests WHERE id = ?`)
     .bind(id)
-    .first<{ task_id: string }>()
+    .first<{ task_id: string; status: string; payload_hash: string | null; executed_at: string | null }>()
 
   if (!request) {
     return c.json({ error: 'approval request not found' }, 404)
   }
 
-  // Atomically update approval status and resolve it
+  // Idempotency: only a pending request may be approved. A re-POST (double
+  // click, retry) is a no-op rather than re-triggering the downstream action.
+  if (request.status !== 'pending') {
+    return c.json({ error: `approval already ${request.status}`, status: request.status }, 409)
+  }
+
+  // Atomically update approval status and resolve it. The status guard makes
+  // this a no-op if the row was resolved concurrently.
   await c.env.DB
-    .prepare(`UPDATE approval_requests SET status = 'approved', feedback = ?, resolved_at = ? WHERE id = ?`)
+    .prepare(`UPDATE approval_requests SET status = 'approved', feedback = ?, resolved_at = ? WHERE id = ? AND status = 'pending'`)
     .bind(feedback, now, id)
     .run()
 
@@ -49,7 +57,10 @@ approvalsRoutes.post('/:id/approve', async (c) => {
     .bind(eventId, request.task_id, `Action approved. Feedback: ${feedback ?? 'None'}`, now)
     .run()
 
-  return c.json({ ok: true, status: 'approved' })
+  // payloadBound tells the caller whether this approval is bound to a payload
+  // snapshot (migration 042). Unbound legacy approvals behave exactly as before;
+  // bound ones must be hash-verified by the executor before dispatch.
+  return c.json({ ok: true, status: 'approved', payloadBound: !!request.payload_hash })
 })
 
 // ── POST /api/approvals/:id/reject ─────────────────────────────────────────
