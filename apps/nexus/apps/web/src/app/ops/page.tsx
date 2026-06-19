@@ -409,7 +409,7 @@ function BuildTab() {
       )}
 
       {qaStatus && qaStatus.total_suites > 0 && results.length === 0 && (
-        <div className="text-sm text-muted-foreground">No runs yet. Hit "Run all suites" to start.</div>
+        <div className="text-sm text-muted-foreground">No runs yet. Hit &quot;Run all suites&quot; to start.</div>
       )}
     </div>
   )
