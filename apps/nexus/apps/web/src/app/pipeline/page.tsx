@@ -48,25 +48,27 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? ''
 
 // ─── API helpers ───────────────────────────────────────────────────────────────
 
+const ITEMS_API = `${API_BASE}/api/pipeline/items`
+
 async function fetchItems(): Promise<PipelineItem[]> {
-  const res = await fetch(`${API_BASE}/api/pipeline`)
+  const res = await fetch(ITEMS_API)
   if (!res.ok) return []
   const data = await res.json() as unknown
   return Array.isArray(data) ? (data as PipelineItem[]) : ((data as Record<string, unknown>).items as PipelineItem[] ?? [])
 }
 
 async function createItem(payload: Omit<PipelineItem, 'id' | 'created_at' | 'updated_at'>): Promise<PipelineItem | null> {
-  const res = await fetch(`${API_BASE}/api/pipeline`, {
+  const res = await fetch(ITEMS_API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
   if (!res.ok) return null
-  return res.json()
+  return res.json() as Promise<PipelineItem>
 }
 
 async function moveItem(id: string, stage: Stage): Promise<void> {
-  await fetch(`${API_BASE}/api/pipeline/${id}`, {
+  await fetch(`${ITEMS_API}/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ stage }),
@@ -74,7 +76,7 @@ async function moveItem(id: string, stage: Stage): Promise<void> {
 }
 
 async function deleteItem(id: string): Promise<void> {
-  await fetch(`${API_BASE}/api/pipeline/${id}`, { method: 'DELETE' })
+  await fetch(`${ITEMS_API}/${id}`, { method: 'DELETE' })
 }
 
 // ─── Add Card Form ─────────────────────────────────────────────────────────────

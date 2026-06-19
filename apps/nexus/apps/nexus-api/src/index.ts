@@ -55,6 +55,9 @@ import { observabilityRoutes } from './routes/observability'
 import { freelanceRoutes } from './routes/freelance'
 import { opportunityRoutes } from './routes/opportunities'
 import { pipelineRoutes } from './routes/pipeline'
+import { pipelineItemRoutes } from './routes/pipeline-items'
+import { runDiscoveryAgent } from './services/discovery-agent'
+import { discoveryRoutes } from './routes/discovery'
 import { statsRoutes } from './routes/stats'
 import { queueRoutes } from './routes/queue'
 import { portfolioRoutes } from './routes/portfolio'
@@ -256,6 +259,8 @@ api.route('/observability', observabilityRoutes)
 api.route('/freelance', freelanceRoutes)
 api.route('/opportunities', opportunityRoutes)
 api.route('/pipeline', pipelineRoutes)
+api.route('/pipeline/items', pipelineItemRoutes)
+api.route('/discovery', discoveryRoutes)
 api.route('/stats', statsRoutes)
 api.route('/queue', queueRoutes)
 api.route('/portfolio', portfolioRoutes)
@@ -369,6 +374,10 @@ export default {
     logger.info('Scheduled tasks triggered')
     ctx.waitUntil(sweepStaleRuns(env))
     ctx.waitUntil(runTrendRadar(env))
+    // Phase 2 — Discovery Agent: scan for trends/signals, write idea-stage pipeline items
+    ctx.waitUntil(runDiscoveryAgent(env).catch((err) => {
+      logger.error('Discovery agent error', err instanceof Error ? err : new Error(String(err)))
+    }))
     ctx.waitUntil(runDueSchedules(env, ctx))
     ctx.waitUntil(runAutopilot(env, ctx))
     ctx.waitUntil(runMarketing(env, ctx))

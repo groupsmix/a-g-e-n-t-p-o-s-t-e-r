@@ -109,26 +109,34 @@ function ControlTab() {
         )}
       </section>
 
-      {/* Discovery agent schedule */}
+      {/* Scheduled agents */}
       <section>
         <h2 className="text-sm font-semibold mb-3">Scheduled agents</h2>
         <div className="rounded-xl border bg-card divide-y">
-          {(['job', 'discovery', 'qa'] as AgentType[]).map((type) => (
-            <div key={type} className="px-4 py-3 flex items-center justify-between">
-              <span className="text-sm capitalize">{type} agent</span>
-              <button
-                onClick={() =>
-                  fetch(`${API_BASE}/api/agents/trigger`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ agent_type: type }),
-                  }).then(load)
-                }
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <Play className="h-3 w-3" />
-                Trigger
-              </button>
+          {/* Discovery Agent — Phase 2 */}
+          <div className="px-4 py-3 flex items-center justify-between">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm">Discovery agent</span>
+              <span className="text-xs text-muted-foreground">Runs daily at 07:00 UTC · writes signals + pipeline ideas</span>
+            </div>
+            <button
+              onClick={() =>
+                fetch(`${API_BASE}/api/discovery/trigger`, { method: 'POST' }).then(load)
+              }
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Play className="h-3 w-3" />
+              Trigger now
+            </button>
+          </div>
+          {/* Job Agent and QA Agent — Phase 3/4 placeholders */}
+          {(['job', 'qa'] as const).map((type) => (
+            <div key={type} className="px-4 py-3 flex items-center justify-between opacity-40">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm capitalize">{type} agent</span>
+                <span className="text-xs text-muted-foreground">Coming in Phase {type === 'job' ? 3 : 4}</span>
+              </div>
+              <span className="text-xs text-muted-foreground">Not yet built</span>
             </div>
           ))}
         </div>
