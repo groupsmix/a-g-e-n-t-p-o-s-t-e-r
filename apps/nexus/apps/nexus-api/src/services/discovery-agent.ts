@@ -19,6 +19,7 @@
  */
 
 import { createLogger } from '@posteragent/logger/workers'
+import { getLearningContext } from './learning'
 import type { Env } from '../env'
 
 const logger = createLogger({ service: 'nexus-api', module: 'discovery-agent' })
@@ -254,6 +255,21 @@ export async function runDiscoveryAgent(env: Env): Promise<DiscoveryRun> {
 
     logger.info('Discovery agent starting', { runId, niche })
 
+    // ── Learning loop: what's actually working? ────────────────────────────
+    // Pull winner patterns (real sales) + operator approval outcomes so this
+    // cycle hunts for proven winners instead of starting cold every time.
+    const learning = await getLearningContext(env).catch(() => null)
+    const learningInjection = learning?.injection ?? ''
+    if (learning?.has_data) {
+      const biasNiches = learning.weights.preferred_niches.slice(0, 3).join(', ')
+      addStep(
+        'think',
+        `Learning loop active. Approval rate: ${learning.approvals.approval_rate !== null ? Math.round(learning.approvals.approval_rate * 100) + '%' : 'n/a'}.` +
+        (biasNiches ? ` Biasing toward proven niches: ${biasNiches}.` : '') +
+        (learning.approvals.recent_rejection_reasons.length ? ` Avoiding ${learning.approvals.recent_rejection_reasons.length} recent rejection pattern(s).` : ''),
+      )
+    }
+
     // ── Step 1: THINK — what should we look for this cycle? ────────────────
     addStep('think', `Goal: discover trends and opportunities in "${niche}". Topics to watch: ${topics}. I'll search for current trends, then analyse competitor gaps, then propose pipeline ideas.`)
 
@@ -265,7 +281,7 @@ export async function runDiscoveryAgent(env: Env): Promise<DiscoveryRun> {
     const queryPrompt = `You are a market research agent scanning for opportunities in: "${niche}".
 Topics of interest: ${topics}.
 Today's date: ${new Date().toUTCString()}.
-
+${learningInjection ? `\n${learningInjection}\nUse the above real performance data to steer your queries toward what sells and gets approved.\n` : ''}
 Return JSON exactly: {
   "queries": [
     { "query": string, "intent": "trend"|"competitor"|"buyer_pain", "priority": 1-5 }
@@ -312,7 +328,7 @@ Generate 4-6 specific, targeted queries. No generic queries.`
       const searchPrompt = `Web search query: "${q.query}"
 Niche context: ${niche}
 Search intent: ${q.intent}
-
+${learningInjection ? `\n${learningInjection}\nWeight signals and pipeline ideas toward the proven winners above.\n` : ''}
 Based on your knowledge of this topic, return JSON:
 {
   "signals": [

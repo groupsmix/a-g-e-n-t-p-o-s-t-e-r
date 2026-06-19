@@ -27,6 +27,7 @@
 
 import { createLogger } from '@posteragent/logger/workers'
 import { isGatedAction } from './approval-binding'
+import { getLearningContext } from './learning'
 import type { Env } from '../env'
 
 const logger = createLogger({ service: 'nexus-api', module: 'job-agent' })
@@ -369,12 +370,18 @@ export async function runJobAgent(env: Env, pipelineItemId: string): Promise<Job
       brief.deliverable_type === 'code' ? 'code' :
       brief.deliverable_type === 'writing' ? 'markdown' : 'text'
 
+    // Learning loop: bias the draft toward what the operator approves and
+    // away from past rejection reasons. Same shared signal Discovery uses.
+    const learning = await getLearningContext(env).catch(() => null)
+    const learningBlock = learning?.has_data ? `\n${learning.injection}\n` : ''
+
     const draftPrompt =
       `You are an expert ${brief.deliverable_type} specialist completing a freelance deliverable.\n\n` +
       `JOB: "${brief.title}"\n` +
       `CLIENT BRIEF: ${brief.brief_text}\n` +
       (brief.client_notes ? `CLIENT CONSTRAINTS: ${brief.client_notes}\n` : '') +
       (research ? `\nRESEARCH CONTEXT:\n${research}\n` : '') +
+      learningBlock +
       `\nProduce the complete, polished deliverable now. ` +
       `Format: ${format}. ` +
       `This goes directly to the client after the operator reviews it — make it production-ready. ` +

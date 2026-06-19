@@ -29,6 +29,25 @@ interface MemoryRecord {
   created_at: string
 }
 
+interface LearningContext {
+  has_data: boolean
+  injection: string
+  weights: {
+    preferred_niches: string[]
+    preferred_price_range: string | null
+    title_keywords: string[]
+    top_tags: string[]
+  }
+  approvals: {
+    approved: number
+    rejected: number
+    pending: number
+    approval_rate: number | null
+    recent_rejection_reasons: string[]
+    recent_approved_titles: string[]
+  }
+}
+
 // ─── Tabs ──────────────────────────────────────────────────────────────────────
 
 type Tab = 'overview' | 'signals' | 'opportunities' | 'learning'
@@ -153,9 +172,15 @@ function OpportunitiesTab() {
 
 function LearningLogTab() {
   const [memory, setMemory] = useState<MemoryRecord[]>([])
+  const [ctx, setCtx] = useState<LearningContext | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    fetch(`${API_BASE}/api/learning/context`)
+      .then((r) => r.ok ? r.json() as Promise<LearningContext> : null)
+      .then((d) => { if (d) setCtx(d) })
+      .catch(() => {})
+
     fetch(`${API_BASE}/api/memory`)
       .then((r) => r.ok ? r.json() as Promise<unknown> : Promise.resolve([]))
       .then((d) => setMemory(Array.isArray(d) ? (d as MemoryRecord[]) : ((d as Record<string, unknown>).items as MemoryRecord[] ?? [])))
@@ -170,39 +195,124 @@ function LearningLogTab() {
 
   if (loading) return <div className="text-sm text-muted-foreground">Loading…</div>
 
-  if (!memory.length) {
-    return (
-      <div className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">
-        No memory records yet. Agents write here after completed runs — preferences, facts, and
-        outcomes that influence future decisions.
-      </div>
-    )
-  }
-
   const TYPE_COLORS = {
     preference: 'bg-blue-500/10 text-blue-400',
     fact:       'bg-amber-500/10 text-amber-400',
     outcome:    'bg-emerald-500/10 text-emerald-400',
   }
 
+  const a = ctx?.approvals
+  const niches = ctx?.weights.preferred_niches ?? []
+  const keywords = ctx?.weights.title_keywords ?? []
+
   return (
-    <div className="flex flex-col gap-3">
-      {memory.map((m) => (
-        <div key={m.id} className="rounded-xl border bg-card p-4 flex items-start justify-between gap-3 group">
-          <div className="flex flex-col gap-1 flex-1 min-w-0">
-            <span className={`text-xs rounded-full px-2 py-0.5 w-fit ${TYPE_COLORS[m.type]}`}>
-              {m.type} · stale after {m.staleness_window_days}d
-            </span>
-            <p className="text-sm">{m.content}</p>
-          </div>
-          <button
-            onClick={() => deleteRecord(m.id)}
-            className="text-xs text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-          >
-            Delete
-          </button>
+    <div className="space-y-6">
+      {/* ── The learning loop ─────────────────────────────────────────── */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Learning loop</h2>
+          <span className={`text-xs rounded-full px-2 py-0.5 ${ctx?.has_data ? 'bg-emerald-500/10 text-emerald-400' : 'bg-muted text-muted-foreground'}`}>
+            {ctx?.has_data ? 'active — feeding agents' : 'no data yet'}
+          </span>
         </div>
-      ))}
+
+        {/* Approval outcomes */}
+        {a && (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-xl border bg-card p-3 flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Approved</span>
+              <span className="text-xl font-bold text-emerald-400">{a.approved}</span>
+            </div>
+            <div className="rounded-xl border bg-card p-3 flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Rejected</span>
+              <span className="text-xl font-bold text-red-400">{a.rejected}</span>
+            </div>
+            <div className="rounded-xl border bg-card p-3 flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Approval rate</span>
+              <span className="text-xl font-bold">{a.approval_rate !== null ? `${Math.round(a.approval_rate * 100)}%` : '—'}</span>
+            </div>
+          </div>
+        )}
+
+        {/* What the agents are biased toward */}
+        {(niches.length > 0 || keywords.length > 0) && (
+          <div className="rounded-xl border bg-card p-4 space-y-3">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Steering agents toward</h3>
+            {niches.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {niches.map((n, i) => (
+                  <span key={i} className="text-xs rounded-full px-2 py-0.5 bg-emerald-500/10 text-emerald-400">{n}</span>
+                ))}
+              </div>
+            )}
+            {keywords.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {keywords.map((k, i) => (
+                  <span key={i} className="text-xs rounded-full px-2 py-0.5 bg-blue-500/10 text-blue-400">{k}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Recently approved / rejection reasons */}
+        {a && a.recent_approved_titles.length > 0 && (
+          <div className="rounded-xl border bg-card p-4 space-y-1.5">
+            <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">Do more like this</h3>
+            {a.recent_approved_titles.map((t, i) => (
+              <p key={i} className="text-sm text-muted-foreground">• {t}</p>
+            ))}
+          </div>
+        )}
+        {a && a.recent_rejection_reasons.length > 0 && (
+          <div className="rounded-xl border bg-card p-4 space-y-1.5">
+            <h3 className="text-xs font-semibold text-red-400 uppercase tracking-wide">Avoid (operator rejections)</h3>
+            {a.recent_rejection_reasons.map((r, i) => (
+              <p key={i} className="text-sm text-muted-foreground">• {r}</p>
+            ))}
+          </div>
+        )}
+
+        {/* The exact injection the agents receive */}
+        {ctx?.injection && (
+          <details className="rounded-xl border bg-card p-4">
+            <summary className="text-xs font-semibold text-muted-foreground cursor-pointer">What the agents actually read (prompt injection)</summary>
+            <pre className="mt-3 text-xs whitespace-pre-wrap text-muted-foreground font-mono">{ctx.injection}</pre>
+          </details>
+        )}
+
+        {!ctx?.has_data && (
+          <div className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">
+            Once deliverables get approved/rejected and sales sync in, the Discovery and Job agents
+            start steering toward what works. This panel shows exactly what they learn.
+          </div>
+        )}
+      </div>
+
+      {/* ── Memory records ─────────────────────────────────────────────── */}
+      {memory.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold">Memory records</h2>
+          <div className="flex flex-col gap-3">
+            {memory.map((m) => (
+              <div key={m.id} className="rounded-xl border bg-card p-4 flex items-start justify-between gap-3 group">
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <span className={`text-xs rounded-full px-2 py-0.5 w-fit ${TYPE_COLORS[m.type]}`}>
+                    {m.type} · stale after {m.staleness_window_days}d
+                  </span>
+                  <p className="text-sm">{m.content}</p>
+                </div>
+                <button
+                  onClick={() => deleteRecord(m.id)}
+                  className="text-xs text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
