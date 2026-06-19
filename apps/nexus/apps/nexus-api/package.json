@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@cloudflare/puppeteer": "^1.1.0",
+    "@hono/zod-validator": "^0.8.0",
     "@nexus/prompts": "workspace:*",
     "@posteragent/agent-analytics": "workspace:*",
     "@posteragent/agent-autonome": "workspace:*",
@@ -26,12 +27,12 @@
     "@posteragent/orchestrator": "workspace:*",
     "@posteragent/proactivity": "workspace:*",
     "@posteragent/types": "workspace:*",
-    "hono": "^4.12.25",
+    "hono": "^4.12.26",
     "nanoid": "^3.3.11",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240117.0",
+    "@cloudflare/workers-types": "^4.20260619.1",
     "typescript": "^5.3.3",
     "vitest": "^1.2.0",
     "wrangler": "^4.102.0"
