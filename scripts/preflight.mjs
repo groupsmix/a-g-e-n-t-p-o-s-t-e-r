@@ -17,10 +17,11 @@
 
 import { execSync, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
-const ROOT = resolve(new URL('.', import.meta.url).pathname.slice(1)) // strip leading / on Windows
+const ROOT = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = join(ROOT, '..')
 
 // ── CLI flags ──────────────────────────────────────────────────────────────

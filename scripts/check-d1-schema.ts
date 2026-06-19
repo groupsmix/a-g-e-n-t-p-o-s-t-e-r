@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 // Dynamic SQLite engine loader
 async function loadEngine() {
@@ -143,7 +144,7 @@ async function main() {
   }
   console.log(`ℹ️  Running schema check with SQLite engine: ${engine.name}`)
 
-  const repoRoot = resolve(new URL('.', import.meta.url).pathname.slice(1), '..')
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
   const migrationsDir = join(repoRoot, 'apps', 'nexus', 'migrations')
   const typesFile = join(repoRoot, 'packages', 'types', 'src', 'index.ts')
 

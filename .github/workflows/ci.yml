@@ -11,6 +11,12 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Turbo Remote Cache - inert until TURBO_TOKEN/TURBO_TEAM are set,
+  # then build/typecheck/test become cache hits across jobs and runs.
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
 jobs:
   # ─── Shared packages — types, logger, build ─────────────────────────
   # Note: @posteragent/ui will be added here once packages/ui lands on main
@@ -136,9 +142,9 @@ jobs:
       - name: D1 migrations dry-run
         working-directory: apps/nexus
         run: |
-          npm install -g wrangler@3
+          echo 'wrangler provided via pnpm dlx'
           cd apps/nexus-api
-          wrangler d1 migrations list nexus-db --local
+          pnpm dlx wrangler@3 d1 migrations list nexus-db --local
       - name: D1 schema-drift check
         working-directory: apps/nexus
         run: |
