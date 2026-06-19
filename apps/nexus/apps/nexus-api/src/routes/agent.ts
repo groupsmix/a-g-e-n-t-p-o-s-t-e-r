@@ -196,7 +196,7 @@ async function resolveProduct(env: Env, ref: string): Promise<any | null> {
 }
 
 
-async function createOneProduct(env: Env, ctx: ExecutionContext, p: any, validSlugs: Set<string>): Promise<AgentStep> {
+async function createOneProduct(env: Env, ctx: Pick<ExecutionContext, 'waitUntil'>, p: any, validSlugs: Set<string>): Promise<AgentStep> {
   const domain_slug = (p.domain_slug || '').trim()
   const category_slug = (p.category_slug || '').trim()
   const label = p.product_name || p.niche || 'product'
@@ -230,7 +230,7 @@ async function createOneProduct(env: Env, ctx: ExecutionContext, p: any, validSl
 }
 
 
-async function rerunWorkflow(env: Env, ctx: ExecutionContext, prod: any): Promise<AgentStep> {
+async function rerunWorkflow(env: Env, ctx: Pick<ExecutionContext, 'waitUntil'>, prod: any): Promise<AgentStep> {
   const full = await env.DB.prepare(`
     SELECT p.id, p.name, p.niche, p.user_input, d.slug AS domain_slug, c.slug AS category_slug
     FROM products p JOIN domains d ON p.domain_id = d.id JOIN categories c ON p.category_id = c.id
@@ -779,3 +779,4 @@ Respond with ONLY one JSON object (a tool call or a final {"reply"}).`
   })
   return c.json({ reply, steps: cleanSteps })
 })
+
