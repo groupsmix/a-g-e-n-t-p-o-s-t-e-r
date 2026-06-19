@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@cloudflare/puppeteer": "^1.1.0",
+    "@hono/zod-validator": "^0.7.4",
     "@nexus/prompts": "workspace:*",
     "@posteragent/agent-analytics": "workspace:*",
     "@posteragent/agent-autonome": "workspace:*",
