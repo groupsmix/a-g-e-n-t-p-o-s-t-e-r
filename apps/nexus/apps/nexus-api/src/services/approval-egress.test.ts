@@ -125,7 +125,7 @@ describe('executeApprovedAction', () => {
 
   it('dispatches the approved snapshot exactly once and stamps executed_at', async () => {
     const { db, state, approvalId } = await seedApproved('publish.gumroad', { platformSlug: 'gumroad', title: 'X' })
-    const dispatch: Dispatcher = vi.fn(async () => ({ status: 'success', url: 'https://gum.co/x' }))
+    const dispatch: Dispatcher = vi.fn(async () => ({ status: 'success' as const, url: 'https://gum.co/x' }))
     const res = await executeApprovedAction(envWith(db), approvalId, { 'publish.gumroad': dispatch })
     expect(res).toEqual({ executed: true, outcome: { status: 'success', url: 'https://gum.co/x' } })
     expect(dispatch).toHaveBeenCalledTimes(1)
@@ -136,14 +136,14 @@ describe('executeApprovedAction', () => {
     const snapshot = { platformSlug: 'gumroad', title: 'Frozen', price: 42 }
     const { db, approvalId } = await seedApproved('publish.gumroad', snapshot)
     let received: unknown
-    const dispatch: Dispatcher = vi.fn(async (p) => { received = p; return { status: 'success' } })
+    const dispatch: Dispatcher = vi.fn(async (p) => { received = p; return { status: 'success' as const } })
     await executeApprovedAction(envWith(db), approvalId, { 'publish.gumroad': dispatch })
     expect(received).toMatchObject({ platformSlug: 'gumroad', title: 'Frozen', price: 42 })
   })
 
   it('does not dispatch twice on a double-approve (idempotent claim)', async () => {
     const { db, approvalId } = await seedApproved('publish.gumroad', { platformSlug: 'gumroad' })
-    const dispatch: Dispatcher = vi.fn(async () => ({ status: 'success' }))
+    const dispatch: Dispatcher = vi.fn(async () => ({ status: 'success' as const }))
     const reg = { 'publish.gumroad': dispatch }
     const a = await executeApprovedAction(envWith(db), approvalId, reg)
     const b = await executeApprovedAction(envWith(db), approvalId, reg)
@@ -157,7 +157,7 @@ describe('executeApprovedAction', () => {
     // tamper with the stored snapshot AFTER approval, leaving the hash intact
     const row = state.approvals.find((a) => a.id === approvalId)!
     row.action_payload = JSON.stringify({ platformSlug: 'gumroad', title: 'TAMPERED' })
-    const dispatch: Dispatcher = vi.fn(async () => ({ status: 'success' }))
+    const dispatch: Dispatcher = vi.fn(async () => ({ status: 'success' as const }))
     const res = await executeApprovedAction(envWith(db), approvalId, { 'publish.gumroad': dispatch })
     expect(res).toEqual({ executed: false, reason: 'hash_mismatch' })
     expect(dispatch).not.toHaveBeenCalled()
@@ -168,7 +168,7 @@ describe('executeApprovedAction', () => {
     const { db, state } = makeDb({ tasks: [{ id: 'task-1', status: 'needs_me' }] })
     const { approvalId } = await raiseApproval(envWith(db), { taskId: 'task-1', actionType: 'publish.gumroad', payload: { platformSlug: 'gumroad' } })
     void state
-    const dispatch: Dispatcher = vi.fn(async () => ({ status: 'success' }))
+    const dispatch: Dispatcher = vi.fn(async () => ({ status: 'success' as const }))
     const res = await executeApprovedAction(envWith(db), approvalId, { 'publish.gumroad': dispatch })
     expect(res).toEqual({ executed: false, reason: 'not_approved' })
     expect(dispatch).not.toHaveBeenCalled()
