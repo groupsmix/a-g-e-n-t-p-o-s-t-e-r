@@ -23,7 +23,7 @@ import { createLogger } from '@posteragent/logger/workers'
 import { browse } from './browser'
 import type { Env } from '../env'
 
-const logger = createLogger('qa-agent')
+const logger = createLogger({ service: 'nexus-api', module: 'qa-agent' })
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -263,7 +263,7 @@ async function runAIDrivenCheck(
     let judgeResult: { verdict: string; reason: string; next_url: string | null } | null = null
     try {
       if (judgeOutput) {
-        judgeResult = JSON.parse(judgeOutput) as typeof judgeResult
+        judgeResult = JSON.parse(judgeOutput)
       }
     } catch {
       judgeResult = null

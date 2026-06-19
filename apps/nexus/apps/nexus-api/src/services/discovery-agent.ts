@@ -21,7 +21,7 @@
 import { createLogger } from '@posteragent/logger/workers'
 import type { Env } from '../env'
 
-const logger = createLogger('discovery-agent')
+const logger = createLogger({ service: 'nexus-api', module: 'discovery-agent' })
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
@@ -360,7 +360,7 @@ Return 1-3 signals and 1-2 pipeline ideas. Be specific to the niche.`
       } | null = null
 
       try {
-        parsed = JSON.parse(searchOutput) as typeof parsed
+        parsed = JSON.parse(searchOutput)
       } catch {
         logger.warn('Discovery: failed to parse search output', { query: q.query })
         continue

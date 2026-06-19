@@ -29,7 +29,7 @@ import { createLogger } from '@posteragent/logger/workers'
 import { isGatedAction } from './approval-binding'
 import type { Env } from '../env'
 
-const logger = createLogger('job-agent')
+const logger = createLogger({ service: 'nexus-api', module: 'job-agent' })
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
