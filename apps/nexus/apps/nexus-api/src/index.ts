@@ -58,6 +58,7 @@ import { pipelineRoutes } from './routes/pipeline'
 import { pipelineItemRoutes } from './routes/pipeline-items'
 import { runDiscoveryAgent } from './services/discovery-agent'
 import { discoveryRoutes } from './routes/discovery'
+import { jobAgentRoutes } from './routes/job-agent'
 import { statsRoutes } from './routes/stats'
 import { queueRoutes } from './routes/queue'
 import { portfolioRoutes } from './routes/portfolio'
@@ -261,6 +262,7 @@ api.route('/opportunities', opportunityRoutes)
 api.route('/pipeline', pipelineRoutes)
 api.route('/pipeline/items', pipelineItemRoutes)
 api.route('/discovery', discoveryRoutes)
+api.route('/jobs', jobAgentRoutes)
 api.route('/stats', statsRoutes)
 api.route('/queue', queueRoutes)
 api.route('/portfolio', portfolioRoutes)
