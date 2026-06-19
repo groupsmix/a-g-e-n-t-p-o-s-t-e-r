@@ -35,25 +35,23 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? ''
 
 async function fetchHomeData(): Promise<HomeData> {
   const [pipelineRes, approvalsRes, revenueRes] = await Promise.allSettled([
-    fetch(`${API_BASE}/api/pipeline/summary`).then((r) => r.ok ? r.json() : null),
-    fetch(`${API_BASE}/api/approvals?status=pending`).then((r) => r.ok ? r.json() : null),
-    fetch(`${API_BASE}/api/revenue/summary?days=7`).then((r) => r.ok ? r.json() : null),
+    fetch(`${API_BASE}/api/pipeline/summary`).then((r) => r.ok ? r.json() as Promise<unknown> : Promise.resolve(null)),
+    fetch(`${API_BASE}/api/approvals?status=pending`).then((r) => r.ok ? r.json() as Promise<unknown> : Promise.resolve(null)),
+    fetch(`${API_BASE}/api/revenue/summary?days=7`).then((r) => r.ok ? r.json() as Promise<unknown> : Promise.resolve(null)),
   ])
 
-  const pipeline: PipelineSummary =
-    pipelineRes.status === 'fulfilled' && pipelineRes.value
-      ? pipelineRes.value
-      : { idea: 0, draft: 0, review: 0, scheduled: 0, published: 0 }
+  const pipelineRaw = pipelineRes.status === 'fulfilled' ? pipelineRes.value as Record<string, number> | null : null
+  const pipeline: PipelineSummary = pipelineRaw
+    ? { idea: pipelineRaw.idea ?? 0, draft: pipelineRaw.draft ?? 0, review: pipelineRaw.review ?? 0, scheduled: pipelineRaw.scheduled ?? 0, published: pipelineRaw.published ?? 0 }
+    : { idea: 0, draft: 0, review: 0, scheduled: 0, published: 0 }
 
-  const pendingApprovals: ApprovalRequest[] =
-    approvalsRes.status === 'fulfilled' && approvalsRes.value
-      ? (Array.isArray(approvalsRes.value) ? approvalsRes.value : approvalsRes.value.items ?? [])
-      : []
+  const approvalsRaw = approvalsRes.status === 'fulfilled' ? approvalsRes.value as unknown : null
+  const pendingApprovals: ApprovalRequest[] = approvalsRaw
+    ? (Array.isArray(approvalsRaw) ? (approvalsRaw as ApprovalRequest[]) : ((approvalsRaw as Record<string, unknown>).items as ApprovalRequest[] ?? []))
+    : []
 
-  const revenue =
-    revenueRes.status === 'fulfilled' && revenueRes.value
-      ? (revenueRes.value.total ?? null)
-      : null
+  const revenueRaw = revenueRes.status === 'fulfilled' ? revenueRes.value as Record<string, unknown> | null : null
+  const revenue = revenueRaw ? (revenueRaw.total as number ?? null) : null
 
   return {
     revenue_7d: revenue,

@@ -51,8 +51,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? ''
 async function fetchItems(): Promise<PipelineItem[]> {
   const res = await fetch(`${API_BASE}/api/pipeline`)
   if (!res.ok) return []
-  const data = await res.json()
-  return Array.isArray(data) ? data : data.items ?? []
+  const data = await res.json() as unknown
+  return Array.isArray(data) ? (data as PipelineItem[]) : ((data as Record<string, unknown>).items as PipelineItem[] ?? [])
 }
 
 async function createItem(payload: Omit<PipelineItem, 'id' | 'created_at' | 'updated_at'>): Promise<PipelineItem | null> {

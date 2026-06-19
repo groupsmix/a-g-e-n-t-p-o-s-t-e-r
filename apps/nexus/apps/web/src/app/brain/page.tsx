@@ -73,8 +73,8 @@ function SignalsTab() {
 
   useEffect(() => {
     fetch(`${API_BASE}/api/signals`)
-      .then((r) => r.ok ? r.json() : [])
-      .then((d) => setSignals(Array.isArray(d) ? d : d.signals ?? []))
+      .then((r) => r.ok ? r.json() as Promise<unknown> : Promise.resolve([]))
+      .then((d) => setSignals(Array.isArray(d) ? (d as Signal[]) : ((d as Record<string, unknown>).signals as Signal[] ?? [])))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
@@ -114,8 +114,8 @@ function OpportunitiesTab() {
 
   useEffect(() => {
     fetch(`${API_BASE}/api/opportunities`)
-      .then((r) => r.ok ? r.json() : [])
-      .then((d) => setOpps(Array.isArray(d) ? d : d.opportunities ?? []))
+      .then((r) => r.ok ? r.json() as Promise<unknown> : Promise.resolve([]))
+      .then((d) => setOpps(Array.isArray(d) ? (d as Opportunity[]) : ((d as Record<string, unknown>).opportunities as Opportunity[] ?? [])))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
@@ -157,8 +157,8 @@ function LearningLogTab() {
 
   useEffect(() => {
     fetch(`${API_BASE}/api/memory`)
-      .then((r) => r.ok ? r.json() : [])
-      .then((d) => setMemory(Array.isArray(d) ? d : d.items ?? []))
+      .then((r) => r.ok ? r.json() as Promise<unknown> : Promise.resolve([]))
+      .then((d) => setMemory(Array.isArray(d) ? (d as MemoryRecord[]) : ((d as Record<string, unknown>).items as MemoryRecord[] ?? [])))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])

@@ -59,8 +59,8 @@ function ControlTab() {
   function load() {
     setLoading(true)
     fetch(`${API_BASE}/api/agents/runs?limit=20`)
-      .then((r) => r.ok ? r.json() : [])
-      .then((d) => setRuns(Array.isArray(d) ? d : d.runs ?? []))
+      .then((r) => r.ok ? r.json() as Promise<unknown> : Promise.resolve([]))
+      .then((d) => setRuns(Array.isArray(d) ? (d as AgentRun[]) : ((d as Record<string, unknown>).runs as AgentRun[] ?? [])))
       .catch(() => {})
       .finally(() => setLoading(false))
   }
@@ -145,8 +145,8 @@ function QueueTab() {
 
   useEffect(() => {
     fetch(`${API_BASE}/api/agents/runs?limit=50`)
-      .then((r) => r.ok ? r.json() : [])
-      .then((d) => setRuns(Array.isArray(d) ? d : d.runs ?? []))
+      .then((r) => r.ok ? r.json() as Promise<unknown> : Promise.resolve([]))
+      .then((d) => setRuns(Array.isArray(d) ? (d as AgentRun[]) : ((d as Record<string, unknown>).runs as AgentRun[] ?? [])))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
@@ -188,8 +188,11 @@ function LogsTab() {
 
   useEffect(() => {
     fetch(`${API_BASE}/api/observability/logs?limit=100`)
-      .then((r) => r.ok ? r.json() : [])
-      .then((d) => setLogs(Array.isArray(d) ? d : d.logs ?? []))
+      .then((r) => r.ok ? r.json() as Promise<unknown> : Promise.resolve([]))
+      .then((d) => {
+        type LogEntry = { id: string; message: string; level: string; created_at: string }
+        setLogs(Array.isArray(d) ? (d as LogEntry[]) : ((d as Record<string, unknown>).logs as LogEntry[] ?? []))
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
