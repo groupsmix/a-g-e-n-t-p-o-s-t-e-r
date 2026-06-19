@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
+import { executeApprovedAction } from '../services/approval-egress'
 
 export const approvalsRoutes = new Hono<{ Bindings: Env }>()
 
@@ -43,24 +44,38 @@ approvalsRoutes.post('/:id/approve', async (c) => {
     .bind(feedback, now, id)
     .run()
 
-  // Transition task back to queued (or done / running depending on needs)
-  // Let's set it back to queued so it can be picked up by the runner again to execute the approved action
-  await c.env.DB
-    .prepare(`UPDATE agent_tasks SET status = 'queued', updated_at = ? WHERE id = ? AND status = 'needs_me'`)
-    .bind(now, request.task_id)
-    .run()
-
-  // Log an event
+  // Log the approval event
   const eventId = crypto.randomUUID().replace(/-/g, '').slice(0, 32)
   await c.env.DB
     .prepare(`INSERT INTO task_events (id, task_id, event_type, message, created_at) VALUES (?, ?, 'approval_approved', ?, ?)`)
     .bind(eventId, request.task_id, `Action approved. Feedback: ${feedback ?? 'None'}`, now)
     .run()
 
-  // payloadBound tells the caller whether this approval is bound to a payload
-  // snapshot (migration 042). Unbound legacy approvals behave exactly as before;
-  // bound ones must be hash-verified by the executor before dispatch.
-  return c.json({ ok: true, status: 'approved', payloadBound: !!request.payload_hash })
+  // PAYLOAD-BOUND approvals (migration 042): execute the APPROVED SNAPSHOT
+  // directly, verified and exactly-once. We do NOT re-queue the agent, because
+  // re-deriving the action is the approve-A / execute-B hole this closes.
+  if (request.payload_hash) {
+    const result = await executeApprovedAction(c.env, id)
+    if (result.executed) {
+      await c.env.DB
+        .prepare(`UPDATE agent_tasks SET status = ?, updated_at = ? WHERE id = ? AND status = 'needs_me'`)
+        .bind(result.outcome.status === 'success' ? 'done' : 'failed', now, request.task_id)
+        .run()
+      return c.json({ ok: true, status: 'approved', payloadBound: true, executed: true, outcome: result.outcome })
+    }
+    // Approved but not executed (e.g. no adapter wired yet). Leave the task in
+    // needs_me and report why, rather than silently re-queuing.
+    return c.json({ ok: true, status: 'approved', payloadBound: true, executed: false, reason: result.reason })
+  }
+
+  // LEGACY (unbound) approvals behave exactly as before: re-queue the task so
+  // the runner can act on the approval.
+  await c.env.DB
+    .prepare(`UPDATE agent_tasks SET status = 'queued', updated_at = ? WHERE id = ? AND status = 'needs_me'`)
+    .bind(now, request.task_id)
+    .run()
+
+  return c.json({ ok: true, status: 'approved', payloadBound: false })
 })
 
 // ── POST /api/approvals/:id/reject ─────────────────────────────────────────
