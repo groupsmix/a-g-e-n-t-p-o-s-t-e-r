@@ -515,3 +515,168 @@ function extractKeywords(title: string): string[] {
     .filter((w) => w.length > 2 && !STOP_WORDS.has(w))
     .slice(0, 5)
 }
+
+
+// ============================================================
+// Phase 5 — Learning Loop: feed performance back into agents
+// ============================================================
+//
+// getLearningContext() is the ONE place agents read "what works".
+// Same principle as the single browser_control: one implementation,
+// every agent calls it. It combines two real feedback sources:
+//
+//   1. Winner patterns from actual sales (applyPatterns → Gumroad data)
+//   2. NEXUS approval outcomes — what the operator approved vs rejected,
+//      and WHY (reviewer_notes on rejections are the strongest "avoid this"
+//      signal we have, and they come from inside the pipeline itself).
+//
+// The output `injection` string is prepended to agent generation prompts
+// so discovery hunts for proven winners and the job agent drafts toward
+// what gets approved — and away from what got rejected.
+
+export interface ApprovalOutcomeStats {
+  approved: number
+  rejected: number
+  pending: number
+  approval_rate: number | null          // approved / (approved+rejected)
+  recent_rejection_reasons: string[]    // reviewer_notes from recent rejects
+  recent_approved_titles: string[]      // titles of recently approved items
+}
+
+export interface LearningContext {
+  has_data: boolean
+  injection: string                     // ready to prepend to a prompt
+  weights: GenerationWeights
+  approvals: ApprovalOutcomeStats
+}
+
+async function getApprovalOutcomes(env: Env): Promise<ApprovalOutcomeStats> {
+  const empty: ApprovalOutcomeStats = {
+    approved: 0, rejected: 0, pending: 0, approval_rate: null,
+    recent_rejection_reasons: [], recent_approved_titles: [],
+  }
+
+  // Counts by status (approval_requests exists since migration 037; the
+  // pipeline_item_id + reviewer_notes columns since 045).
+  const counts = await env.DB
+    .prepare(
+      `SELECT status, COUNT(*) AS n
+       FROM approval_requests
+       WHERE action_type = 'review.deliverable'
+       GROUP BY status`
+    )
+    .all<{ status: string; n: number }>()
+    .catch(() => ({ results: [] as Array<{ status: string; n: number }> }))
+
+  for (const row of counts.results ?? []) {
+    if (row.status === 'approved') empty.approved = row.n
+    else if (row.status === 'rejected') empty.rejected = row.n
+    else if (row.status === 'pending') empty.pending = row.n
+  }
+
+  const decided = empty.approved + empty.rejected
+  empty.approval_rate = decided > 0 ? Math.round((empty.approved / decided) * 100) / 100 : null
+
+  // Recent rejection reasons — the "what to avoid" signal.
+  const rejects = await env.DB
+    .prepare(
+      `SELECT reviewer_notes
+       FROM approval_requests
+       WHERE status = 'rejected'
+         AND reviewer_notes IS NOT NULL AND reviewer_notes != ''
+       ORDER BY COALESCE(resolved_at, created_at) DESC
+       LIMIT 5`
+    )
+    .all<{ reviewer_notes: string }>()
+    .catch(() => ({ results: [] as Array<{ reviewer_notes: string }> }))
+  empty.recent_rejection_reasons = (rejects.results ?? [])
+    .map((r) => r.reviewer_notes.trim())
+    .filter(Boolean)
+
+  // Recently approved titles — the "more like this" signal.
+  const approved = await env.DB
+    .prepare(
+      `SELECT COALESCE(p.title, a.summary) AS title
+       FROM approval_requests a
+       LEFT JOIN pipeline_items p ON p.id = a.pipeline_item_id
+       WHERE a.status = 'approved'
+       ORDER BY COALESCE(a.resolved_at, a.created_at) DESC
+       LIMIT 5`
+    )
+    .all<{ title: string | null }>()
+    .catch(() => ({ results: [] as Array<{ title: string | null }> }))
+  empty.recent_approved_titles = (approved.results ?? [])
+    .map((r) => (r.title ?? '').trim())
+    .filter(Boolean)
+
+  return empty
+}
+
+export async function getLearningContext(env: Env): Promise<LearningContext> {
+  // Respect the same kill-switch the rest of the loop uses.
+  const enabled = await getSetting(env, 'learning_loop_enabled')
+  if (enabled === 'false') {
+    const weights = await applyPatterns(env).catch(() => emptyWeights())
+    return {
+      has_data: false,
+      injection: '',
+      weights,
+      approvals: {
+        approved: 0, rejected: 0, pending: 0, approval_rate: null,
+        recent_rejection_reasons: [], recent_approved_titles: [],
+      },
+    }
+  }
+
+  const [weights, approvals] = await Promise.all([
+    applyPatterns(env).catch(() => emptyWeights()),
+    getApprovalOutcomes(env),
+  ])
+
+  const lines: string[] = []
+
+  // Sales-derived winner patterns (already formatted by applyPatterns).
+  if (weights.prompt_injection) {
+    lines.push(weights.prompt_injection)
+  }
+
+  // NEXUS approval outcomes.
+  const outcomeLines: string[] = []
+  if (approvals.recent_approved_titles.length > 0) {
+    outcomeLines.push(
+      `Recently APPROVED by the operator (do more like these): ` +
+      approvals.recent_approved_titles.slice(0, 5).join('; ')
+    )
+  }
+  if (approvals.recent_rejection_reasons.length > 0) {
+    outcomeLines.push(
+      `Recently REJECTED — avoid these mistakes: ` +
+      approvals.recent_rejection_reasons.slice(0, 5).join(' | ')
+    )
+  }
+  if (approvals.approval_rate !== null) {
+    outcomeLines.push(`Current approval rate: ${Math.round(approvals.approval_rate * 100)}%.`)
+  }
+  if (outcomeLines.length > 0) {
+    lines.push(`[OPERATOR FEEDBACK FROM THE PIPELINE]\n${outcomeLines.join('\n')}\n[END OPERATOR FEEDBACK]`)
+  }
+
+  const injection = lines.join('\n\n')
+
+  return {
+    has_data: injection.length > 0,
+    injection,
+    weights,
+    approvals,
+  }
+}
+
+function emptyWeights(): GenerationWeights {
+  return {
+    preferred_niches: [],
+    preferred_price_range: null,
+    title_keywords: [],
+    top_tags: [],
+    prompt_injection: '',
+  }
+}

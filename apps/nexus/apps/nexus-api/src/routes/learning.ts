@@ -5,6 +5,7 @@ import {
   extractPatterns,
   applyPatterns,
   getLearningStats,
+  getLearningContext,
 } from '../services/learning'
 import type { LearningPattern } from '../services/learning'
 import { createLogger } from '@posteragent/logger/workers'
@@ -97,6 +98,20 @@ export const learningRoutes = new Hono<{ Bindings: Env }>()
   } catch (err) {
     logger.error('Weights error', err instanceof Error ? err : new Error(String(err)))
     return c.json({ error: 'Failed to compute weights' }, 500)
+  }
+})
+
+
+// GET /learning/context — the exact learning signal agents consume
+// (winner patterns + operator approval outcomes + the prompt injection).
+// Powers the Brain → Learning log tab so the loop is visible.
+  .get('/context', async (c) => {
+  try {
+    const ctx = await getLearningContext(c.env)
+    return c.json(ctx)
+  } catch (err) {
+    logger.error('Context error', err instanceof Error ? err : new Error(String(err)))
+    return c.json({ error: 'Failed to compute learning context' }, 500)
   }
 })
 
