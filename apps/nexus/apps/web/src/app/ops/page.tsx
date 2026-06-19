@@ -109,28 +109,42 @@ function ControlTab() {
         )}
       </section>
 
-      {/* Discovery agent schedule */}
+      {/* Scheduled agents */}
       <section>
         <h2 className="text-sm font-semibold mb-3">Scheduled agents</h2>
         <div className="rounded-xl border bg-card divide-y">
-          {(['job', 'discovery', 'qa'] as AgentType[]).map((type) => (
-            <div key={type} className="px-4 py-3 flex items-center justify-between">
-              <span className="text-sm capitalize">{type} agent</span>
-              <button
-                onClick={() =>
-                  fetch(`${API_BASE}/api/agents/trigger`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ agent_type: type }),
-                  }).then(load)
-                }
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <Play className="h-3 w-3" />
-                Trigger
-              </button>
+          {/* Discovery Agent — Phase 2 */}
+          <div className="px-4 py-3 flex items-center justify-between">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm">Discovery agent</span>
+              <span className="text-xs text-muted-foreground">Runs daily at 07:00 UTC · writes signals + pipeline ideas</span>
             </div>
-          ))}
+            <button
+              onClick={() =>
+                fetch(`${API_BASE}/api/discovery/trigger`, { method: 'POST' }).then(load)
+              }
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Play className="h-3 w-3" />
+              Trigger now
+            </button>
+          </div>
+          {/* QA Agent — Phase 4 */}
+          <div className="px-4 py-3 flex items-center justify-between">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm">QA agent</span>
+              <span className="text-xs text-muted-foreground">Runs daily · checks all enabled test suites</span>
+            </div>
+            <button
+              onClick={() =>
+                fetch(`${API_BASE}/api/qa/trigger`, { method: 'POST' }).then(load)
+              }
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Play className="h-3 w-3" />
+              Trigger now
+            </button>
+          </div>
         </div>
       </section>
     </div>
@@ -241,18 +255,162 @@ function LogsTab() {
 
 // ─── Tab: Build ────────────────────────────────────────────────────────────────
 
+type QAResult = {
+  id: string
+  suite_name: string
+  status: 'pass' | 'fail' | 'error' | 'running'
+  total_steps: number
+  error: string | null
+  total_ms: number | null
+  started_at: string
+  completed_at: string | null
+}
+
+type QAStatus = {
+  enabled: boolean
+  total_suites: number
+  passing: number
+  failing: number
+  last_run_at: string | null
+}
+
 function BuildTab() {
+  const [qaStatus, setQAStatus] = useState<QAStatus | null>(null)
+  const [results, setResults] = useState<QAResult[]>([])
+  const [siteUrl, setSiteUrl] = useState('')
+  const [seeding, setSeeding] = useState(false)
+  const [triggering, setTriggering] = useState(false)
+
+  function load() {
+    Promise.all([
+      fetch(`${API_BASE}/api/qa/status`).then(r => r.ok ? r.json() as Promise<QAStatus> : null),
+      fetch(`${API_BASE}/api/qa/results?limit=20`).then(r => r.ok ? r.json() as Promise<{ results: QAResult[] }> : null),
+    ]).then(([status, res]) => {
+      if (status) setQAStatus(status)
+      if (res?.results) setResults(res.results)
+    })
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function handleSeed() {
+    if (!siteUrl.trim()) return
+    setSeeding(true)
+    await fetch(`${API_BASE}/api/qa/seed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ site_url: siteUrl.trim() }),
+    })
+    load()
+    setSeeding(false)
+  }
+
+  async function handleTrigger() {
+    setTriggering(true)
+    await fetch(`${API_BASE}/api/qa/trigger`, { method: 'POST' })
+    setTimeout(load, 2000)
+    setTriggering(false)
+  }
+
+  const VERDICT_STYLE: Record<string, string> = {
+    pass:    'bg-emerald-500/10 text-emerald-400',
+    fail:    'bg-red-500/10 text-red-400',
+    error:   'bg-orange-500/10 text-orange-400',
+    running: 'bg-blue-500/10 text-blue-400',
+  }
+
   return (
-    <div className="rounded-xl border bg-card p-5 space-y-3 text-sm">
-      <h2 className="font-semibold">Engineering / Deploy</h2>
-      <p className="text-muted-foreground">
-        Deployment status, feature flags, and E2E test results will appear here.
-        This tab is only visible to the operator — hide it with the Ops toggle in
-        Settings for day-to-day use.
-      </p>
-      <div className="rounded-lg bg-muted p-3 font-mono text-xs text-muted-foreground">
-        Stack: Cloudflare Workers · Pages · D1 · KV · R2 · Queues
+    <div className="space-y-6">
+      {/* Stack info */}
+      <div className="rounded-xl border bg-card p-4">
+        <p className="text-xs font-mono text-muted-foreground">
+          Stack: Cloudflare Workers · Pages · D1 · KV · R2 · Queues · Browser Rendering
+        </p>
       </div>
+
+      {/* QA summary */}
+      {qaStatus && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-xl border bg-card p-3 flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Suites</span>
+            <span className="text-xl font-bold">{qaStatus.total_suites}</span>
+          </div>
+          <div className="rounded-xl border bg-card p-3 flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Passing</span>
+            <span className="text-xl font-bold text-emerald-400">{qaStatus.passing}</span>
+          </div>
+          <div className="rounded-xl border bg-card p-3 flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Failing</span>
+            <span className="text-xl font-bold text-red-400">{qaStatus.failing}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Setup: seed suites */}
+      {qaStatus && qaStatus.total_suites === 0 && (
+        <div className="rounded-xl border bg-card p-4 space-y-3">
+          <h3 className="text-sm font-semibold">Set up QA suites</h3>
+          <p className="text-xs text-muted-foreground">
+            Seed default health checks for all 5 pages (Home, Pipeline, Brain, Ops, Settings).
+          </p>
+          <div className="flex gap-2">
+            <input
+              value={siteUrl}
+              onChange={e => setSiteUrl(e.target.value)}
+              placeholder="https://your-dashboard.pages.dev"
+              className="flex-1 text-sm bg-muted border rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
+            />
+            <button
+              onClick={handleSeed}
+              disabled={!siteUrl.trim() || seeding}
+              className="text-sm bg-primary text-primary-foreground rounded-lg px-4 py-2 disabled:opacity-50"
+            >
+              {seeding ? 'Seeding…' : 'Seed'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Run button */}
+      {qaStatus && qaStatus.total_suites > 0 && (
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Recent runs</h3>
+          <button
+            onClick={handleTrigger}
+            disabled={triggering}
+            className="flex items-center gap-1 text-xs bg-primary text-primary-foreground rounded-lg px-3 py-1.5 disabled:opacity-50"
+          >
+            <Play className="h-3 w-3" />
+            {triggering ? 'Triggered…' : 'Run all suites'}
+          </button>
+        </div>
+      )}
+
+      {/* Results list */}
+      {results.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {results.map(r => (
+            <div key={r.id} className="rounded-xl border bg-card p-3 flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                <span className="text-sm font-medium truncate">{r.suite_name}</span>
+                {r.error && <span className="text-xs text-red-400 truncate">{r.error}</span>}
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                {r.total_ms && (
+                  <span className="text-xs text-muted-foreground">{(r.total_ms / 1000).toFixed(1)}s</span>
+                )}
+                <span className={`text-xs rounded-full px-2 py-0.5 ${VERDICT_STYLE[r.status] ?? ''}`}>
+                  {r.status}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {qaStatus && qaStatus.total_suites > 0 && results.length === 0 && (
+        <div className="text-sm text-muted-foreground">No runs yet. Hit "Run all suites" to start.</div>
+      )}
     </div>
   )
 }

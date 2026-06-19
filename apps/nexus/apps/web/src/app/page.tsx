@@ -35,7 +35,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? ''
 
 async function fetchHomeData(): Promise<HomeData> {
   const [pipelineRes, approvalsRes, revenueRes] = await Promise.allSettled([
-    fetch(`${API_BASE}/api/pipeline/summary`).then((r) => r.ok ? r.json() as Promise<unknown> : Promise.resolve(null)),
+    fetch(`${API_BASE}/api/pipeline/items/summary`).then((r) => r.ok ? r.json() as Promise<unknown> : Promise.resolve(null)),
     fetch(`${API_BASE}/api/approvals?status=pending`).then((r) => r.ok ? r.json() as Promise<unknown> : Promise.resolve(null)),
     fetch(`${API_BASE}/api/revenue/summary?days=7`).then((r) => r.ok ? r.json() as Promise<unknown> : Promise.resolve(null)),
   ])
