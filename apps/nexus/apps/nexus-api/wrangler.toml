@@ -1,7 +1,12 @@
 name = "nexus-api"
 main = "src/index.ts"
-compatibility_date = "2024-09-23"
+compatibility_date = "2025-09-23"
 compatibility_flags = ["nodejs_compat"]
+
+# Smart Placement: co-locate the Worker with D1 to cut round-trips on
+# DB-heavy routes (Home read-model, analytics, portfolio).
+[placement]
+mode = "smart"
 
 # NOTE: The 15-step workflow runs via ctx.waitUntil() inside the fetch
 # handler (see apps/nexus-api/src/services/workflow-engine.ts). We do NOT
