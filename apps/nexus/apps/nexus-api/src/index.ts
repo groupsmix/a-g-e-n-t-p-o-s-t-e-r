@@ -65,6 +65,8 @@ import { eventRoutes } from './routes/events'
 import { signalRoutes } from './routes/signals'
 import { tasksRoutes } from './routes/tasks'
 import { agentsRoutes } from './routes/agents'
+import { brainBridgeRoutes } from './routes/brain-bridge'
+import { feedbackLoopRoutes } from './routes/feedback-loop'
 import { brainRoutes } from './routes/brain'
 import { approvalsRoutes } from './routes/approvals'
 import { processesRoutes } from './routes/processes'
@@ -268,6 +270,8 @@ api.route('/processes', processesRoutes)
 api.route('/notifications', notificationsRoutes)
 // Phase 3 — orchestrator surface + dashboard brain reads (TASK-300)
 api.route('/agents', agentsRoutes)
+api.route('/brain-bridge', brainBridgeRoutes)
+api.route('/feedback-loop', feedbackLoopRoutes)
 api.route('/brain', brainRoutes)
 // Phase 1 — top-bar KPIs (TASK-104)
 api.route('/metrics', metricsRoutes)

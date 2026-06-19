@@ -14,10 +14,10 @@
     "@nexus/prompts": "workspace:*",
     "@posteragent/logger": "workspace:*",
     "@posteragent/types": "workspace:*",
-    "hono": "^4.12.25"
+    "hono": "^4.12.26"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240117.0",
+    "@cloudflare/workers-types": "^4.20260619.1",
     "typescript": "^5.3.3",
     "vitest": "^1.2.0",
     "wrangler": "^4.102.0"
