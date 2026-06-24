@@ -31,7 +31,7 @@ jobs:
         # database without extra flags.
         working-directory: apps/nexus/apps/nexus-api
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Check Cloudflare credentials
         id: creds
