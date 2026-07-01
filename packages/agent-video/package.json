@@ -16,12 +16,12 @@
     "remotion:studio": "remotion studio src/video/remotion/index.tsx"
   },
   "dependencies": {
-    "@remotion/bundler": "^4.0.481",
-    "@remotion/renderer": "^4.0.481",
-    "@remotion/google-fonts": "^4.0.481",
+    "@remotion/bundler": "^4.0.484",
+    "@remotion/renderer": "^4.0.484",
+    "@remotion/google-fonts": "^4.0.484",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "remotion": "^4.0.481"
+    "remotion": "^4.0.484"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",
